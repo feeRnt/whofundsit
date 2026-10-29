@@ -15,6 +15,11 @@ model Entity {
   fundsVolume    Float
   rawAddressText String
 
+  // Provenance (SEC ingestion): which filing validates this row, for which period, as of when.
+  secFilingNumber String?
+  sourceTimeFrame String?
+  financialDate   DateTime?
+
   sourceFlows CapitalFlow[] @relation("SourceFlows")
   targetFlows CapitalFlow[] @relation("TargetFlows")
 }
