@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Entity {
+  id             String       @id @default(cuid())
+  name           String
+  type           String
+  lat            Float
+  lng            Float
+  fundsVolume    Float
+  rawAddressText String
+
+  sourceFlows CapitalFlow[] @relation("SourceFlows")
+  targetFlows CapitalFlow[] @relation("TargetFlows")
+}
+
+model CapitalFlow {
+  id             String @id @default(cuid())
+  sourceEntityId String
+  targetEntityId String
+  amount         Float
+  flowType       String
+
+  sourceEntity Entity @relation("SourceFlows", fields: [sourceEntityId], references: [id], onDelete: Cascade)
+  targetEntity Entity @relation("TargetFlows", fields: [targetEntityId], references: [id], onDelete: Cascade)
+
+  @@index([sourceEntityId])
+  @@index([targetEntityId])
+}
