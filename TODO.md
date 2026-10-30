@@ -19,3 +19,11 @@
       then translate address → lat/lng via OpenStreetMap/Nominatim (the ground-rules “Address Engine”, with caching).
 - [ ] **Run live ingestion once `DATABASE_URL` is configured** (`backend/.env`), then verify row counts
       (`fetched` capped at 500, `upserted` + `skipped` = `fetched`) and spot-check a filing by `secFilingNumber` on EDGAR.
+
+## Frontend globe follow-ups (`frontend/src/Globe.tsx`)
+
+- [ ] **Verify the globe renders clean in the browser.**
+      Globe projection now ships via `MapLibreOverlay` from `@deck.gl/maplibre` (the docs-blessed MapLibre v6
+      path) in `frontend/src/components/MapGlobe.tsx` with the OpenFreeMap Liberty style. If distortion returns,
+      that file is the first place to look. Note: the worker import must stay in `?url` form —
+      `?worker&url` reintroduced the MIME error in the browser.

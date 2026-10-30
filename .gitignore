@@ -20,3 +20,7 @@ downloads/
 !**/package-lock.json
 !**/tsconfig.json
 !**/tsconfig.*.json
+
+# Python bytecode (Modal worker syntax checks)
+*.pyc
+__pycache__/
