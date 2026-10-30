@@ -15,6 +15,9 @@ model Entity {
   fundsVolume    Float
   rawAddressText String
 
+  // Street address from the SEC submissions API (geocoded later by pipeline.ts).
+  businessAddress String?
+
   // Provenance (SEC ingestion): which filing validates this row, for which period, as of when.
   secFilingNumber String?
   sourceTimeFrame String?

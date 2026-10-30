@@ -46,8 +46,8 @@ interface NominatimHit {
   lon: string;
 }
 
-// rawAddressText is currently just a state code (e.g. "US-IL"), so first-pass
-// hits land on state centroids; real addresses are the TODO.md follow-up.
+// Prefers the business street address from SEC submissions; falls back to the
+// raw Frames state code (e.g. "US-IL"), whose hits land on state centroids.
 async function geocode(
   rawAddressText: string,
 ): Promise<{ lat: number; lng: number } | null> {
@@ -66,6 +66,7 @@ async function geocode(
             process.env.NOMINATIM_USER_AGENT ??
             "WhoFundsIt/0.1 (contact: dev@example.com)",
           Accept: "application/json",
+          "Accept-Encoding": "gzip, deflate",
         },
       },
     );
@@ -136,7 +137,9 @@ export async function runPipeline(): Promise<PipelineSummary> {
     let modalCalls = 0;
 
     for (const entity of entities) {
-      const coords = await geocode(entity.rawAddressText);
+      const coords = await geocode(
+        entity.businessAddress ?? entity.rawAddressText,
+      );
 
       let canonicalName: string | null = null;
       if (

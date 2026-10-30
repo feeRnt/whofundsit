@@ -1,6 +1,7 @@
-# Secrets — never commit
+# Secrets — never commit (but do commit the .env.example template)
 .env
 .env.*
+!.env.example
 
 # Dependencies & build output
 node_modules/
