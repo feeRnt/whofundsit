@@ -18,6 +18,9 @@ model Entity {
   // Street address from the SEC submissions API (geocoded later by pipeline.ts).
   businessAddress String?
 
+  // XBRL concept this row measures, e.g. "StockholdersEquity" (part of the id).
+  conceptTag String?
+
   // Provenance (SEC ingestion): which filing validates this row, for which period, as of when.
   secFilingNumber String?
   sourceTimeFrame String?

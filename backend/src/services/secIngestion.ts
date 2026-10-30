@@ -2,14 +2,28 @@ import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-// SEC EDGAR Frames API: Accounts Payable (us-gaap) in USD, instant frame CY2019Q1.
-// Payloads are parsed in memory only — raw JSON is never written to disk (ground-rules §4).
-const FRAME_URL =
-  "https://data.sec.gov/api/xbrl/frames/us-gaap/AccountsPayableCurrent/USD/CY2019Q1I.json";
+// SEC EDGAR Frames API: one funding-relevant concept per frame, Q2 2026
+// (last fully-filed quarter). Payloads are parsed in memory only — raw JSON is
+// never written to disk (ground-rules §4).
+const FRAME_API = "https://data.sec.gov/api/xbrl/frames";
 const SUBMISSIONS_URL = "https://data.sec.gov/submissions";
 
-// Hard ceiling: never ingest more than this many rows per run (ground-rules guardrail 1).
-const MAX_RECORDS = 500;
+interface FrameSpec {
+  taxonomy: string;
+  tag: string;
+  uom: string;
+  ccp: string;
+}
+
+const FRAMES: FrameSpec[] = [
+  { taxonomy: "us-gaap", tag: "StockholdersEquity", uom: "USD", ccp: "CY2026Q2I" },
+  { taxonomy: "us-gaap", tag: "LongTermDebt", uom: "USD", ccp: "CY2026Q2I" },
+  { taxonomy: "us-gaap", tag: "Assets", uom: "USD", ccp: "CY2026Q2I" },
+];
+
+// Hard ceiling per frame: never ingest more than this many rows per frame
+// per run (ground-rules guardrail 1). Total rows <= frames x MAX_PER_FRAME.
+const MAX_PER_FRAME = 500;
 
 // SEC fair access asks for < 10 requests/second; 150 ms keeps us well under that.
 const MIN_INTERVAL_MS = 150;
@@ -23,7 +37,7 @@ const SEC_MAX_RETRIES = 3;
 
 interface SecFrameRow {
   accn: string; // SEC filing (accession) number validating this datapoint, e.g. "0001104659-19-016320"
-  cik: number; // SEC Central Index Key -> Entity.id
+  cik: number; // SEC Central Index Key -> part of Entity.id
   entityName: string; // -> Entity.name
   loc: string; // state code, e.g. "US-IL" -> Entity.rawAddressText
   end: string; // balance-sheet date, e.g. "2019-02-28" -> Entity.financialDate
@@ -32,8 +46,8 @@ interface SecFrameRow {
 
 interface SecFramesPayload {
   taxonomy: string; // "us-gaap"
-  tag: string; // "AccountsPayableCurrent"
-  ccp: string; // frame, e.g. "CY2019Q1I" -> Entity.sourceTimeFrame
+  tag: string; // e.g. "StockholdersEquity" -> Entity.conceptTag
+  ccp: string; // frame, e.g. "CY2026Q2I" -> Entity.sourceTimeFrame
   uom: string; // "USD"
   data: SecFrameRow[];
 }
@@ -53,12 +67,19 @@ interface SecSubmissions {
   } | null;
 }
 
+export interface FrameSummary {
+  tag: string;
+  fetched: number;
+  upserted: number;
+}
+
 export interface IngestSummary {
-  sourceTimeFrame: string;
-  fetched: number; // rows considered (<= MAX_RECORDS)
+  frames: FrameSummary[];
+  fetched: number; // rows considered (<= frames x MAX_PER_FRAME)
   upserted: number; // rows written
   skipped: number; // malformed rows skipped (fetched = upserted + skipped)
   withAddress: number; // rows that also got a businessAddress
+  pruned: number; // stale rows from other frames removed
 }
 
 // Minimal in-memory rate limiter gating every outbound SEC call
@@ -94,7 +115,7 @@ function secStatus(err: unknown): number | null {
   return null;
 }
 
-// Thrown when SEC blocks us outright: the run must stop, not burn 500 calls.
+// Thrown when SEC blocks us outright: the run must stop, not burn calls.
 class SecBlockedError extends Error {}
 
 function sleep(ms: number): Promise<void> {
@@ -157,9 +178,11 @@ async function fetchBusinessAddress(cik: number): Promise<string | null> {
 }
 
 /**
- * Fetch one SEC Frames payload and upsert Entities from its `data` array,
- * enriching each row with its submissions business address.
- * Idempotent: safe to re-run — rows upsert by String(cik) id.
+ * Fetch each configured SEC frame and upsert Entities from its `data` array,
+ * enriching each row with its submissions business address. Rows are keyed by
+ * composite id `${cik}:${tag}` so one company holds one row per concept.
+ * Rows from frames outside the current config are pruned, keeping the dataset
+ * to exactly one snapshot. Idempotent: safe to re-run.
  * Requires DATABASE_URL (read from backend/.env); throws without writing if unset.
  */
 export async function ingestSecFrames(): Promise<IngestSummary> {
@@ -167,71 +190,86 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
   }
 
-  const payload = await secGet<SecFramesPayload>(FRAME_URL);
-
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   const prisma = new PrismaClient({ adapter });
 
   try {
-    const rows = payload.data.slice(0, MAX_RECORDS);
+    // Drop rows from any frame outside this config (e.g. the old 2019 frame),
+    // so the map never mixes snapshots.
+    const current = FRAMES.map((f) => f.ccp);
+    const pruned = await prisma.entity.deleteMany({
+      where: {
+        OR: [{ sourceTimeFrame: null }, { sourceTimeFrame: { notIn: current } }],
+      },
+    });
+
+    const frames: FrameSummary[] = [];
+    let fetched = 0;
     let upserted = 0;
     let skipped = 0;
     let withAddress = 0;
 
-    for (const row of rows) {
-      if (!row.entityName || !Number.isFinite(row.val) || !row.end) {
-        skipped += 1;
-        continue;
-      }
+    for (const frame of FRAMES) {
+      const url = `${FRAME_API}/${frame.taxonomy}/${frame.tag}/${frame.uom}/${frame.ccp}.json`;
+      const payload = await secGet<SecFramesPayload>(url);
+      const rows = payload.data.slice(0, MAX_PER_FRAME);
+      let frameUpserted = 0;
 
-      let businessAddress: string | null = null;
-      try {
-        businessAddress = await fetchBusinessAddress(row.cik);
-      } catch (err) {
-        if (err instanceof SecBlockedError) {
-          throw err; // fatal: stop the run instead of burning calls
+      for (const row of rows) {
+        if (!row.entityName || !Number.isFinite(row.val) || !row.end) {
+          skipped += 1;
+          continue;
         }
-        businessAddress = null;
+
+        let businessAddress: string | null = null;
+        try {
+          businessAddress = await fetchBusinessAddress(row.cik);
+        } catch (err) {
+          if (err instanceof SecBlockedError) {
+            throw err; // fatal: stop the run instead of burning calls
+          }
+          businessAddress = null;
+        }
+
+        await prisma.entity.upsert({
+          where: { id: `${row.cik}:${frame.tag}` },
+          create: {
+            id: `${row.cik}:${frame.tag}`,
+            name: row.entityName,
+            type: "Company", // placeholder — see TODO(SIC) above
+            lat: 0, // placeholder — see pipeline.ts geocoding
+            lng: 0,
+            fundsVolume: row.val,
+            rawAddressText: row.loc,
+            businessAddress,
+            conceptTag: frame.tag,
+            secFilingNumber: row.accn,
+            sourceTimeFrame: payload.ccp,
+            financialDate: new Date(row.end),
+          },
+          update: {
+            name: row.entityName,
+            fundsVolume: row.val,
+            rawAddressText: row.loc,
+            businessAddress,
+            conceptTag: frame.tag,
+            secFilingNumber: row.accn,
+            sourceTimeFrame: payload.ccp,
+            financialDate: new Date(row.end),
+          },
+        });
+        upserted += 1;
+        frameUpserted += 1;
+        if (businessAddress) {
+          withAddress += 1;
+        }
       }
 
-      await prisma.entity.upsert({
-        where: { id: String(row.cik) },
-        create: {
-          id: String(row.cik),
-          name: row.entityName,
-          type: "Company", // placeholder — see TODO(SIC) above
-          lat: 0, // placeholder — see pipeline.ts geocoding
-          lng: 0,
-          fundsVolume: row.val,
-          rawAddressText: row.loc,
-          businessAddress,
-          secFilingNumber: row.accn,
-          sourceTimeFrame: payload.ccp,
-          financialDate: new Date(row.end),
-        },
-        update: {
-          name: row.entityName,
-          fundsVolume: row.val,
-          rawAddressText: row.loc,
-          businessAddress,
-          secFilingNumber: row.accn,
-          sourceTimeFrame: payload.ccp,
-          financialDate: new Date(row.end),
-        },
-      });
-      upserted += 1;
-      if (businessAddress) {
-        withAddress += 1;
-      }
+      fetched += rows.length;
+      frames.push({ tag: frame.tag, fetched: rows.length, upserted: frameUpserted });
     }
 
-    return {
-      sourceTimeFrame: payload.ccp,
-      fetched: rows.length,
-      upserted,
-      skipped,
-      withAddress,
-    };
+    return { frames, fetched, upserted, skipped, withAddress, pruned: pruned.count };
   } finally {
     await prisma.$disconnect();
   }

@@ -14,10 +14,18 @@
 - [ ] **Run live ingestion once `DATABASE_URL` is configured** (`backend/.env`), then verify row counts
       (`fetched` capped at 500, `upserted` + `skipped` = `fetched`) and spot-check a filing by `secFilingNumber` on EDGAR.
 
-## Frontend globe follow-ups (`frontend/src/Globe.tsx`)
+## Frontend globe follow-ups (`frontend/src/components/MapGlobe.tsx`)
 
 - [ ] **Verify the globe renders clean in the browser.**
       Globe projection now ships via `MapLibreOverlay` from `@deck.gl/maplibre` (the docs-blessed MapLibre v6
       path) in `frontend/src/components/MapGlobe.tsx` with the OpenFreeMap Liberty style. If distortion returns,
       that file is the first place to look. Note: the worker import must stay in `?url` form —
       `?worker&url` reintroduced the MIME error in the browser.
+
+## ⚠️ Data scope follow-up — index membership (S&P 500 / Nasdaq-100)
+
+- [ ] **Cover index members always, not just whoever filed in the frame.**
+      Ingest currently takes the first 500 rows of each frame — whoever happens
+      to have filed a fitting fact. Add a constituent list (ticker → CIK), store
+      tickers from the submissions payload, and filter/prioritize S&P 500 and
+      Nasdaq-100 members so the map always covers them.

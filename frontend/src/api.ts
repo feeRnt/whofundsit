@@ -6,6 +6,8 @@ export interface Entity {
   lng: number;
   fundsVolume: number;
   rawAddressText: string;
+  businessAddress: string | null;
+  conceptTag: string | null;
   secFilingNumber: string | null;
   sourceTimeFrame: string | null;
   financialDate: string | null;

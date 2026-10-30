@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Map, useControl } from "react-map-gl/maplibre";
+import { Map, Popup, useControl } from "react-map-gl/maplibre";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -10,6 +10,7 @@ import { ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Entity } from "../api";
+import EntityPopup from "./EntityPopup";
 
 // Vite dev does not serve MapLibre's auto-detected worker URL with a JS MIME
 // type, which silently kills all tile decoding. Point it at the bundled worker.
@@ -46,6 +47,7 @@ export default function MapGlobe({
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
+  const [selected, setSelected] = useState<Entity | null>(null);
   const tileErrorsRef = useRef(0);
 
   // WebGL scatterplot (never DOM/SVG nodes, per ground rules). Radius grows
@@ -68,6 +70,11 @@ export default function MapGlobe({
     }),
   ];
 
+  function handleClick(info: PickingInfo) {
+    const entity = info.object as Entity | undefined;
+    setSelected(entity ?? null);
+  }
+
   return (
     <Map
       reuseMaps
@@ -89,7 +96,19 @@ export default function MapGlobe({
           key={projection}
           layers={layers}
           getTooltip={tooltip}
+          onClick={handleClick}
         />
+      )}
+      {selected && (
+        <Popup
+          longitude={selected.lng}
+          latitude={selected.lat}
+          anchor="top"
+          closeButton={true}
+          onClose={() => setSelected(null)}
+        >
+          <EntityPopup entity={selected} />
+        </Popup>
       )}
       {mapError && (
         <div className="map-note">

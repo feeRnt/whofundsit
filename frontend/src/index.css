@@ -76,3 +76,70 @@ body {
   border-radius: 6px;
   pointer-events: none;
 }
+
+.entity-popup {
+  font-size: 0.85rem;
+  color: #e5e7eb;
+  max-width: 280px;
+}
+
+.entity-popup h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.entity-popup h3 {
+  margin: 0.6rem 0 0.25rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #aeb6c2;
+}
+
+.entity-popup .entity-value {
+  margin: 0;
+  font-weight: 600;
+}
+
+.entity-popup dl {
+  margin: 0.5rem 0 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.entity-popup dl > div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.entity-popup dt {
+  color: #aeb6c2;
+}
+
+.entity-popup dd {
+  margin: 0;
+}
+
+.entity-popup ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.entity-popup a {
+  color: #5eead4;
+}
+
+.map .maplibre-popup-content {
+  background: #141927;
+  border: 1px solid #3a4358;
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+}
+
+.map .maplibre-popup-anchor-top .maplibre-popup-tip {
+  border-top-color: #141927;
+}
+
+.map .maplibre-popup-close-button {
+  color: #aeb6c2;
+}
