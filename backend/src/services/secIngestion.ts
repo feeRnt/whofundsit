@@ -65,6 +65,7 @@ interface SecAddress {
 }
 
 interface SecSubmissions {
+  name?: unknown; // legal filer name -> Entity.name (unflattened)
   addresses?: {
     business?: SecAddress | null;
     mailing?: SecAddress | null;
@@ -173,6 +174,8 @@ async function secGet<T>(url: string): Promise<T> {
 // a single failure resolves to null instead of failing the whole run.
 interface SubmissionsInfo {
   address: string | null;
+  // Legal filer name ("ExxonMobil Holdings Corp"), unflattened.
+  name: string | null;
   tickers: string[];
   sicDescription: string | null;
   exchanges: string[];
@@ -207,6 +210,8 @@ async function fetchSubmissions(cik: number): Promise<SubmissionsInfo> {
     : [];
   const info: SubmissionsInfo = {
     address: parts.length > 0 ? parts.join(", ") : null,
+    name:
+      typeof data.name === "string" && data.name.length > 0 ? data.name : null,
     tickers: Array.isArray(data.tickers)
       ? data.tickers.filter((t): t is string => typeof t === "string")
       : [],
@@ -337,6 +342,9 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           },
         });
         let businessAddress: string | null = existing?.businessAddress ?? null;
+        // True SEC name when submissions were fetched anyway; names:sync
+        // backfills rows that skipped the fetch.
+        let name = row.entityName;
         let tickers: string[] = existing?.tickers ?? [];
         let industry: string | null =
           existing?.type && existing.type !== "Company" ? existing.type : null;
@@ -355,6 +363,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           try {
             const info = await fetchSubmissions(row.cik);
             businessAddress = businessAddress ?? info.address;
+            name = info.name ?? name;
             if (tickers.length === 0) {
               tickers = info.tickers;
             }
@@ -380,7 +389,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           where: { id },
           create: {
             id,
-            name: row.entityName,
+            name,
             type,
             lat: 0, // placeholder — see pipeline.ts geocoding
             lng: 0,
@@ -400,7 +409,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             formerNames,
           },
           update: {
-            name: row.entityName,
+            name,
             type,
             fundsVolume: row.val,
             rawAddressText: row.loc,

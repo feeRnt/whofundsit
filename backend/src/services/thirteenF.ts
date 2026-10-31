@@ -7,8 +7,8 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { cachedJson, readCache, writeCache } from "./httpCache.js";
 import {
-  ADDRESS_MAP_CACHE,
   jsonEntries,
+  readAddressMap,
   type BulkAddress,
 } from "./bulkLoad.js";
 import { geocodeLocal } from "./pipeline.js";
@@ -384,7 +384,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
     } else {
       console.log(`[13f] ${discovered.length} 13F filers (from discovery cache)`);
     }
-    const addrCache = readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE);
+    const addrCache = readAddressMap();
     type Job = {
       spec: ManagerSpec;
       filing: { accn: string; filingDate: string; state: string | null } | null;

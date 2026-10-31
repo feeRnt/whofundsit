@@ -203,6 +203,8 @@ export async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
 
 export interface BulkAddress {
   address: string | null;
+  // Legal filer name from submissions ("EXXON MOBIL CORP"), unflattened.
+  name: string | null;
   state: string | null;
   tickers: string[];
   exchanges: string[];
@@ -227,10 +229,19 @@ function joinAddress(addr: {
 // addresses: {business, mailing}}. Note cik is a zero-padded STRING
 // ("0000320193"), unlike companyfacts' number — both are accepted.
 // v2: carries exchanges/category/formerNames (v1 rows lack them).
-export const ADDRESS_MAP_CACHE = "sec/address-map-v2.json";
+export const ADDRESS_MAP_CACHE = "sec/address-map-v3.json";
+const ADDRESS_MAP_CACHE_LEGACY = "sec/address-map-v2.json";
+
+// v3 adds filer names; v2 entries still serve addresses until rebuilt.
+export function readAddressMap(): Record<string, BulkAddress> | undefined {
+  return (
+    readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE) ??
+    readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE_LEGACY)
+  );
+}
 
 async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>> {
-  const hit = readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE);
+  const hit = readAddressMap();
   if (hit !== undefined) {
     const cached = new Map<number, BulkAddress>();
     for (const [cik, addr] of Object.entries(hit)) {
@@ -244,6 +255,7 @@ async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>
   for await (const { json } of jsonEntries(zipPath)) {
     const doc = json as {
       cik?: unknown;
+      name?: unknown;
       tickers?: unknown;
       exchanges?: unknown;
       category?: unknown;
@@ -261,6 +273,8 @@ async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>
     const state = business?.stateOrCountry;
     map.set(cik, {
       address: business ? joinAddress(business) : null,
+      name:
+        typeof doc.name === "string" && doc.name.length > 0 ? doc.name : null,
       state: typeof state === "string" ? state : null,
       tickers: Array.isArray(doc.tickers)
         ? doc.tickers.filter((t): t is string => typeof t === "string")
@@ -379,7 +393,7 @@ async function loadFacts(
             where: { id },
             create: {
               id,
-              name: doc.entityName,
+              name: info?.name ?? doc.entityName,
               type: "Company",
               lat: 0,
               lng: 0,
@@ -400,7 +414,7 @@ async function loadFacts(
               formerNames: info?.formerNames ?? [],
             },
             update: {
-              name: doc.entityName,
+              name: info?.name ?? doc.entityName,
               fundsVolume: fact.val as number,
               rawAddressText:
                 state && state.length === 2 ? `US-${state}` : (state ?? "—"),
