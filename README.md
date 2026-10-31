@@ -76,6 +76,7 @@ From `whofundsit/backend/` (pipeline order):
 | `pipeline` | Geocode pending entities (≤100/run) + Modal cleanup when configured |
 | `flows:openalex` | Grant arcs from OpenAlex (cached) |
 | `flows:13f` | Fund arcs from every 13F-HR filer (`THIRTEENF_MAX_MANAGERS` caps it) |
+| `global:sync` | International companies (Wikidata → GLEIF) + ownership arcs (`GLOBAL_LIMIT`, `GLOBAL_MAX_CHILDREN`) |
 | `names:sync` | Backfill legal filer names from the local archive |
 | `merge -- <keep> <drop>` | Fold a duplicate row (repoints flows, keeps provenance) |
 | `dedupe:report` | Print candidate duplicate groups for review (read-only) |

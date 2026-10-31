@@ -11,6 +11,7 @@ export default function App() {
   const [focused, setFocused] = useState<Entity | null>(null);
   const [showFlows, setShowFlows] = useState(true);
   const [showGrants, setShowGrants] = useState(false);
+  const [showOwnership, setShowOwnership] = useState(false);
   const [funderOverrides, setFunderOverrides] = useState<Map<
     string,
     boolean
@@ -29,7 +30,7 @@ export default function App() {
     return ids;
   }, [flows]);
 
-  const { funders13f, fundersGrants } = useMemo(() => {
+  const { funders13f, fundersGrants, fundersOwnership } = useMemo(() => {
     const byId = new Map<string, FunderInfo>();
     for (const f of flows) {
       const entry = byId.get(f.sourceEntityId) ?? {
@@ -44,14 +45,15 @@ export default function App() {
     const sorted = [...byId.values()].sort((a, b) => b.count - a.count);
     return {
       funders13f: sorted.filter((f) => f.kind === "13f"),
-      fundersGrants: sorted.filter((f) => f.kind !== "13f"),
+      fundersGrants: sorted.filter((f) => f.kind === "grant"),
+      fundersOwnership: sorted.filter((f) => f.kind === "ownership"),
     };
   }, [flows]);
 
   // BlackRock on by default; everything else off until toggled.
   const enabledFunders = useMemo(() => {
     const ids = new Set<string>();
-    for (const f of [...funders13f, ...fundersGrants]) {
+    for (const f of [...funders13f, ...fundersGrants, ...fundersOwnership]) {
       const on =
         funderOverrides?.get(f.id) ??
         f.name.toLowerCase().includes("blackrock");
@@ -60,7 +62,7 @@ export default function App() {
       }
     }
     return ids;
-  }, [funders13f, fundersGrants, funderOverrides]);
+  }, [funders13f, fundersGrants, fundersOwnership, funderOverrides]);
 
   const visibleFlows = useMemo(
     () =>
@@ -68,7 +70,8 @@ export default function App() {
         .filter(
           (f) =>
             ((f.flowType === "13f" && showFlows) ||
-              (f.flowType === "grant" && showGrants)) &&
+              (f.flowType === "grant" && showGrants) ||
+              (f.flowType === "ownership" && showOwnership)) &&
             enabledFunders.has(f.sourceEntityId) &&
             !disabledCompanies.has(f.sourceEntityId) &&
             !disabledCompanies.has(f.targetEntityId),
@@ -79,6 +82,7 @@ export default function App() {
       flowLimit,
       showFlows,
       showGrants,
+      showOwnership,
       enabledFunders,
       disabledCompanies,
     ],
@@ -86,14 +90,14 @@ export default function App() {
 
   const funderKinds = useMemo(() => {
     const kinds = new Map<string, string>();
-    for (const f of [...funders13f, ...fundersGrants]) {
+    for (const f of [...funders13f, ...fundersGrants, ...fundersOwnership]) {
       kinds.set(f.id, f.kind);
     }
     return kinds;
-  }, [funders13f, fundersGrants]);
+  }, [funders13f, fundersGrants, fundersOwnership]);
 
   // One dropdown open at a time (accordion); layers stay independent.
-  const [openMenu, setOpenMenu] = useState<"hedge" | "grants" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"hedge" | "grants" | "ownership" | null>(null);
 
   const toggleFunder = (id: string) => {
     setFunderOverrides((prev) => {
@@ -186,6 +190,19 @@ export default function App() {
             setOpenMenu((m) => (m === "grants" ? null : "grants"))
           }
           onToggleMaster={() => setShowGrants((v) => !v)}
+          onToggleFunder={toggleFunder}
+        />
+        <FlowsDropdown
+          title="Ownership"
+          masterLabel="Show ownership"
+          funders={fundersOwnership}
+          showFlows={showOwnership}
+          enabledFunders={enabledFunders}
+          open={openMenu === "ownership"}
+          onToggleOpen={() =>
+            setOpenMenu((m) => (m === "ownership" ? null : "ownership"))
+          }
+          onToggleMaster={() => setShowOwnership((v) => !v)}
           onToggleFunder={toggleFunder}
         />
         <button

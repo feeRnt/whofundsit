@@ -48,6 +48,25 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 - **Terms:** free keyless use **with attribution**; the map's built-in
   attribution control renders it (© OpenMapTiles © OpenStreetMap contributors).
 
+## Wikidata SPARQL (international company list)
+
+- **What we take:** bulk company crosswalk — name, ISIN, LEI, exchange,
+  HQ — via `query.wikidata.org/sparql` (`npm run global:sync`).
+- **Terms:** **CC0** (public domain dedication). Courtesy rules: send a
+  descriptive `User-Agent` (`WIKIDATA_USER_AGENT`) and keep queries
+  bounded (`GLOBAL_LIMIT`).
+- **Local copies (gitignored):** `backend/data/cache/global/wikidata-*.json`.
+
+## GLEIF (legal addresses + corporate children)
+
+- **What we take:** per-LEI record (legal name + HQ address) and
+  `direct-children` (full child records) via `api.gleif.org`.
+- **Terms:** **CC0**, no key, no stated rate limit; we stay polite
+  (~10 req/s max, everything cached).
+- **Local copies (gitignored):** `backend/data/cache/global/gleif/`,
+  `backend/data/cache/global/gleif-children/`.
+- **Committed derivatives:** `lei:*` entities + `ownership` flows in seeds.
+
 ## Wikipedia (index snapshots)
 
 - **What we take:** S&P 500 + Nasdaq-100 constituent ticker lists, via

@@ -37,10 +37,16 @@ function tooltip({ object }: PickingInfo) {
         flow.sleeves && flow.sleeves > 1 ? ` · ${flow.sleeves} sleeves` : "";
       return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — $${flow.amount.toLocaleString("en-US")}${sleeves}`;
     }
+    if (flow.flowType === "ownership") {
+      return `${flow.sourceEntity.name} owns ${flow.targetEntity.name} (stake undisclosed)`;
+    }
     const units = flow.flowType === "grant" ? "funded works" : "units";
     return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}`;
   }
   const entity = object as Entity;
+  if (!entity.conceptTag && entity.fundsVolume === 0) {
+    return `${entity.name} — listed company (${entity.rawAddressText})`;
+  }
   const val =
     entity.source === "openalex"
       ? `${entity.fundsVolume.toLocaleString("en-US")} funded works`
@@ -194,7 +200,9 @@ export default function MapGlobe({
       getWidth: (d) =>
         d.flowType === "13f"
           ? Math.max(1, Math.min(5, Math.log10(d.amount) - 4))
-          : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2)),
+          : d.flowType === "ownership"
+            ? 1
+            : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2)),
       widthUnits: "pixels",
       widthMinPixels: 1,
       widthMaxPixels: 5,

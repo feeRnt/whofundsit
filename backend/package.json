@@ -17,10 +17,11 @@
     "db:seed": "tsx src/scripts/seed_import.ts",
     "flows:openalex": "tsx src/scripts/openalex_flows.ts",
     "flows:13f": "tsx src/scripts/thirteenf.ts",
-    "test": "tsx --test src/services/openalexFlows.test.ts src/services/bulkLoad.test.ts src/services/pipeline.test.ts src/services/thirteenF.test.ts src/services/entityMerge.test.ts src/services/dedupe.test.ts",
+    "test": "tsx --test src/services/openalexFlows.test.ts src/services/bulkLoad.test.ts src/services/pipeline.test.ts src/services/thirteenF.test.ts src/services/entityMerge.test.ts src/services/dedupe.test.ts src/services/globalSync.test.ts",
     "merge": "tsx src/scripts/merge_entities.ts",
     "dedupe:report": "tsx src/scripts/dedupe_report.ts",
-    "names:sync": "tsx src/scripts/names_sync.ts"
+    "names:sync": "tsx src/scripts/names_sync.ts",
+    "global:sync": "tsx src/scripts/global_sync.ts"
   },
   "keywords": [],
   "type": "module",

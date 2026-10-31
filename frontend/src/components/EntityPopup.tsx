@@ -16,6 +16,12 @@ export interface DocLink {
 // Wikipedia-style supporting documents for one entity row: the EDGAR filing
 // validating the datapoint, the company's EDGAR page, and the source dataset.
 export function docLinks(entity: Entity): DocLink[] {
+  if (entity.id.startsWith("lei:")) {
+    const lei = entity.id.slice("lei:".length);
+    return [
+      { label: "GLEIF record", href: `https://search.gleif.org/#/record/${lei}` },
+    ];
+  }
   if (entity.id.startsWith("openalex:")) {
     const oid = entity.id.slice("openalex:".length);
     return [{ label: "OpenAlex record", href: `https://openalex.org/${oid}` }];
@@ -114,11 +120,12 @@ export default function EntityPopup({
     entity.source === "openalex"
       ? entity.fundsVolume.toLocaleString("en-US")
       : `$${entity.fundsVolume.toLocaleString("en-US")}`;
+  const noFinancials = !entity.conceptTag && entity.fundsVolume === 0;
   return (
     <div className="entity-popup">
       <h2>{entity.name}</h2>
       <p className="entity-value">
-        {label}: {valueText}
+        {noFinancials ? "Listed company — financials not yet loaded" : `${label}: ${valueText}`}
       </p>
       {siblings.map((s) => (
         <p key={s.id} className="entity-value sibling">
