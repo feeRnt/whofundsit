@@ -421,11 +421,29 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
     let done = 0;
     for (const job of queue) {
       const { spec } = job;
-      const cikNum = await resolveCik(spec);
+      let cikNum: string;
+      let filing: { accn: string; filingDate: string; state: string | null };
+      let holdings: Holding[];
+      try {
+        cikNum = await resolveCik(spec);
+        filing =
+          job.filing ?? (await latest13F(cikNum.padStart(10, "0"), spec.label));
+        const xml = await infoTableXml(cikNum, filing.accn);
+        holdings = parseInfoTable(xml);
+      } catch (err) {
+        // At 16k-filer scale, broken filings are routine (amendment shells,
+        // notice filings, hiccups): skip the manager, never the run.
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`[13f] ${spec.label}: skipped (${msg})`);
+        managerStats.push({
+          label: spec.label,
+          holdings: 0,
+          matched: 0,
+          flows: 0,
+        });
+        continue;
+      }
       const cik10 = cikNum.padStart(10, "0");
-      const filing = job.filing ?? (await latest13F(cik10, spec.label));
-      const xml = await infoTableXml(cikNum, filing.accn);
-      const holdings = parseInfoTable(xml);
       console.log(
         `[13f] ${spec.label}: ${holdings.length} holdings (filing ${filing.accn})`,
       );
