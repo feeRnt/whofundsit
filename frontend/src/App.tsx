@@ -8,7 +8,7 @@ export default function App() {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [projection, setProjection] = useState<"globe" | "mercator">("globe");
+  const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
 
   useEffect(() => {
     Promise.all([fetchEntities(), fetchFlows()])
