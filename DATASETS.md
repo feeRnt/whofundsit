@@ -67,6 +67,16 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   `backend/data/cache/global/gleif-children/`.
 - **Committed derivatives:** `lei:*` entities + `ownership` flows in seeds.
 
+## OpenFIGI (CUSIP → ticker for 13F matching)
+
+- **What we take:** ticker per holding CUSIP via `POST api.openfigi.com/v3/mapping`
+  (batched 10 keyless / 100 with free `OPENFIGI_API_KEY`).
+- **Terms:** FIGI symbology is **public-domain dedicated** (no reuse/redistribution
+  restrictions). CUSIP *input* identifiers belong to CUSIP Global Services, so we
+  use them only as ephemeral lookup keys: the CUSIP→ticker map lives in the
+  gitignored cache and CUSIPs are never committed anywhere new.
+- **Local copies (gitignored):** `backend/data/cache/13f/cusip-map.json`.
+
 ## Wikipedia (index snapshots)
 
 - **What we take:** S&P 500 + Nasdaq-100 constituent ticker lists, via

@@ -1,5 +1,27 @@
 # TODO
 
+## ⏳ Not yet built (ordered by demo impact)
+
+- [ ] **Regional financial loaders** (`global:sync` gives dots + ownership; facts still missing).
+      ESEF/EU-UK + TWSE/Taiwan first (both keyless, ToS cleared, shapes verified live);
+      EDINET/Japan + Open DART/Korea after free keys exist (ToS accepted at signup).
+      Needs the currency column below first.
+- [ ] **Multi-currency support** (`Entity.currency`, default USD; ¥/€NT$/₩ display).
+      Regional facts arrive in native units — storing them as `$` would lie.
+- [ ] **13F concurrency** (full 16k-filer run is single-threaded: sequential download →
+      parse → upsert per manager). Parallelize with the existing SEC ≤10/s + Nominatim
+      1/s throttles kept; caches make restarts cheap.
+- [x] **CUSIP/ticker-based 13F matching.** (Holdings resolve CUSIP → ticker via
+      OpenFIGI, then ticker → placed entity; normalized-name match stays as fallback.
+      NOTE: only 294/18,925 entities are placed — most misses are ungeocoded targets,
+      fixed by `coords_populate --all`, not by matching.)
+- [ ] **Demo rehearsal on a fresh database** (`npm run demo` from zero → globe with
+      listings, arcs, popups; packaging is code-reviewed only, never run end-to-end).
+- [ ] **Geocode backfill** (`coords_populate --all`: only 294/18,925 entities placed;
+      ~5h at 1 req/s, resumable, cached — unlocks most 13F matches).
+- [ ] **Free API keys before scale-up runs** (OpenAlex for cursor-paging past 200 works;
+      EDINET + Open DART keys for Japan/Korea loaders).
+
 ## Beneficial ownership (top individual owners)
 
 - [ ] **Index top-3 biggest individual owners per company.** SEC Forms 3/4/5 (changes in beneficial

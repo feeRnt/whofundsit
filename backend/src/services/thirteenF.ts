@@ -264,6 +264,92 @@ export function parseInfoTable(xml: string): Holding[] {
   return [...merged.values()].sort((a, b) => b.valueUsd - a.valueUsd);
 }
 
+// Ticker index over placed rows (prefer the Assets row per company).
+// Holdings match by CUSIP-derived ticker first, normalized name second.
+export function buildTickerIndex(
+  rows: { id: string; tickers: string[]; conceptTag: string | null }[],
+): Map<string, string> {
+  const byTicker = new Map<string, string>();
+  for (const e of rows) {
+    for (const t of e.tickers) {
+      const key = t.toUpperCase();
+      if (!key) {
+        continue;
+      }
+      if (!byTicker.has(key) || e.conceptTag === "Assets") {
+        byTicker.set(key, e.id);
+      }
+    }
+  }
+  return byTicker;
+}
+
+// One OpenFIGI mapping job returns every venue; prefer the US common-stock
+// line so class shares (GOOGL vs GOOG) resolve to the right ticker.
+export function pickTicker(
+  results: { ticker?: unknown; exchCode?: unknown; securityType?: unknown }[],
+): string | null {
+  const rows = results.filter(
+    (r): r is { ticker: string; exchCode: unknown; securityType: unknown } =>
+      typeof r.ticker === "string" && r.ticker.length > 0,
+  );
+  if (rows.length === 0) {
+    return null;
+  }
+  return (
+    rows.find((r) => r.exchCode === "US" && r.securityType === "Common Stock")
+      ?.ticker ??
+    rows.find((r) => r.exchCode === "US")?.ticker ??
+    rows[0].ticker
+  );
+}
+
+const CUSIP_MAP_CACHE = "13f/cusip-map.json";
+
+// CUSIP -> ticker via OpenFIGI (FIGI data is public-domain dedicated; see
+// DATASETS.md). Batched + persisted to the gitignored cache: CUSIPs are only
+// ever lookup keys, never committed anywhere new.
+async function resolveCusipTickers(
+  cusips: string[],
+): Promise<Map<string, string | null>> {
+  const map = new Map<string, string | null>(
+    Object.entries(readCache<Record<string, string | null>>(CUSIP_MAP_CACHE) ?? {}),
+  );
+  const missing = [...new Set(cusips)].filter(
+    (c) => c.length > 0 && !map.has(c),
+  );
+  if (missing.length === 0) {
+    return map;
+  }
+  const key = process.env.OPENFIGI_API_KEY;
+  const batchSize = key ? 100 : 10;
+  const intervalMs = key ? 300 : 2500; // 250/min keyed, 25/min keyless
+  for (let i = 0; i < missing.length; i += batchSize) {
+    const batch = missing.slice(i, i + batchSize);
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    const { data } = await axios.post<
+      { data?: { ticker?: unknown; exchCode?: unknown; securityType?: unknown }[] }[]
+    >(
+      "https://api.openfigi.com/v3/mapping",
+      batch.map((c) => ({ idType: "ID_CUSIP", idValue: c })),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...(key ? { "X-OPENFIGI-APIKEY": key } : {}),
+        },
+        timeout: 60000,
+      },
+    );
+    batch.forEach((c, j) => {
+      map.set(c, pickTicker(data[j]?.data ?? []));
+    });
+    writeCache(CUSIP_MAP_CACHE, Object.fromEntries(map));
+  }
+  return map;
+}
+
 // Famous HQs pinned at city precision (plenty for a globe; these never move
 // and Nominatim lookups for fund names are flaky). Unknown future managers
 // try Nominatim once; total failure returns null (skip, don't crash).
@@ -358,7 +444,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
     // Placed entities by normalized name (prefer the Assets row per company).
     const placed = await prisma.entity.findMany({
       where: { lat: { not: 0 }, lng: { not: 0 } },
-      select: { id: true, name: true, conceptTag: true },
+      select: { id: true, name: true, conceptTag: true, tickers: true },
     });
     const byName = new Map<string, string>();
     for (const e of placed) {
@@ -370,8 +456,9 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
         byName.set(key, e.id);
       }
     }
+    const byTicker = buildTickerIndex(placed);
     console.log(
-      `[13f] ${byName.size} matchable companies (${placed.length} placed rows)`,
+      `[13f] ${byName.size} matchable companies (${placed.length} placed rows, ${byTicker.size} tickers)`,
     );
 
     // Full-filer discovery: local bulk scan (cached), curated first.
@@ -459,8 +546,14 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       // Match first: funds with no placed holdings skip entity + geocode.
       const matched: { holding: Holding; targetId: string }[] = [];
       const missSample: string[] = [];
+      const cusipTickers = await resolveCusipTickers(
+        holdings.map((h) => h.cusip),
+      );
       for (const h of holdings) {
-        const targetId = byName.get(normalizeIssuerName(h.issuer));
+        const ticker = cusipTickers.get(h.cusip);
+        const targetId =
+          (ticker && byTicker.get(ticker)) ||
+          byName.get(normalizeIssuerName(h.issuer));
         if (!targetId) {
           unmatched += 1;
           if (missSample.length < 5) {

@@ -4,10 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  buildTickerIndex,
   discoverManagers,
   normalizeIssuerName,
   parseInfoTable,
   pickInfoTable,
+  pickTicker,
 } from "./thirteenF.js";
 
 // Fixture lives next to this file (committed); runners against dist must
@@ -102,5 +104,41 @@ describe("pickInfoTable", () => {
       pickInfoTable([{ name: "primary_doc.xml", size: "10" }]),
       undefined,
     );
+  });
+});
+
+describe("buildTickerIndex", () => {
+  it("indexes tickers uppercased, preferring the Assets row", () => {
+    const idx = buildTickerIndex([
+      { id: "1:Equity", tickers: ["aapl"], conceptTag: "StockholdersEquity" },
+      { id: "1:Assets", tickers: ["AAPL"], conceptTag: "Assets" },
+      { id: "2:Assets", tickers: [], conceptTag: "Assets" },
+    ]);
+    assert.equal(idx.get("AAPL"), "1:Assets");
+    assert.equal(idx.size, 1);
+  });
+});
+
+describe("pickTicker", () => {
+  it("prefers the US common-stock line across venues", () => {
+    assert.equal(
+      pickTicker([
+        { ticker: "AAPL", exchCode: "UA", securityType: "Common Stock" },
+        { ticker: "AAPL", exchCode: "US", securityType: "Common Stock" },
+      ]),
+      "AAPL",
+    );
+    assert.equal(
+      pickTicker([
+        { ticker: "GOOC", exchCode: "UF", securityType: "Common Stock" },
+        { ticker: "GOOG", exchCode: "US", securityType: "Common Stock" },
+      ]),
+      "GOOG",
+    );
+  });
+
+  it("returns null when no venue carries a ticker", () => {
+    assert.equal(pickTicker([]), null);
+    assert.equal(pickTicker([{ exchCode: "US" }]), null);
   });
 });
