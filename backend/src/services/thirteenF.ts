@@ -1,5 +1,6 @@
 import axios from "axios";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { XMLParser } from "fast-xml-parser";
@@ -546,9 +547,18 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
     let flows = 0;
     let unmatched = 0;
     let done = 0;
+    // Default scales with the machine (network-bound work tolerates 2x cores,
+    // clamped for sanity); THIRTEENF_CONCURRENCY overrides.
+    const cores =
+      typeof os.availableParallelism === "function"
+        ? os.availableParallelism()
+        : 4;
     const concurrency = Math.max(
       1,
-      Number(process.env.THIRTEENF_CONCURRENCY || 8),
+      Number(
+        process.env.THIRTEENF_CONCURRENCY ||
+          Math.max(4, Math.min(16, cores * 2)),
+      ),
     );
     console.log(`[13f] ${concurrency} workers over ${queue.length} managers`);
     const processJob = async (job: Job): Promise<void> => {
