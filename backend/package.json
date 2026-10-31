@@ -11,7 +11,10 @@
     "pipeline": "tsx src/scripts/pipeline.ts",
     "bulk": "tsx src/scripts/bulk.ts",
     "coords_populate": "tsx src/scripts/coords_populate.ts",
-    "ingest:all": "npm run ingest && npm run coords_populate"
+    "ingest:all": "npm run ingest && npm run coords_populate",
+    "db:push": "prisma db push",
+    "db:export": "tsx src/scripts/seed_export.ts",
+    "db:seed": "tsx src/scripts/seed_import.ts"
   },
   "keywords": [],
   "type": "module",

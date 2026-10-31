@@ -27,3 +27,6 @@ downloads/
 # Python bytecode (Modal worker syntax checks)
 *.pyc
 __pycache__/
+
+# Curated demo seed (committed intentionally — NOT a raw download).
+!backend/prisma/seed-data/*.json
