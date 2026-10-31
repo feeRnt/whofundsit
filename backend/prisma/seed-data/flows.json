@@ -1,5 +1,1090 @@
 [
   {
+    "id": "13f:0000102909:00206R102",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "732717:Assets",
+    "amount": 16495143588,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:00287Y109",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1551152:Assets",
+    "amount": 41306353424,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:00724F101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "796343:Assets",
+    "amount": 14448793266,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:007903107",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "2488:Assets",
+    "amount": 33949255698,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:009066101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1559720:Assets",
+    "amount": 5195780567,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:020002101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "899051:Assets",
+    "amount": 6915111843,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:02079K107",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1652044:Assets",
+    "amount": 132114124826,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:02079K305",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1652044:Assets",
+    "amount": 165567397786,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:023135106",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1018724:Assets",
+    "amount": 195135349873,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:031162100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "318154:Assets",
+    "amount": 17949296138,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:032654105",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "6281:Assets",
+    "amount": 13802256451,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:037833100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "320193:Assets",
+    "amount": 387749544852,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:09290D101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "2012383:Assets",
+    "amount": 15051845700,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:097023105",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "12927:Assets",
+    "amount": 15413226779,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:09857L108",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1075531:Assets",
+    "amount": 16055006217,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:11135F101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1730168:Assets",
+    "amount": 167064997221,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:125523100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1739940:Assets",
+    "amount": 7203753597,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:12572Q105",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1156375:Assets",
+    "amount": 9802365806,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:126650100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "64803:Assets",
+    "amount": 9579508282,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:14149Y108",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "721371:Revenues",
+    "amount": 6461178523,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:172967424",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "831001:Assets",
+    "amount": 19048466910,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:191216100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "21344:Assets",
+    "amount": 26200276405,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:194162103",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "openalex:F4320307808",
+    "amount": 6633569933,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:20825C104",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1163165:Assets",
+    "amount": 11256713240,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:21037T109",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1868275:Assets",
+    "amount": 13646232259,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:24703L202",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1571996:Assets",
+    "amount": 3957849852,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:25746U109",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "715957:Assets",
+    "amount": 6274974822,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:30231G102",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "34088:Assets",
+    "amount": 51717501091,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:30303M102",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1326801:Assets",
+    "amount": 132015115418,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:31620R303",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1331875:Assets",
+    "amount": 1480480527,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:375558103",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "882095:Assets",
+    "amount": 14863487020,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:38141G104",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "886982:Assets",
+    "amount": 25503684849,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:437076102",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "354950:Assets",
+    "amount": 34284671555,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:461202103",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "896878:Assets",
+    "amount": 19156151700,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:46625H100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "19617:Assets",
+    "amount": 85632602370,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:48251W104",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1404912:Assets",
+    "amount": 7657033551,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:49271V100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1418135:Assets",
+    "amount": 4508456436,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:493267108",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "91576:Assets",
+    "amount": 2576110247,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:59156R108",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1099219:Assets",
+    "amount": 5727518144,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:594918104",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "789019:Assets",
+    "amount": 347211390598,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:617446448",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "895421:Assets",
+    "amount": 21253554293,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:64110L106",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1065280:Assets",
+    "amount": 36567804619,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:65339F101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "753308:Assets",
+    "amount": 17343185196,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:67066G104",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1045810:Assets",
+    "amount": 422736430797,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:68389X105",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1341439:Assets",
+    "amount": 34070674193,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:69331C108",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1004980:Assets",
+    "amount": 4246296015,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:693718108",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "75362:Assets",
+    "amount": 6951172000,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:697435105",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1327567:Assets",
+    "amount": 12512533405,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:713448108",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "77476:Assets",
+    "amount": 19875205022,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:717081103",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "78003:Assets",
+    "amount": 13479519929,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:75513E101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "101829:Assets",
+    "amount": 22922463761,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:75886F107",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "872589:Assets",
+    "amount": 7004838346,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:776696106",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "882835:Assets",
+    "amount": 5553931524,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:808513105",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "316709:Assets",
+    "amount": 15039347595,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:816851109",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1032208:Assets",
+    "amount": 6774907338,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:842587107",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1004155:Assets",
+    "amount": 9422606414,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:871607107",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "883241:Assets",
+    "amount": 8673314979,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:87165B103",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1601712:Assets",
+    "amount": 3823915936,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:872590104",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1283699:Assets",
+    "amount": 8693435360,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:88160R101",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1318605:Assets",
+    "amount": 116443761793,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:883556102",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "97745:Assets",
+    "amount": 19778773624,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:89417E109",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "86312:Assets",
+    "amount": 6413207166,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:92343V104",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "732712:Assets",
+    "amount": 15453057591,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:929089100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1535929:Assets",
+    "amount": 818895536,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:931142103",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "104169:Assets",
+    "amount": 49015625634,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:98389B100",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "72903:Assets",
+    "amount": 5732334057,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0000102909:N6596X109",
+    "sourceEntityId": "13f:0000102909",
+    "targetEntityId": "1413447:Assets",
+    "amount": 2954739236,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0001067983:02079K107",
+    "sourceEntityId": "13f:0001067983",
+    "targetEntityId": "1652044:Assets",
+    "amount": 9606489032,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0001067983:02079K305",
+    "sourceEntityId": "13f:0001067983",
+    "targetEntityId": "1652044:Assets",
+    "amount": 28157599351,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0001067983:037833100",
+    "sourceEntityId": "13f:0001067983",
+    "targetEntityId": "320193:Assets",
+    "amount": 65950296923,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0001067983:166764100",
+    "sourceEntityId": "13f:0001067983",
+    "targetEntityId": "93410:Assets",
+    "amount": 13986141890,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0001067983:191216100",
+    "sourceEntityId": "13f:0001067983",
+    "targetEntityId": "21344:Assets",
+    "amount": 32508000000,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:00206R102",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "732717:Assets",
+    "amount": 11579498306,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:002824100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1800:Assets",
+    "amount": 13843609746,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:00287Y109",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1551152:Assets",
+    "amount": 37617263993,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:00724F101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "796343:Assets",
+    "amount": 8437820636,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:007903107",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "2488:Assets",
+    "amount": 87311650335,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:009066101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1559720:Assets",
+    "amount": 4730333470,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:020002101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "899051:Assets",
+    "amount": 5439447814,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:02079K107",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1652044:Assets",
+    "amount": 130704717750,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:02079K305",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1652044:Assets",
+    "amount": 164737850334,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:02079K907",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1652044:Assets",
+    "amount": 95045770,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:023135106",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1018724:Assets",
+    "amount": 178948040777,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:031162100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "318154:Assets",
+    "amount": 17874973549,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:032654105",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "6281:Assets",
+    "amount": 18610868323,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:037833100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "320193:Assets",
+    "amount": 337005479182,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:09290D101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "2012383:Assets",
+    "amount": 9747856804,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:097023105",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "12927:Assets",
+    "amount": 13214074807,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:097023204",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "12927:Assets",
+    "amount": 524067388,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:09857L108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1075531:Assets",
+    "amount": 11646301682,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:11135F101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1730168:Assets",
+    "amount": 150452659740,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:125523100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1739940:Assets",
+    "amount": 6461456854,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:12572Q105",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1156375:Assets",
+    "amount": 6749965373,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:126650100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "64803:Assets",
+    "amount": 12747461705,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:14149Y108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "721371:Revenues",
+    "amount": 6293114912,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:16119P108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1091667:Assets",
+    "amount": 1005524305,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:166764100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "93410:Assets",
+    "amount": 25663729234,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:172967424",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "831001:Assets",
+    "amount": 20925306106,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:191216100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "21344:Assets",
+    "amount": 26229118115,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:194162103",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "openalex:F4320307808",
+    "amount": 6409850513,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:20825C104",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1163165:Assets",
+    "amount": 9760436085,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:21037T109",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1868275:Assets",
+    "amount": 6098966332,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:24703L202",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1571996:Assets",
+    "amount": 10395648578,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:25746U109",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "715957:Assets",
+    "amount": 4986438505,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:30231G102",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "34088:Assets",
+    "amount": 45766540926,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:30303M102",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1326801:Assets",
+    "amount": 97700383569,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:375558103",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "882095:Assets",
+    "amount": 15393784619,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:38141G104",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "886982:Assets",
+    "amount": 24172123481,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:437076102",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "354950:Assets",
+    "amount": 28771247060,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:461202103",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "896878:Assets",
+    "amount": 6851859422,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:46625H100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "19617:Assets",
+    "amount": 67525081319,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:48251W104",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1404912:Assets",
+    "amount": 4147371201,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:48251W500",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1404912:Assets",
+    "amount": 128265235,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:49271V100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1418135:Assets",
+    "amount": 4697644752,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:493267108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "91576:Assets",
+    "amount": 2039113266,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:59156R108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1099219:Assets",
+    "amount": 4381691695,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:594918104",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "789019:Assets",
+    "amount": 226588430065,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:617446448",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "895421:Assets",
+    "amount": 19837816616,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:64110L106",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1065280:Assets",
+    "amount": 24902220805,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:65339F101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "753308:Assets",
+    "amount": 16398811556,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:65339F119",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "753308:Assets",
+    "amount": 91769509,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:65339F655",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "753308:Assets",
+    "amount": 135728064,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:65339F663",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "753308:Assets",
+    "amount": 130825525,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:67066G104",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1045810:Assets",
+    "amount": 388869850000,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:68389X105",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1341439:Assets",
+    "amount": 21301582753,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:68389X204",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1341439:Assets",
+    "amount": 279544051,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:69331C108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1004980:Assets",
+    "amount": 3416816766,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:69331C306",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1004980:Assets",
+    "amount": 104847798,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:69331CAL2",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1004980:Assets",
+    "amount": 45012968,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:693718108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "75362:Assets",
+    "amount": 4927720217,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:697435105",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1327567:Assets",
+    "amount": 25833461719,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:713448108",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "77476:Assets",
+    "amount": 16015362978,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:717081103",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "78003:Assets",
+    "amount": 12754464030,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:742718109",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "80424:Assets",
+    "amount": 27862104734,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:74435K204",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1137774:Assets",
+    "amount": 30808839,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:75513E101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "101829:Assets",
+    "amount": 20970571023,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:75886F107",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "872589:Assets",
+    "amount": 5682635642,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:776696106",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "882835:Assets",
+    "amount": 3346912039,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:808513105",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "316709:Assets",
+    "amount": 12402467320,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:816851109",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1032208:Assets",
+    "amount": 5588576527,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:842587107",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1004155:Assets",
+    "amount": 8900141450,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:842587842",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1004155:Assets",
+    "amount": 122455055,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:842587DZ7",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1004155:Assets",
+    "amount": 29424370,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:842587ED5",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1004155:Assets",
+    "amount": 166543958,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:871607107",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "883241:Assets",
+    "amount": 7228099176,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:87165B103",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1601712:Assets",
+    "amount": 2349451992,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:872590104",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1283699:Assets",
+    "amount": 6625274964,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:88160R101",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1318605:Assets",
+    "amount": 90101743181,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:883556102",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "97745:Assets",
+    "amount": 15501866869,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:89417E109",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "86312:Assets",
+    "amount": 6915908608,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:92343V104",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "732712:Assets",
+    "amount": 16970111553,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:929089100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1535929:Assets",
+    "amount": 850186971,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:931142103",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "104169:Assets",
+    "amount": 40198659195,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:98389B100",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "72903:Assets",
+    "amount": 4890136163,
+    "flowType": "13f"
+  },
+  {
+    "id": "13f:0002012383:N6596X109",
+    "sourceEntityId": "13f:0002012383",
+    "targetEntityId": "1413447:Assets",
+    "amount": 6716412097,
+    "flowType": "13f"
+  },
+  {
     "id": "openalex:F4320307808:I102322142",
     "sourceEntityId": "openalex:F4320307808",
     "targetEntityId": "openalex:I102322142",
