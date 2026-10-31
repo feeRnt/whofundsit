@@ -9,13 +9,20 @@ This webapp is an interactive global corporate financing map that showcases and 
 ### Prereqs
 
 - Node.js 20+ and npm
-- PostgreSQL 14+ reachable locally (easiest: `docker run --name whofundsit-pg -e POSTGRES_PASSWORD=YOUR_PASSWORD -e POSTGRES_DB=whofundsit -p 5432:5432 -d postgres:16`)
+- PostgreSQL 14+ with a `whofundsit` database (docker command in the quickstart below)
 
-### Judge quickstart (one command, ~2 minutes)
+### Judge quickstart (two commands, ~2 minutes)
 
-1. `cp backend/.env.example backend/.env` and set `DATABASE_URL` to your Postgres.
-2. From `whofundsit/`: `npm run demo` — pushes the schema, loads the committed
-   seed dataset, builds, and serves on one port.
+1. Start Postgres, e.g.:
+   `docker run --name whofundsit-pg -e POSTGRES_PASSWORD=YOUR_PASSWORD -e POSTGRES_DB=whofundsit -p 5432:5432 -d postgres:16`
+2. From `whofundsit/`:
+   ```
+   npm install
+   cp backend/.env.example backend/.env   # works as-is with the docker command above
+   npm run demo
+   ```
+   This pushes the schema, loads the committed seed dataset, builds, and
+   serves on one port.
 3. Open `http://localhost:4000` in a browser: globe/flat-map toggle, click any
    dot for value, address, and EDGAR evidence links.
 
@@ -23,9 +30,19 @@ No SEC calls, no API keys, and no ingest wait: the demo dataset ships in the rep
 
 ### Maintainer data refresh
 
-1. `cd backend && npm run db:push && npm run ingest:all` (full ingest, ~15 min).
-2. `npm run db:export` to snapshot the tables into `prisma/seed-data/`.
-3. Commit the updated seed files.
+```bash
+cd backend
+npm run bulk            # SEC nightly ZIPs -> base layer (one long run, cached)
+npm run ingest:all      # frames top-up + Nominatim geocoding
+npm run flows:openalex  # grant arcs (OpenAlex, cached)
+npm run flows:13f       # fund arcs (all 13F filers; THIRTEENF_MAX_MANAGERS caps it)
+npm run names:sync      # legal filer names from the local archive
+npm run db:export       # snapshot tables into prisma/seed-data/
+```
+
+Then commit the updated seed files. Report suspected duplicates with
+`npm run dedupe:report`; fold approved ones with
+`npm run merge -- <keepId> <dropId>` (provenance is kept on the survivor).
 
 ## License:
 Apache 2.0. See LICENSE for the full license text.

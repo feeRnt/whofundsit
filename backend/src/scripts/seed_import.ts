@@ -60,6 +60,12 @@ try {
       sourceTimeFrame: asString(r.sourceTimeFrame),
       financialDate: r.financialDate ? new Date(String(r.financialDate)) : null,
       source: asString(r.source) ?? "frames-api",
+      form: asString(r.form),
+      filed: r.filed ? new Date(String(r.filed)) : null,
+      exchanges: asStringArray(r.exchanges),
+      category: asString(r.category),
+      formerNames: asStringArray(r.formerNames),
+      mergedFrom: r.mergedFrom as Prisma.InputJsonValue | undefined,
     }),
   );
   const flows: Prisma.CapitalFlowCreateManyInput[] = loadSeed("flows.json").map(
@@ -69,6 +75,7 @@ try {
       targetEntityId: String(r.targetEntityId),
       amount: Number(r.amount),
       flowType: String(r.flowType),
+      sleeves: Number(r.sleeves) || 1,
     }),
   );
 
