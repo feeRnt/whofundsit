@@ -4,9 +4,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 // Background pipeline: give ingested SEC entities real coordinates, and route
 // shouty/complex names through the Modal Llama worker for normalization.
-// "Missing" coordinates means the 0,0 ingest placeholders. Both outbound APIs
-// are gated by in-memory rate limiters + a geocode cache, and every run is
-// capped (ground-rules guardrails 1 & 2, Address Engine caching rule).
+// "Missing" coordinates means the 0,0 ingest placeholders. Geocoding runs
+// where GEOCODE_BACKEND says ("local" default, or "modal" batch worker).
+// Every outbound API is rate-limited + cached, every run capped (guardrails).
 const MAX_ENTITIES_PER_RUN = 100;
 const MAX_MODAL_CALLS_PER_RUN = 25;
 const NOMINATIM_MIN_INTERVAL_MS = 1100; // Nominatim usage policy: <= 1 req/s
@@ -39,19 +39,28 @@ function createRateLimiter(minIntervalMs: number) {
 const nominatim = createRateLimiter(NOMINATIM_MIN_INTERVAL_MS);
 const modal = createRateLimiter(MODAL_MIN_INTERVAL_MS);
 
-const geocodeCache = new Map<string, { lat: number; lng: number } | null>();
+interface Coords {
+  lat: number;
+  lng: number;
+}
+
+const geocodeCache = new Map<string, Coords | null>();
 
 interface NominatimHit {
   lat: string;
   lon: string;
 }
 
-// Prefers the business street address from SEC submissions; falls back to the
-// raw Frames state code (e.g. "US-IL"), whose hits land on state centroids.
-async function geocode(
-  rawAddressText: string,
-): Promise<{ lat: number; lng: number } | null> {
-  const cached = geocodeCache.get(rawAddressText);
+function nominatimUserAgent(): string {
+  // Nominatim requires a declared User-Agent. Override via env if needed.
+  return (
+    process.env.NOMINATIM_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)"
+  );
+}
+
+// Direct Nominatim calls from this machine, cached + rate-limited.
+async function geocodeLocal(text: string): Promise<Coords | null> {
+  const cached = geocodeCache.get(text);
   if (cached !== undefined) {
     return cached;
   }
@@ -59,12 +68,9 @@ async function geocode(
     const { data } = await axios.get<NominatimHit[]>(
       "https://nominatim.openstreetmap.org/search",
       {
-        params: { format: "jsonv2", limit: 1, q: rawAddressText },
+        params: { format: "jsonv2", limit: 1, q: text },
         headers: {
-          // Nominatim requires a declared User-Agent. Override via env if needed.
-          "User-Agent":
-            process.env.NOMINATIM_USER_AGENT ??
-            "WhoFundsIt/0.1 (contact: dev@example.com)",
+          "User-Agent": nominatimUserAgent(),
           Accept: "application/json",
           "Accept-Encoding": "gzip, deflate",
         },
@@ -73,8 +79,51 @@ async function geocode(
     const hit = data[0];
     return hit ? { lat: Number(hit.lat), lng: Number(hit.lon) } : null;
   });
-  geocodeCache.set(rawAddressText, result);
+  geocodeCache.set(text, result);
   return result;
+}
+
+// One batch to the Modal geocoder (see backend/geocode_worker.py).
+async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null>> {
+  const url = process.env.MODAL_GEOCODE_URL;
+  if (!url) {
+    throw new Error("MODAL_GEOCODE_URL is not set (see backend/.env.example)");
+  }
+  const unique = [...new Set(texts)];
+  const { data } = await modal(() =>
+    axios.post(
+      url,
+      { texts: unique, userAgent: nominatimUserAgent() },
+      { headers: { "Content-Type": "application/json" }, timeout: 120000 },
+    ),
+  );
+  if (!Array.isArray(data) || data.length !== unique.length) {
+    throw new Error("Modal geocoder returned a malformed batch");
+  }
+  const out = new Map<string, Coords | null>();
+  unique.forEach((text, i) => {
+    const hit = data[i] as { lat?: unknown; lng?: unknown } | null;
+    out.set(
+      text,
+      hit && typeof hit.lat === "number" && typeof hit.lng === "number"
+        ? { lat: hit.lat, lng: hit.lng }
+        : null,
+    );
+  });
+  return out;
+}
+
+// Prefers the business street address from SEC submissions; falls back to the
+// raw Frames state code (e.g. "US-IL"), whose hits land on state centroids.
+async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>> {
+  if (process.env.GEOCODE_BACKEND === "modal") {
+    return geocodeRemote(texts);
+  }
+  const out = new Map<string, Coords | null>();
+  for (const text of new Set(texts)) {
+    out.set(text, await geocodeLocal(text));
+  }
+  return out;
 }
 
 // SEC names arrive SHOUTING or punctuated ("AAR CORP."); those earn a Llama pass.
@@ -116,7 +165,9 @@ export interface PipelineSummary {
   skipped: number; // no coordinates and no rename (scanned = updated + skipped)
 }
 
-export async function runPipeline(): Promise<PipelineSummary> {
+export async function runPipeline(
+  opts: { normalize?: boolean } = {},
+): Promise<PipelineSummary> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
   }
@@ -136,13 +187,18 @@ export async function runPipeline(): Promise<PipelineSummary> {
     let skipped = 0;
     let modalCalls = 0;
 
+    const coordsByText = await geocodeMany(
+      entities.map((e) => e.businessAddress ?? e.rawAddressText),
+    );
+
     for (const entity of entities) {
-      const coords = await geocode(
-        entity.businessAddress ?? entity.rawAddressText,
-      );
+      const coords =
+        coordsByText.get(entity.businessAddress ?? entity.rawAddressText) ??
+        null;
 
       let canonicalName: string | null = null;
       if (
+        opts.normalize !== false &&
         needsLlama(entity.name) &&
         modalCalls < MAX_MODAL_CALLS_PER_RUN &&
         process.env.MODAL_WEBHOOK_URL
