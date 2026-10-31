@@ -194,6 +194,8 @@ export interface Holding {
   cusip: string;
   valueUsd: number;
   shares: number;
+  /** How many filing sleeves were summed into valueUsd. */
+  sleeves: number;
 }
 
 // Same function normalizes both sides (13F issuers and our entity names),
@@ -237,6 +239,7 @@ export function parseInfoTable(xml: string): Holding[] {
       cusip,
       valueUsd: value, // whole dollars (NOT thousands — verified live)
       shares: Number(shrs?.sshPrnamt ?? 0) || 0,
+      sleeves: 1,
     });
   }
   // Same-CUSIP lines (other-manager sleeves) sum: last-write-wins kept a
@@ -247,6 +250,7 @@ export function parseInfoTable(xml: string): Holding[] {
     if (prev) {
       prev.valueUsd += h.valueUsd;
       prev.shares += h.shares;
+      prev.sleeves += 1;
     } else {
       merged.set(h.cusip, { ...h });
     }
@@ -500,12 +504,14 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
             targetEntityId: targetId,
             amount: h.valueUsd,
             flowType: "13f",
+            sleeves: h.sleeves,
           },
           update: {
             sourceEntityId: fundId,
             targetEntityId: targetId,
             amount: h.valueUsd,
             flowType: "13f",
+            sleeves: h.sleeves,
           },
         });
         wrote += 1;

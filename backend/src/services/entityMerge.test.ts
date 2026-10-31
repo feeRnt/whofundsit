@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { planMerge } from "./entityMerge.js";
+import { mergeProvenance, planMerge } from "./entityMerge.js";
 
 const KEEP = "openalex:F4320307808";
 const DROP = "openalex:I4210135004";
@@ -29,5 +29,21 @@ describe("planMerge", () => {
     );
     assert.deepEqual(plan.repoint, []);
     assert.deepEqual(plan.dropSelf, []);
+  });
+});
+
+describe("mergeProvenance", () => {
+  const drop = { id: DROP, name: "Colgate-Palmolive (United States)", source: "openalex" };
+
+  it("starts a new list from null", () => {
+    assert.deepEqual(mergeProvenance(null, drop), [drop]);
+  });
+
+  it("appends without duplicating the same drop", () => {
+    assert.deepEqual(mergeProvenance([drop], drop), [drop]);
+    assert.deepEqual(
+      mergeProvenance([{ id: "x", name: "X", source: "s" }], drop),
+      [{ id: "x", name: "X", source: "s" }, drop],
+    );
   });
 });

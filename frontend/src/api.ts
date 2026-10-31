@@ -18,6 +18,8 @@ export interface Entity {
   category: string | null;
   formerNames: string[];
   source: string;
+  // Merge provenance (absent on rows seeded before the merge tooling).
+  mergedFrom?: { id: string; name: string; source: string }[] | null;
 }
 
 // Relative by default: same-origin in dev (Vite proxy) and in deploys
@@ -43,6 +45,8 @@ export interface Flow {
   id: string;
   amount: number;
   flowType: string;
+  // 13F sleeves summed into amount (absent on older seeds).
+  sleeves?: number;
   sourceEntityId: string;
   targetEntityId: string;
   sourceEntity: FlowEndpoint;

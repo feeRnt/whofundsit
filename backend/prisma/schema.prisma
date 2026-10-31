@@ -42,6 +42,9 @@ model Entity {
   category    String?
   formerNames String[] @default([])
 
+  // Merge provenance: [{id, name, source}] rows folded into this one.
+  mergedFrom Json?
+
   sourceFlows CapitalFlow[] @relation("SourceFlows")
   targetFlows CapitalFlow[] @relation("TargetFlows")
 }
@@ -52,6 +55,9 @@ model CapitalFlow {
   targetEntityId String
   amount         Float
   flowType       String
+
+  // 13F honesty: how many filing sleeves were summed into amount.
+  sleeves Int @default(1)
 
   sourceEntity Entity @relation("SourceFlows", fields: [sourceEntityId], references: [id], onDelete: Cascade)
   targetEntity Entity @relation("TargetFlows", fields: [targetEntityId], references: [id], onDelete: Cascade)

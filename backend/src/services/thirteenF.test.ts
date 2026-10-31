@@ -24,6 +24,17 @@ describe("parseInfoTable", () => {
     assert.equal(holdings[1].issuer, "Microsoft Corp");
   });
 
+  it("counts same-CUSIP sleeves into one summed holding", () => {
+    const row = (v: number) =>
+      `<infoTable><nameOfIssuer>EXXON MOBIL CORP</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>30231G102</cusip><value>${v}</value><shrsOrPrnAmt><sshPrnamt>1</sshPrnamt><sshPrnamtType>SH</sshPrnamtType></shrsOrPrnAmt></infoTable>`;
+    const holdings = parseInfoTable(
+      `<?xml version="1.0"?><informationTable>${row(100)}${row(50)}</informationTable>`,
+    );
+    assert.equal(holdings.length, 1);
+    assert.equal(holdings[0].valueUsd, 150);
+    assert.equal(holdings[0].sleeves, 2);
+  });
+
   it("handles a single infoTable (object, not array)", () => {
     const holdings = parseInfoTable(
       `<?xml version="1.0"?><informationTable><infoTable><nameOfIssuer>X</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>123456789</cusip><value>5</value><shrsOrPrnAmt><sshPrnamt>1</sshPrnamt><sshPrnamtType>SH</sshPrnamtType></shrsOrPrnAmt></infoTable></informationTable>`,

@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // Merge a duplicate entity into its canonical row: repoint every flow
@@ -18,6 +18,26 @@ export interface MergePlan {
   repoint: string[];
   /** Repointed flows that become self-loops and must be deleted. */
   dropSelf: string[];
+}
+
+export interface MergedRow {
+  id: string;
+  name: string;
+  source: string;
+}
+
+// Pure provenance append (unit-tested): the keep row accumulates every
+// dropped row's identity so the popup can show the original companies.
+export function mergeProvenance(
+  existing: unknown,
+  drop: MergedRow,
+): MergedRow[] {
+  const list = Array.isArray(existing)
+    ? (existing as MergedRow[]).filter(
+        (r) => r && typeof r.id === "string" && r.id !== drop.id,
+      )
+    : [];
+  return [...list, drop];
 }
 
 // Pure planner (unit-tested); the runner below only executes the plan.
@@ -62,6 +82,11 @@ export async function runMerge(keepId: string, dropId: string) {
       select: { id: true, sourceEntityId: true, targetEntityId: true },
     });
     const plan = planMerge(flows, keepId, dropId);
+    const provenance = mergeProvenance(keep.mergedFrom, {
+      id: drop.id,
+      name: drop.name,
+      source: drop.source,
+    });
     await prisma.$transaction([
       prisma.capitalFlow.updateMany({
         where: { sourceEntityId: dropId },
@@ -72,6 +97,10 @@ export async function runMerge(keepId: string, dropId: string) {
         data: { targetEntityId: keepId },
       }),
       prisma.capitalFlow.deleteMany({ where: { id: { in: plan.dropSelf } } }),
+      prisma.entity.update({
+        where: { id: keepId },
+        data: { mergedFrom: provenance as unknown as Prisma.InputJsonValue },
+      }),
       prisma.entity.delete({ where: { id: dropId } }),
     ]);
     return {

@@ -348,6 +348,25 @@ button.maplibregl-popup-close-button {
   font-size: 0.72rem;
 }
 
+.entity-popup .merged-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: #aeb6c2;
+}
+
+.entity-popup .merged-note summary {
+  cursor: pointer;
+}
+
+.entity-popup .merged-note ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.entity-popup .merged-note span {
+  color: #7c8598;
+}
+
 .entity-popup .flow-toggle {
   margin-top: 0.5rem;
   font: inherit;

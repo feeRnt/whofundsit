@@ -135,6 +135,21 @@ export default function EntityPopup({
           {flowsOn ? "Hide this company's flows" : "Show this company's flows"}
         </button>
       )}
+      {entity.mergedFrom && entity.mergedFrom.length > 0 && (
+        <details className="merged-note">
+          <summary>
+            Merged from {entity.mergedFrom.length} record
+            {entity.mergedFrom.length === 1 ? "" : "s"}
+          </summary>
+          <ul>
+            {entity.mergedFrom.map((r) => (
+              <li key={r.id}>
+                {r.name} <span>({r.source} · {r.id})</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <dl>
         <div>
           <dt>As of</dt>

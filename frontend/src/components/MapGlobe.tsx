@@ -33,7 +33,9 @@ function tooltip({ object }: PickingInfo) {
   if ("flowType" in object) {
     const flow = object as unknown as Flow;
     if (flow.flowType === "13f") {
-      return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — $${flow.amount.toLocaleString("en-US")}`;
+      const sleeves =
+        flow.sleeves && flow.sleeves > 1 ? ` · ${flow.sleeves} sleeves` : "";
+      return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — $${flow.amount.toLocaleString("en-US")}${sleeves}`;
     }
     const units = flow.flowType === "grant" ? "funded works" : "units";
     return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}`;
