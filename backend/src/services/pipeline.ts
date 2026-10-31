@@ -2,6 +2,7 @@ import axios from "axios";
 import { PrismaClient, type Entity } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { cachedJson, cacheKey, readCache, writeCache } from "./httpCache.js";
+import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 
 // Background pipeline: give ingested SEC entities real coordinates, and route
 // shouty/complex names through the Modal Llama worker for normalization.
@@ -198,14 +199,38 @@ async function normalizeWithLlama(
 }
 
 export interface PipelineSummary {
-  scanned: number; // entities considered (<= MAX_ENTITIES_PER_RUN)
+  scanned: number; // entities considered (<= take)
   geocoded: number; // rows updated with real lat/lng
   normalized: number; // rows renamed by the Llama worker
   skipped: number; // no coordinates and no rename (scanned = updated + skipped)
 }
 
+export function formatDuration(totalSeconds: number): string {
+  if (totalSeconds < 90) {
+    return `${Math.round(totalSeconds)} seconds`;
+  }
+  const minutes = totalSeconds / 60;
+  if (minutes < 90) {
+    return `${Math.round(minutes)} minutes`;
+  }
+  return `${(minutes / 60).toFixed(1)} hours`;
+}
+
+export async function countPendingGeocodes(): Promise<number> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set (see backend/.env)");
+  }
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  const prisma = new PrismaClient({ adapter });
+  try {
+    return await prisma.entity.count({ where: { lat: 0, lng: 0 } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function runPipeline(
-  opts: { normalize?: boolean } = {},
+  opts: { normalize?: boolean; take?: number; indexOnly?: boolean } = {},
 ): Promise<PipelineSummary> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -216,8 +241,12 @@ export async function runPipeline(
 
   try {
     const entities = await prisma.entity.findMany({
-      where: { lat: 0, lng: 0 },
-      take: MAX_ENTITIES_PER_RUN,
+      where: {
+        lat: 0,
+        lng: 0,
+        ...(opts.indexOnly ? { tickers: { hasSome: NASDAQ100_TICKERS } } : {}),
+      },
+      take: opts.take ?? MAX_ENTITIES_PER_RUN,
       orderBy: { fundsVolume: "desc" },
     });
 

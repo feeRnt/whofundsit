@@ -16,7 +16,7 @@
     "db:export": "tsx src/scripts/seed_export.ts",
     "db:seed": "tsx src/scripts/seed_import.ts",
     "flows:openalex": "tsx src/scripts/openalex_flows.ts",
-    "test": "tsx --test src/services/openalexFlows.test.ts src/services/bulkLoad.test.ts"
+    "test": "tsx --test src/services/openalexFlows.test.ts src/services/bulkLoad.test.ts src/services/pipeline.test.ts"
   },
   "keywords": [],
   "type": "module",
