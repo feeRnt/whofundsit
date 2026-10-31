@@ -44,5 +44,48 @@ Then commit the updated seed files. Report suspected duplicates with
 `npm run dedupe:report`; fold approved ones with
 `npm run merge -- <keepId> <dropId>` (provenance is kept on the survivor).
 
+## Scripts reference
+
+From `whofundsit/` (workspace shortcuts):
+
+| Script | What it does |
+|---|---|
+| `dev:frontend` | Vite dev server (`:5173`, `--host` for LAN) |
+| `dev:backend` | Express with hot reload |
+| `build` | Production builds, frontend then backend |
+| `serve` | Build + serve both on `:4000` (same-origin demo) |
+| `demo` | `db:push` + `db:seed` + `serve` — the judge path |
+
+From `whofundsit/frontend/`:
+
+| Script | What it does |
+|---|---|
+| `dev` | Vite dev server |
+| `build` | `tsc -b` + production bundle |
+| `lint` | oxlint |
+| `preview` | Preview the production bundle locally |
+
+From `whofundsit/backend/` (pipeline order):
+
+| Script | What it does |
+|---|---|
+| `bulk` | SEC nightly ZIPs → base entity layer (long first run, then cached) |
+| `ingest` | XBRL frames top-up for the current quarter |
+| `coords_populate` | Nominatim geocoding, 1 req/s, biggest first |
+| `ingest:all` | `ingest` + `coords_populate` in one go |
+| `pipeline` | Geocode pending entities (≤100/run) + Modal cleanup when configured |
+| `flows:openalex` | Grant arcs from OpenAlex (cached) |
+| `flows:13f` | Fund arcs from every 13F-HR filer (`THIRTEENF_MAX_MANAGERS` caps it) |
+| `names:sync` | Backfill legal filer names from the local archive |
+| `merge -- <keep> <drop>` | Fold a duplicate row (repoints flows, keeps provenance) |
+| `dedupe:report` | Print candidate duplicate groups for review (read-only) |
+| `db:push` | Push the Prisma schema to Postgres |
+| `db:export` | Snapshot tables into `prisma/seed-data/` for committing |
+| `db:seed` | Wipe + reload tables from the committed seeds (judge path) |
+| `test` | Backend unit suite (`tsx --test`, 26 tests) |
+| `dev` / `build` / `start` | Hot reload / compile / run the API + static server |
+
+Data-source licenses and cache locations: [DATASETS.md](DATASETS.md).
+
 ## License:
 Apache 2.0. See LICENSE for the full license text.
