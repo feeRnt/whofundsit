@@ -160,11 +160,21 @@ async function secGet<T>(url: string): Promise<T> {
 // Frames rows carry no street address, so each CIK gets one submissions call
 // (business address preferred, mailing as fallback). Best-effort per row:
 // a single failure resolves to null instead of failing the whole run.
+// Run-scoped submissions cache: the same CIK appears in several frames, so
+// without this we'd re-download identical docs (ingest is a one-shot process,
+// so module scope == one run).
+const submissionsCache = new Map<number, string | null>();
+
 async function fetchBusinessAddress(cik: number): Promise<string | null> {
+  const cached = submissionsCache.get(cik);
+  if (cached !== undefined) {
+    return cached;
+  }
   const padded = String(cik).padStart(10, "0");
   const data = await secGet<SecSubmissions>(`${SUBMISSIONS_URL}/CIK${padded}.json`);
   const addr = data.addresses?.business ?? data.addresses?.mailing ?? null;
   if (!addr) {
+    submissionsCache.set(cik, null);
     return null;
   }
   const parts = [
@@ -174,7 +184,9 @@ async function fetchBusinessAddress(cik: number): Promise<string | null> {
     addr.stateOrCountry,
     addr.zipCode,
   ].filter((p): p is string => !!p);
-  return parts.length > 0 ? parts.join(", ") : null;
+  const address = parts.length > 0 ? parts.join(", ") : null;
+  submissionsCache.set(cik, address);
+  return address;
 }
 
 /**
@@ -213,28 +225,40 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
       const url = `${FRAME_API}/${frame.taxonomy}/${frame.tag}/${frame.uom}/${frame.ccp}.json`;
       const payload = await secGet<SecFramesPayload>(url);
       const rows = payload.data.slice(0, MAX_PER_FRAME);
+      console.log(
+        `[ingest] ${frame.tag}: ${rows.length} rows (frame holds ${payload.data.length})`,
+      );
       let frameUpserted = 0;
 
-      for (const row of rows) {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
         if (!row.entityName || !Number.isFinite(row.val) || !row.end) {
           skipped += 1;
           continue;
         }
 
-        let businessAddress: string | null = null;
-        try {
-          businessAddress = await fetchBusinessAddress(row.cik);
-        } catch (err) {
-          if (err instanceof SecBlockedError) {
-            throw err; // fatal: stop the run instead of burning calls
+        // Skip the submissions call when a previous run already stored the address.
+        const id = `${row.cik}:${frame.tag}`;
+        const existing = await prisma.entity.findUnique({
+          where: { id },
+          select: { businessAddress: true },
+        });
+        let businessAddress: string | null = existing?.businessAddress ?? null;
+        if (!businessAddress) {
+          try {
+            businessAddress = await fetchBusinessAddress(row.cik);
+          } catch (err) {
+            if (err instanceof SecBlockedError) {
+              throw err; // fatal: stop the run instead of burning calls
+            }
+            businessAddress = null;
           }
-          businessAddress = null;
         }
 
         await prisma.entity.upsert({
-          where: { id: `${row.cik}:${frame.tag}` },
+          where: { id },
           create: {
-            id: `${row.cik}:${frame.tag}`,
+            id,
             name: row.entityName,
             type: "Company", // placeholder — see TODO(SIC) above
             lat: 0, // placeholder — see pipeline.ts geocoding
@@ -262,6 +286,11 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
         frameUpserted += 1;
         if (businessAddress) {
           withAddress += 1;
+        }
+        if ((i + 1) % 50 === 0 || i + 1 === rows.length) {
+          console.log(
+            `[ingest] ${frame.tag}: ${i + 1}/${rows.length} (upserted ${frameUpserted})`,
+          );
         }
       }
 
