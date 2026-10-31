@@ -1,0 +1,68 @@
+import { useMemo, useState } from "react";
+import type { Entity } from "../api";
+
+// Client-side search over loaded entities: name, ticker, or address.
+// Selecting a result flies the map there and opens its popup.
+export default function SearchBox({
+  entities,
+  onSelect,
+}: {
+  entities: Entity[];
+  onSelect: (e: Entity) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) {
+      return [];
+    }
+    return entities
+      .filter((e) =>
+        `${e.name} ${e.tickers.join(" ")} ${e.businessAddress ?? ""} ${e.rawAddressText}`
+          .toLowerCase()
+          .includes(q),
+      )
+      .slice(0, 10);
+  }, [entities, query]);
+
+  return (
+    <div className="search">
+      <input
+        value={query}
+        onChange={(ev) => {
+          setQuery(ev.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Search name, ticker, address…"
+        aria-label="Search companies"
+      />
+      {open && matches.length > 0 && (
+        <ul className="search-results">
+          {matches.map((e) => (
+            <li key={e.id}>
+              <button
+                type="button"
+                onMouseDown={() => {
+                  onSelect(e);
+                  setOpen(false);
+                  setQuery(e.name);
+                }}
+              >
+                <strong>{e.name}</strong>
+                <span>
+                  {[e.tickers.join(", "), e.businessAddress ?? e.rawAddressText]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

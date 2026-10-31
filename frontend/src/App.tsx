@@ -1,11 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Globe as GlobeIcon, Map as MapIcon } from "lucide-react";
 import MapGlobe from "./components/MapGlobe";
+import SearchBox from "./components/SearchBox";
 import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
 
 export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
+  const [focused, setFocused] = useState<Entity | null>(null);
+  const [showFlows, setShowFlows] = useState(false);
+
+  const flowEndpoints = useMemo(() => {
+    const ids = new Set<string>();
+    for (const f of flows) {
+      ids.add(f.sourceEntityId);
+      ids.add(f.targetEntityId);
+    }
+    return ids;
+  }, [flows]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
@@ -35,6 +47,16 @@ export default function App() {
               ? `API error: ${error} (is the backend running?)`
               : `${entities.length} entities · ${flows.length} flows · SEC EDGAR CY2026Q2`}
         </p>
+        <SearchBox entities={entities} onSelect={setFocused} />
+        <button
+          type="button"
+          className="toggle flows-toggle"
+          onClick={() => setShowFlows((v) => !v)}
+          aria-pressed={showFlows}
+          title="Toggle money-flow arcs"
+        >
+          {showFlows ? "Hide flows" : "Show flows"}
+        </button>
         <button
           type="button"
           className="toggle"
@@ -53,7 +75,7 @@ export default function App() {
         </button>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={flows} projection={projection} />
+          <MapGlobe entities={entities} flows={showFlows ? flows : []} projection={projection} focused={focused} flowEndpoints={flowEndpoints} />
         )}</main>
     </div>
   );

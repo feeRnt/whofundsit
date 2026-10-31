@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Map, Popup, useControl } from "react-map-gl/maplibre";
+import { useEffect, useRef, useState } from "react";
+import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -50,15 +50,28 @@ export default function MapGlobe({
   entities,
   flows,
   projection,
+  focused,
+  flowEndpoints,
 }: {
   entities: Entity[];
   flows: Flow[];
   projection: "globe" | "mercator";
+  focused: Entity | null;
+  flowEndpoints: Set<string>;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [selected, setSelected] = useState<Entity | null>(null);
   const tileErrorsRef = useRef(0);
+  const mapRef = useRef<MapRef>(null);
+
+  // Search selection: fly to the company and open its popup.
+  useEffect(() => {
+    if (focused && mapRef.current) {
+      mapRef.current.flyTo({ center: [focused.lng, focused.lat], zoom: 4 });
+      setSelected(focused);
+    }
+  }, [focused]);
 
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
@@ -73,16 +86,23 @@ export default function MapGlobe({
       lineWidthUnits: "pixels",
       getLineWidth: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getRadius: (d) => 8000 + Math.sqrt(d.fundsVolume) * 2,
-      radiusMinPixels: 4,
-      radiusMaxPixels: 16,
-      getFillColor: [45, 212, 191, 200],
+      // Half the area (÷√2 radius); the money×2 multiplier stays.
+      getRadius: (d) => (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2,
+      radiusMinPixels: 3,
+      radiusMaxPixels: 11,
+      // Purple marks companies on at least one money flow (arcs toggleable).
+      getFillColor: (d) =>
+        flowEndpoints.has(d.id) ? [168, 85, 247, 210] : [45, 212, 191, 200],
       getLineColor: [255, 255, 255, 140],
     }),
     new ArcLayer<Flow>({
       id: "flows",
       data: flows,
       pickable: true,
+      // Straight chords cut through the globe interior and get occluded;
+      // surface-hugging great circles stay visible in both projections.
+      greatCircle: true,
+      wrapLongitude: true,
       getSourcePosition: (d) => [d.sourceEntity.lng, d.sourceEntity.lat],
       getTargetPosition: (d) => [d.targetEntity.lng, d.targetEntity.lat],
       getSourceColor: [45, 212, 191, 220],
@@ -106,6 +126,7 @@ export default function MapGlobe({
 
   return (
     <Map
+      ref={mapRef}
       reuseMaps
       mapLib={maplibregl}
       mapStyle={MAP_STYLE}

@@ -16,8 +16,7 @@ const SUBMISSIONS_URL = "https://data.sec.gov/submissions";
 const ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data";
 const TICKER_MAP_URL = "https://www.sec.gov/files/company_tickers.json";
 
-const TOP_HOLDINGS = 50;
-const MAX_13F_FLOWS = 200; // guardrail: 3 managers x TOP_HOLDINGS fits
+const MAX_13F_FLOWS = 20000; // guardrail: full holdings for all managers
 const SEC_MIN_INTERVAL_MS = 150;
 const NOMINATIM_MIN_INTERVAL_MS = 1100;
 
@@ -297,9 +296,8 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       const filing = await latest13F(cik10, spec.label);
       const xml = await infoTableXml(cikNum, filing.accn);
       const holdings = parseInfoTable(xml);
-      const top = holdings.slice(0, TOP_HOLDINGS);
       console.log(
-        `[13f] ${spec.label}: ${holdings.length} holdings, top ${top.length} (filing ${filing.accn})`,
+        `[13f] ${spec.label}: ${holdings.length} holdings (filing ${filing.accn})`,
       );
       const at = await geocodeManager(spec.name);
       const fundId = `13f:${cik10}`;
@@ -331,7 +329,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       let matched = 0;
       let wrote = 0;
       const missSample: string[] = [];
-      for (const h of top) {
+      for (const h of holdings) {
         const targetId = byName.get(normalizeIssuerName(h.issuer));
         if (!targetId) {
           unmatched += 1;

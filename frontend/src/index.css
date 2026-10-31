@@ -64,6 +64,10 @@ body {
   cursor: pointer;
 }
 
+.toggle.flows-toggle {
+  margin-left: 0;
+}
+
 .map-note {
   position: absolute;
   left: 50%;
@@ -142,4 +146,67 @@ body {
 
 .map .maplibre-popup-close-button {
   color: #aeb6c2;
+}
+
+.search {
+  position: relative;
+  width: 16rem;
+}
+
+.search input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.8rem;
+  color: #e5e7eb;
+  background: #1a2030;
+  border: 1px solid #3a4358;
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: #141927;
+  border: 1px solid #3a4358;
+  border-radius: 6px;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.search-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: #e5e7eb;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+
+.search-results button:hover {
+  background: #1a2030;
+}
+
+.search-results strong {
+  display: block;
+  font-size: 0.82rem;
+}
+
+.search-results span {
+  display: block;
+  font-size: 0.72rem;
+  color: #aeb6c2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
