@@ -66,6 +66,11 @@
 - [ ] **Verify 13F arcs in the browser.** (Run `npm run flows:13f`, reload: dollar arcs from the three funds;
       hover shows fund → company + $ amount. Check the match log for miss rate.)
 
+## Legal follow-ups
+
+- [ ] **Ship OSM attribution with any standalone address cache.** (Cached Nominatim coordinates are fine to
+      host, but keep "© OpenStreetMap contributors" credit wherever the cache or its results appear.)
+
 ## Later: international (IFRS) coverage
 
 - [ ] **Add `ifrs-full` frames/bulk tags** (Samsung, Toyota, Nestlé… barely appear in us-gaap). Needs tag
