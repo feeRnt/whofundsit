@@ -5,8 +5,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { cachedJson, cacheKey } from "./httpCache.js";
 
 // 13F-HR holdings -> dollar-denominated CapitalFlow arcs (fund -> portfolio
-// company). Scoped to three mega-managers for the demo; each yields up to
-// TOP_HOLDINGS arcs. Amounts are USD (13F reports value in $thousands).
+// company). Full holdings for three mega-managers. XML values are whole USD
+// (verified live: value / shares == market price, e.g. $45.92 Brookfield).
 // CUSIP->company mapping is offline name normalization against placed
 // entities (no new API); misses log with CUSIP for audit. BlackRock and
 // Berkshire resolve via the ticker map (shared cache, zero new calls after
@@ -155,14 +155,18 @@ async function latest13F(
 async function infoTableXml(cikNum: string, accn: string): Promise<string> {
   const stub = accn.replace(/-/g, "");
   const base = `${ARCHIVE_URL}/${cikNum}/${stub}`;
-  const listing = await cachedJson<{ directory?: { item?: { name: string }[] } }>(
-    `13f/filings/${cikNum}/${stub}/index.json`,
-    () => secGet(`${base}/index.json`),
+  const listing = await cachedJson<{
+    directory?: { item?: { name: string; size?: unknown }[] };
+  }>(`13f/filings/${cikNum}/${stub}/index.json`, () =>
+    secGet(`${base}/index.json`),
   );
-  const names = (listing.directory?.item ?? []).map((i) => i.name);
-  const doc =
-    names.find((n) => n.toLowerCase().includes("info") && n.endsWith(".xml")) ??
-    names.find((n) => n.endsWith(".xml"));
+  // The information table dwarfs the primary doc (MBs vs KBs): pick the
+  // largest .xml that isn't primary_doc.xml (verified live: Vanguard's table
+  // is "13F_<cik>_<date>.xml" with no "info" in the name).
+  const tables = (listing.directory?.item ?? [])
+    .filter((i) => i.name.endsWith(".xml") && i.name !== "primary_doc.xml")
+    .sort((a, b) => Number(b.size || 0) - Number(a.size || 0));
+  const doc = tables[0]?.name;
   if (!doc) {
     throw new Error(`[13f] no information table in ${base}/index.json`);
   }
@@ -223,7 +227,7 @@ export function parseInfoTable(xml: string): Holding[] {
       issuer,
       classTitle: typeof row.titleOfClass === "string" ? row.titleOfClass : "",
       cusip,
-      valueUsd: value * 1000, // 13F reports $thousands
+      valueUsd: value, // whole dollars (NOT thousands — verified live)
       shares: Number(shrs?.sshPrnamt ?? 0) || 0,
     });
   }

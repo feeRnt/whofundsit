@@ -15,7 +15,7 @@ describe("parseInfoTable", () => {
     const holdings = parseInfoTable(fs.readFileSync(FIXTURE, "utf8"));
     assert.equal(holdings.length, 2);
     assert.equal(holdings[0].issuer, "APPLE INC");
-    assert.equal(holdings[0].valueUsd, 1000000 * 1000);
+    assert.equal(holdings[0].valueUsd, 1000000);
     assert.equal(holdings[0].cusip, "037833100");
     assert.equal(holdings[1].issuer, "Microsoft Corp");
   });
@@ -25,7 +25,7 @@ describe("parseInfoTable", () => {
       `<?xml version="1.0"?><informationTable><infoTable><nameOfIssuer>X</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>123456789</cusip><value>5</value><shrsOrPrnAmt><sshPrnamt>1</sshPrnamt><sshPrnamtType>SH</sshPrnamtType></shrsOrPrnAmt></infoTable></informationTable>`,
     );
     assert.equal(holdings.length, 1);
-    assert.equal(holdings[0].valueUsd, 5000);
+    assert.equal(holdings[0].valueUsd, 5);
   });
 });
 
