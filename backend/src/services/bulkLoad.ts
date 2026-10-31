@@ -6,6 +6,7 @@ import { pipeline } from "node:stream/promises";
 import * as unzipper from "unzipper";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { readCache, writeCache } from "./httpCache.js";
 
 // Bulk base layer: SEC nightly ZIPs parsed locally. Run on good wifi
 // (`npm run bulk`), then use `npm run ingest` (frames API) for incremental
@@ -84,33 +85,96 @@ interface ZipJson {
 
 // Entry layout verified live via Range probes: flat per-CIK files, e.g.
 // submissions.zip -> "CIK0000004926.json", companyfacts.zip ->
-// "CIK0000001750.json". The run still logs samples as a tripwire.
-async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
-  const dir = await unzipper.Open.file(zipPath);
-  const names = dir.files.map((f) => f.path).filter((p) => p.endsWith(".json"));
-  console.log(
-    `[bulk] ${path.basename(zipPath)}: ${names.length} json entries, e.g. ${names
-      .slice(0, 3)
-      .join(", ")}`,
-  );
+// "CIK0000001750.json". Parsed as one sequential stream: random access did
+// ~800 docs/s on the 1M-entry archive; streaming is an order of magnitude
+// faster. Samples still log as a tripwire. Sidecar "-submissions-*.json"
+// entries carry filings only (no cik) and are skipped by callers.
+export async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
+  // Pull-based: Parse() emits 'entry' events (nothing reaches the readable
+  // side, so for-await sees zero entries). The source stays paused while an
+  // entry is handled, so a slow consumer (DB upserts) can't buffer the
+  // archive in memory.
+  interface RawEntry {
+    path: string;
+    type: string;
+    autodrain: () => void;
+    buffer: () => Promise<Buffer>;
+  }
+  const source = fs.createReadStream(zipPath);
+  const parser = source.pipe(unzipper.Parse());
+  const pending: RawEntry[] = [];
+  let done = false;
+  let failure: unknown = null;
+  let notify: (() => void) | null = null;
+  const wake = (): void => {
+    const next = notify;
+    notify = null;
+    next?.();
+  };
+  parser.on("entry", (entry: RawEntry) => {
+    source.pause();
+    pending.push(entry);
+    wake();
+  });
+  parser.on("close", () => {
+    done = true;
+    wake();
+  });
+  parser.on("error", (err: unknown) => {
+    failure = err;
+    done = true;
+    wake();
+  });
+
+  const samples: string[] = [];
+  let count = 0;
   let parseErrors = 0;
-  for (const file of dir.files) {
-    if (!file.path.endsWith(".json")) {
-      continue;
-    }
-    try {
-      const buf: Buffer = await file.buffer();
-      yield { name: file.path, json: JSON.parse(buf.toString("utf8")) };
-    } catch {
-      parseErrors += 1;
-      if (parseErrors <= 3) {
-        console.log(`[bulk] unparsable entry skipped: ${file.path}`);
+  try {
+    for (;;) {
+      while (pending.length === 0 && !done) {
+        source.resume();
+        await new Promise<void>((resolve) => {
+          notify = resolve;
+        });
+      }
+      const entry = pending.shift();
+      if (!entry) {
+        break;
+      }
+      if (entry.type !== "File" || !entry.path.endsWith(".json")) {
+        entry.autodrain();
+        continue;
+      }
+      if (samples.length < 3) {
+        samples.push(entry.path);
+        if (samples.length === 3) {
+          console.log(
+            `[bulk] ${path.basename(zipPath)} streaming, e.g. ${samples.join(", ")}`,
+          );
+        }
+      }
+      try {
+        const buf: Buffer = await entry.buffer();
+        const json: unknown = JSON.parse(buf.toString("utf8"));
+        count += 1;
+        yield { name: entry.path, json };
+      } catch {
+        parseErrors += 1;
+        if (parseErrors <= 3) {
+          console.log(`[bulk] unparsable entry skipped: ${entry.path}`);
+        }
       }
     }
+  } finally {
+    source.destroy();
   }
-  if (parseErrors > 0) {
-    console.log(`[bulk] unparsable entries skipped: ${parseErrors}`);
+  if (failure) {
+    throw failure;
   }
+  console.log(
+    `[bulk] ${path.basename(zipPath)}: ${count} json entries streamed` +
+      (parseErrors > 0 ? ` (${parseErrors} unparsable skipped)` : ""),
+  );
 }
 
 interface BulkAddress {
@@ -135,7 +199,18 @@ function joinAddress(addr: {
 // Submissions shape verified live against data.sec.gov: {cik, tickers[],
 // addresses: {business, mailing}}. Note cik is a zero-padded STRING
 // ("0000320193"), unlike companyfacts' number — both are accepted.
+const ADDRESS_MAP_CACHE = "sec/address-map.json";
+
 async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>> {
+  const hit = readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE);
+  if (hit !== undefined) {
+    const cached = new Map<number, BulkAddress>();
+    for (const [cik, addr] of Object.entries(hit)) {
+      cached.set(Number(cik), addr);
+    }
+    console.log(`[bulk] addresses: ${cached.size} companies (from disk cache)`);
+    return cached;
+  }
   const map = new Map<number, BulkAddress>();
   let n = 0;
   for await (const { json } of jsonEntries(zipPath)) {
@@ -165,7 +240,12 @@ async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>
       console.log(`[bulk] addresses: ${n}...`);
     }
   }
-  console.log(`[bulk] addresses: ${map.size} companies`);
+  const dump: Record<string, BulkAddress> = {};
+  for (const [cik, addr] of map) {
+    dump[String(cik)] = addr;
+  }
+  writeCache(ADDRESS_MAP_CACHE, dump);
+  console.log(`[bulk] addresses: ${map.size} companies (saved to disk cache)`);
   return map;
 }
 
@@ -191,6 +271,11 @@ async function loadFacts(
   let skipped = 0;
   let withAddress = 0;
   let entries = 0;
+  // Upserts fly N at a time: sequential round trips dominated the old runtime.
+  // The ceiling counts scheduled rows, so it can never overshoot.
+  const UPSERT_CONCURRENCY = 8;
+  let scheduled = 0;
+  let batch: Promise<void>[] = [];
 
   for await (const { json } of jsonEntries(zipPath)) {
     entries += 1;
@@ -227,43 +312,57 @@ async function loadFacts(
       const info = addresses.get(doc.cik);
       const state = info?.state ?? null;
       const id = `${doc.cik}:${tag}`;
-      await prisma.entity.upsert({
-        where: { id },
-        create: {
-          id,
-          name: doc.entityName,
-          type: "Company",
-          lat: 0,
-          lng: 0,
-          fundsVolume: fact.val as number,
-          rawAddressText: state && state.length === 2 ? `US-${state}` : (state ?? "—"),
-          businessAddress: info?.address ?? null,
-          conceptTag: tag,
-          tickers: info?.tickers ?? [],
-          secFilingNumber: typeof fact.accn === "string" ? fact.accn : null,
-          sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",
-          financialDate: new Date(fact.end as string),
-          source: "bulk-zip",
-        },
-        update: {
-          name: doc.entityName,
-          fundsVolume: fact.val as number,
-          rawAddressText: state && state.length === 2 ? `US-${state}` : (state ?? "—"),
-          businessAddress: info?.address ?? null,
-          conceptTag: tag,
-          tickers: info?.tickers ?? [],
-          secFilingNumber: typeof fact.accn === "string" ? fact.accn : null,
-          sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",
-          financialDate: new Date(fact.end as string),
-          source: "bulk-zip",
-        },
-      });
-      upserted += 1;
-      if (info?.address) {
-        withAddress += 1;
+      const hasAddress = !!info?.address;
+      batch.push(
+        prisma.entity
+          .upsert({
+            where: { id },
+            create: {
+              id,
+              name: doc.entityName,
+              type: "Company",
+              lat: 0,
+              lng: 0,
+              fundsVolume: fact.val as number,
+              rawAddressText:
+                state && state.length === 2 ? `US-${state}` : (state ?? "—"),
+              businessAddress: info?.address ?? null,
+              conceptTag: tag,
+              tickers: info?.tickers ?? [],
+              secFilingNumber: typeof fact.accn === "string" ? fact.accn : null,
+              sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",
+              financialDate: new Date(fact.end as string),
+              source: "bulk-zip",
+            },
+            update: {
+              name: doc.entityName,
+              fundsVolume: fact.val as number,
+              rawAddressText:
+                state && state.length === 2 ? `US-${state}` : (state ?? "—"),
+              businessAddress: info?.address ?? null,
+              conceptTag: tag,
+              tickers: info?.tickers ?? [],
+              secFilingNumber: typeof fact.accn === "string" ? fact.accn : null,
+              sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",
+              financialDate: new Date(fact.end as string),
+              source: "bulk-zip",
+            },
+          })
+          .then(() => {
+            upserted += 1;
+            if (hasAddress) {
+              withAddress += 1;
+            }
+          }),
+      );
+      scheduled += 1;
+      if (batch.length >= UPSERT_CONCURRENCY) {
+        await Promise.all(batch);
+        batch = [];
       }
-      if (upserted >= MAX_BULK_ROWS) {
+      if (scheduled >= MAX_BULK_ROWS) {
         console.log(`[bulk] row ceiling hit (${MAX_BULK_ROWS}); stopping`);
+        await Promise.all(batch);
         return { considered, upserted, skipped, withAddress };
       }
     }
@@ -271,6 +370,7 @@ async function loadFacts(
       console.log(`[bulk] facts: ${entries} entries, ${upserted} rows...`);
     }
   }
+  await Promise.all(batch);
   return { considered, upserted, skipped, withAddress };
 }
 

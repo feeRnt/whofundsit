@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { runOpenAlexFlows } from "../services/openalexFlows";
+import { runOpenAlexFlows } from "../services/openalexFlows.js";
 
 // One-shot runner: `npm run flows:openalex` loads grant arcs for one funder
 // (OPENALEX_FUNDER_ID, default Colgate-Palmolive) into CapitalFlow.

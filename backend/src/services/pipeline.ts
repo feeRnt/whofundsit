@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient, type Entity } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey, readCache, writeCache } from "./httpCache";
+import { cachedJson, cacheKey, readCache, writeCache } from "./httpCache.js";
 
 // Background pipeline: give ingested SEC entities real coordinates, and route
 // shouty/complex names through the Modal Llama worker for normalization.

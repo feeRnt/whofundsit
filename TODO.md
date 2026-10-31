@@ -31,7 +31,9 @@
 
 - [x] **Both nightly ZIPs in `backend/data/`** (gitignored): byte-exact vs SEC Content-Length
       (submissions 1,572,128,284 B; companyfacts 1,414,913,699 B) and CRC-clean per `unzip -t`.
-- [ ] **Run the load once Postgres is up:** `npx prisma db push` (adds `source`), then `npm run bulk`.
+- [x] **Base loaded** (991,164 address entries scanned; 11,771 rows upserted, 11,763 with addresses).
+- [x] **Loader optimized after the slow first run** (sequential streaming parse, address map cached to
+      disk, 8-way concurrent upserts).
 
 ## Grant arcs follow-up (OpenAlex → CapitalFlow)
 

@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson } from "./httpCache";
+import { cachedJson } from "./httpCache.js";
 
 // Grant flows from OpenAlex: funder -> funded works -> grantee institutions.
 // One funder per run (OPENALEX_FUNDER_ID, default Colgate-Palmolive, the parent

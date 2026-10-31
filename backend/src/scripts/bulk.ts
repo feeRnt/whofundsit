@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { runBulkLoad } from "../services/bulkLoad";
+import { runBulkLoad } from "../services/bulkLoad.js";
 
 // One-shot runner: `npm run bulk` downloads the SEC nightly ZIPs once (skipped
 // when present) and loads the last BULK_YEARS of facts. Good wifi required.
