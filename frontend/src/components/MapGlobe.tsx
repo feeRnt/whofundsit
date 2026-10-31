@@ -106,7 +106,7 @@ export default function MapGlobe({
       reuseMaps
       mapLib={maplibregl}
       mapStyle={MAP_STYLE}
-      initialViewState={{ longitude: -30, latitude: 25, zoom: 1 }}
+      initialViewState={{ longitude: -98, latitude: 39, zoom: 2.5 }}
       projection={projection}
       onLoad={() => setMapReady(true)}
       onError={() => {
