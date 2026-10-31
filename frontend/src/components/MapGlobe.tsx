@@ -189,7 +189,9 @@ export default function MapGlobe({
       widthMinPixels: 1,
       widthMaxPixels: 5,
     }),
-  ], [entities, flows, flowEndpoints, selected]);
+    // projection is a dep on purpose: the overlay remounts on toggle, and a
+    // fresh overlay needs fresh layer instances (reused ones render garbage).
+  ], [entities, flows, flowEndpoints, selected, projection]);
 
   function handleClick(info: PickingInfo) {
     const object = info.object as Record<string, unknown> | undefined;
