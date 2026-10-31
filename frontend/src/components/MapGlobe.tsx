@@ -195,7 +195,9 @@ export default function MapGlobe({
       pickable: true,
       wrapLongitude: true,
       getPath: (d) => d.path,
-      getColor: [251, 146, 60, 120],
+      // Greenish grants, reddish-orange money/ownership arcs.
+      getColor: (d) =>
+        d.flowType === "grant" ? [52, 211, 153, 140] : [251, 146, 60, 120],
       // Per-type widths (works-counts vs dollars need different scales).
       getWidth: (d) =>
         d.flowType === "13f"
