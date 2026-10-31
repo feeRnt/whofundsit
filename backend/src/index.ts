@@ -36,9 +36,12 @@ app.get("/api/entities", async (req, res) => {
       Math.max(Number.isFinite(requested) ? requested : 200, 1),
       1000,
     );
+    // Skip 0,0 placeholders (ungeocoded rows pile up in the ocean off
+    // Africa); the pipeline fills coordinates in fundsVolume order.
     const entities = await prisma.entity.findMany({
       take: limit,
       orderBy: { fundsVolume: "desc" },
+      where: { lat: { not: 0 }, lng: { not: 0 } },
     });
     res.json(entities);
   } catch (err) {
