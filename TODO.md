@@ -1,5 +1,11 @@
 # TODO
 
+## Beneficial ownership (top individual owners)
+
+- [ ] **Index top-3 biggest individual owners per company.** SEC Forms 3/4/5 (changes in beneficial
+      ownership) are listed in each company's submissions JSON; parsing the top holders needs the
+      ownership XML filings per insider. Feasible but a new ingest path — after fund scale-up.
+
 ## ✅ DONE — proper address field on `Entity`
 
 - [x] **Added `businessAddress`, populated by `npm run ingest` from SEC submissions, geocoded by `npm run pipeline`.**

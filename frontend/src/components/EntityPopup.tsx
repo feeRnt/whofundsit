@@ -66,6 +66,22 @@ export function siblingConcepts(
   );
 }
 
+// SEC submissions carry parallel tickers[]/exchanges[] arrays; group tickers
+// by exchange so "Nasdaq ×4" becomes "Nasdaq: GOOGL, GOOG, …".
+export function listingText(entity: Entity): string {
+  if (entity.tickers.length === 0) {
+    return [...new Set(entity.exchanges)].join(", ");
+  }
+  const groups = new Map<string, string[]>();
+  for (const [i, t] of entity.tickers.entries()) {
+    const ex = entity.exchanges[i] ?? "";
+    groups.set(ex, [...(groups.get(ex) ?? []), t]);
+  }
+  return [...groups.entries()]
+    .map(([ex, ts]) => (ex ? `${ex}: ${ts.join(", ")}` : ts.join(", ")))
+    .join(" · ");
+}
+
 function formatDate(iso: string | null): string {
   if (!iso) {
     return "—";
@@ -137,11 +153,16 @@ export default function EntityPopup({
             </dd>
           </div>
         )}
-        {(entity.exchanges.length > 0 || entity.category) && (
+        {(entity.tickers.length > 0 ||
+          entity.exchanges.length > 0 ||
+          entity.category) && (
           <div>
             <dt>Listing</dt>
             <dd>
-              {[entity.exchanges.join(", "), entity.category]
+              {[
+                listingText(entity),
+                entity.category?.replace(/<br\s*\/?>/g, " · "),
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </dd>
