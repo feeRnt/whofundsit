@@ -67,6 +67,10 @@
 - [ ] **Verify 13F arcs in the browser.** (Run `npm run flows:13f`, reload: dollar arcs from the funds;
       hover shows fund → company + $ amount. Check the match log for miss rate.)
 
+## Last-last: dark mode
+
+- [ ] **Full dark-mode theme.** (Explicitly deferred to the very end; the map UI is already dark-first.)
+
 ## Legal follow-ups
 
 - [ ] **Ship OSM attribution with any standalone address cache.** (Cached Nominatim coordinates are fine to
