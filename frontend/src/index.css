@@ -216,3 +216,48 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.arcs-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #aeb6c2;
+  white-space: nowrap;
+}
+
+.arcs-control input[type="range"] {
+  width: 7rem;
+  accent-color: #5eead4;
+}
+
+.arcs-control input[type="range"]:disabled {
+  opacity: 0.4;
+}
+
+.map-controls {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.map-controls button {
+  width: 2.2rem;
+  height: 2.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #e5e7eb;
+  background: #1a2030;
+  border: 1px solid #3a4358;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.map-controls button:hover {
+  background: #232b40;
+}

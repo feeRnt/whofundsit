@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
+import {
+  Globe as GlobeIcon,
+  Home,
+  Map as MapIcon,
+  Minus,
+  Plus,
+} from "lucide-react";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -21,6 +28,9 @@ const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 // Only systemic tile failure trips the note; isolated tile errors are ignored.
 const TILE_ERROR_BUDGET = 25;
+
+// Opening view and reset target: US-centered.
+const HOME = { longitude: -98, latitude: 39, zoom: 2.5 };
 
 function tooltip({ object }: PickingInfo) {
   if (!object) {
@@ -52,12 +62,14 @@ export default function MapGlobe({
   projection,
   focused,
   flowEndpoints,
+  onToggleProjection,
 }: {
   entities: Entity[];
   flows: Flow[];
   projection: "globe" | "mercator";
   focused: Entity | null;
   flowEndpoints: Set<string>;
+  onToggleProjection: () => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -130,7 +142,7 @@ export default function MapGlobe({
       reuseMaps
       mapLib={maplibregl}
       mapStyle={MAP_STYLE}
-      initialViewState={{ longitude: -98, latitude: 39, zoom: 2.5 }}
+      initialViewState={HOME}
       projection={projection}
       onLoad={() => setMapReady(true)}
       onError={() => {
@@ -165,6 +177,49 @@ export default function MapGlobe({
           Basemap tiles are failing to load — check your network connection.
         </div>
       )}
+      <div className="map-controls">
+        <button
+          type="button"
+          onClick={() => mapRef.current?.zoomIn()}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <Plus size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => mapRef.current?.zoomOut()}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <Minus size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            mapRef.current?.flyTo({
+              center: [HOME.longitude, HOME.latitude],
+              zoom: HOME.zoom,
+            })
+          }
+          title="Reset view"
+          aria-label="Reset view"
+        >
+          <Home size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleProjection}
+          title="Toggle globe / flat map"
+          aria-label="Toggle globe or flat map"
+        >
+          {projection === "globe" ? (
+            <MapIcon size={16} />
+          ) : (
+            <GlobeIcon size={16} />
+          )}
+        </button>
+      </div>
     </Map>
   );
 }

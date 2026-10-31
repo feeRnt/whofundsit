@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Globe as GlobeIcon, Map as MapIcon } from "lucide-react";
+import { Globe as GlobeIcon } from "lucide-react";
 import MapGlobe from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
@@ -9,6 +9,7 @@ export default function App() {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [focused, setFocused] = useState<Entity | null>(null);
   const [showFlows, setShowFlows] = useState(false);
+  const [flowLimit, setFlowLimit] = useState(250);
 
   const flowEndpoints = useMemo(() => {
     const ids = new Set<string>();
@@ -18,12 +19,17 @@ export default function App() {
     }
     return ids;
   }, [flows]);
+
+  const visibleFlows = useMemo(
+    () => flows.slice(0, flowLimit),
+    [flows, flowLimit],
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
 
   useEffect(() => {
-    Promise.all([fetchEntities(), fetchFlows()])
+    Promise.all([fetchEntities(), fetchFlows(1000)])
       .then(([fetchedEntities, fetchedFlows]) => {
         setEntities(fetchedEntities);
         setFlows(fetchedFlows);
@@ -57,25 +63,24 @@ export default function App() {
         >
           {showFlows ? "Hide flows" : "Show flows"}
         </button>
-        <button
-          type="button"
-          className="toggle"
-          onClick={() =>
-            setProjection((p) => (p === "globe" ? "mercator" : "globe"))
-          }
-          aria-pressed={projection === "globe"}
-          title="Toggle globe / flat map"
+        <label
+          className="arcs-control"
+          title="Max arcs shown, biggest first"
         >
-          {projection === "globe" ? (
-            <MapIcon size={16} />
-          ) : (
-            <GlobeIcon size={16} />
-          )}
-          {projection === "globe" ? "Flat map" : "Globe"}
-        </button>
+          Arcs {showFlows ? flowLimit : 0}
+          <input
+            type="range"
+            min={0}
+            max={1000}
+            step={50}
+            value={flowLimit}
+            disabled={!showFlows}
+            onChange={(ev) => setFlowLimit(Number(ev.target.value))}
+          />
+        </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={showFlows ? flows : []} projection={projection} focused={focused} flowEndpoints={flowEndpoints} />
+          <MapGlobe entities={entities} flows={showFlows ? visibleFlows : []} projection={projection} focused={focused} flowEndpoints={flowEndpoints} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} />
         )}</main>
     </div>
   );
