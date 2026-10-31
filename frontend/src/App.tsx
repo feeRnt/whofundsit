@@ -2,13 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { Globe as GlobeIcon, Map as MapIcon } from "lucide-react";
 import MapGlobe from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
+import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
 import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
 
 export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [focused, setFocused] = useState<Entity | null>(null);
-  const [showFlows, setShowFlows] = useState(false);
+  const [showFlows, setShowFlows] = useState(true);
+  const [funderOverrides, setFunderOverrides] = useState<Map<
+    string,
+    boolean
+  > | null>(null);
+  const [disabledCompanies, setDisabledCompanies] = useState<Set<string>>(
+    new Set(),
+  );
   const [flowLimit, setFlowLimit] = useState(250);
 
   const flowEndpoints = useMemo(() => {
@@ -20,10 +28,71 @@ export default function App() {
     return ids;
   }, [flows]);
 
+  const funders = useMemo(() => {
+    const byId = new Map<string, FunderInfo>();
+    for (const f of flows) {
+      const entry = byId.get(f.sourceEntityId) ?? {
+        id: f.sourceEntityId,
+        name: f.sourceEntity.name,
+        count: 0,
+        kind: f.flowType,
+      };
+      entry.count += 1;
+      byId.set(f.sourceEntityId, entry);
+    }
+    return [...byId.values()].sort((a, b) =>
+      a.kind === b.kind ? b.count - a.count : a.kind === "13f" ? -1 : 1,
+    );
+  }, [flows]);
+
+  // BlackRock on by default; everything else (incl. OpenAlex grants) off
+  // until toggled.
+  const enabledFunders = useMemo(() => {
+    const ids = new Set<string>();
+    for (const f of funders) {
+      const on =
+        funderOverrides?.get(f.id) ??
+        f.name.toLowerCase().includes("blackrock");
+      if (on) {
+        ids.add(f.id);
+      }
+    }
+    return ids;
+  }, [funders, funderOverrides]);
+
   const visibleFlows = useMemo(
-    () => flows.slice(0, flowLimit),
-    [flows, flowLimit],
+    () =>
+      flows
+        .filter(
+          (f) =>
+            showFlows &&
+            enabledFunders.has(f.sourceEntityId) &&
+            !disabledCompanies.has(f.sourceEntityId) &&
+            !disabledCompanies.has(f.targetEntityId),
+        )
+        .slice(0, flowLimit),
+    [flows, flowLimit, showFlows, enabledFunders, disabledCompanies],
   );
+
+  const toggleFunder = (id: string) => {
+    setFunderOverrides((prev) => {
+      const next = new Map(prev ?? []);
+      next.set(id, !enabledFunders.has(id));
+      return next;
+    });
+  };
+
+  const toggleCompanyFlows = (id: string) => {
+    setDisabledCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
@@ -51,18 +120,16 @@ export default function App() {
             ? "Loading…"
             : error
               ? `API error: ${error} (is the backend running?)`
-              : `${entities.length} entities · ${flows.length} flows · SEC EDGAR CY2026Q2`}
+              : `${entities.length} entities · ${visibleFlows.length}/${flows.length} flows · SEC EDGAR CY2026Q2`}
         </p>
         <SearchBox entities={entities} onSelect={setFocused} />
-        <button
-          type="button"
-          className="toggle flows-toggle"
-          onClick={() => setShowFlows((v) => !v)}
-          aria-pressed={showFlows}
-          title="Toggle money-flow arcs"
-        >
-          {showFlows ? "Hide flows" : "Show flows"}
-        </button>
+        <FlowsDropdown
+          funders={funders}
+          showFlows={showFlows}
+          enabledFunders={enabledFunders}
+          onToggleMaster={() => setShowFlows((v) => !v)}
+          onToggleFunder={toggleFunder}
+        />
         <button
           type="button"
           className="toggle"
@@ -96,7 +163,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={showFlows ? visibleFlows : []} projection={projection} focused={focused} flowEndpoints={flowEndpoints} />
+          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} flowEndpoints={flowEndpoints} companyFlowsHidden={disabledCompanies} onToggleCompanyFlows={toggleCompanyFlows} />
         )}</main>
     </div>
   );

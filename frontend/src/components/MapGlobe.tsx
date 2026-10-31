@@ -111,12 +111,16 @@ export default function MapGlobe({
   projection,
   focused,
   flowEndpoints,
+  companyFlowsHidden,
+  onToggleCompanyFlows,
 }: {
   entities: Entity[];
   flows: Flow[];
   projection: "globe" | "mercator";
   focused: Entity | null;
   flowEndpoints: Set<string>;
+  companyFlowsHidden: Set<string>;
+  onToggleCompanyFlows: (id: string) => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -143,7 +147,7 @@ export default function MapGlobe({
       filled: true,
       stroked: true,
       lineWidthUnits: "pixels",
-      getLineWidth: 1,
+      getLineWidth: (d) => (selected?.id === d.id ? 3 : 1),
       getPosition: (d) => [d.lng, d.lat],
       // Half the area (÷√2 radius); the money×2 multiplier stays.
       getRadius: (d) => (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2,
@@ -152,7 +156,8 @@ export default function MapGlobe({
       // Purple marks companies on at least one money flow (arcs toggleable).
       getFillColor: (d) =>
         flowEndpoints.has(d.id) ? [168, 85, 247, 210] : [45, 212, 191, 200],
-      getLineColor: [255, 255, 255, 140],
+      getLineColor: (d) =>
+        selected?.id === d.id ? [45, 212, 191, 255] : [255, 255, 255, 140],
     }),
     new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows",
@@ -221,7 +226,12 @@ export default function MapGlobe({
           closeButton={true}
           onClose={() => setSelected(null)}
         >
-          <EntityPopup entity={selected} />
+          <EntityPopup
+            entity={selected}
+            hasFlows={flowEndpoints.has(selected.id)}
+            flowsOn={!companyFlowsHidden.has(selected.id)}
+            onToggleFlows={() => onToggleCompanyFlows(selected.id)}
+          />
         </Popup>
       )}
       {mapError && (

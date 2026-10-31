@@ -55,7 +55,17 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
-export default function EntityPopup({ entity }: { entity: Entity }) {
+export default function EntityPopup({
+  entity,
+  hasFlows,
+  flowsOn,
+  onToggleFlows,
+}: {
+  entity: Entity;
+  hasFlows: boolean;
+  flowsOn: boolean;
+  onToggleFlows: () => void;
+}) {
   const label = entity.conceptTag
     ? (CONCEPT_LABELS[entity.conceptTag] ?? entity.conceptTag)
     : entity.source === "openalex"
@@ -73,6 +83,15 @@ export default function EntityPopup({ entity }: { entity: Entity }) {
       <p className="entity-value">
         {label}: {valueText}
       </p>
+      {hasFlows && (
+        <button
+          type="button"
+          className="flow-toggle"
+          onClick={onToggleFlows}
+        >
+          {flowsOn ? "Hide this company's flows" : "Show this company's flows"}
+        </button>
+      )}
       <dl>
         <div>
           <dt>As of</dt>

@@ -265,3 +265,66 @@ body {
 .map-controls button:hover {
   background: #232b40;
 }
+
+.flows-menu {
+  position: relative;
+}
+
+.flows-menu summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.flows-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.flows-panel {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  z-index: 20;
+  min-width: 15rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  background: #141927;
+  border: 1px solid #3a4358;
+  border-radius: 6px;
+  padding: 0.25rem;
+}
+
+.flows-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.flows-row:hover {
+  background: #1a2030;
+}
+
+.flows-row input[type="checkbox"] {
+  accent-color: #5eead4;
+}
+
+.flows-count {
+  margin-left: auto;
+  color: #aeb6c2;
+  font-size: 0.72rem;
+}
+
+.entity-popup .flow-toggle {
+  margin-top: 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #e5e7eb;
+  background: #1a2030;
+  border: 1px solid #3a4358;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
