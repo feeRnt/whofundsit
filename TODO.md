@@ -57,3 +57,9 @@
 - [ ] **Cursor-page all funder works** (currently first 200/page; Colgate has 1417) once an API key exists.
 - [ ] **Consider merging institution duplicates** (e.g. "College of Veterinary Medicine" vs parent university
       appear as separate arc targets).
+
+## 13F holdings follow-up (fund → stock arcs)
+
+- [ ] **Verify Vanguard CIK live** (default `102909` unconfirmed; override via `THIRTEENF_VANGUARD_CIK`).
+- [ ] **Verify 13F arcs in the browser.** (Run `npm run flows:13f`, reload: dollar arcs from the three funds;
+      hover shows fund → company + $ amount. Check the match log for miss rate.)
