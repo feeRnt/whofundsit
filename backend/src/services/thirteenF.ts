@@ -160,6 +160,18 @@ async function latest13F(
   };
 }
 
+// The information table dwarfs the primary doc (MBs vs KBs): pick the
+// largest .xml that isn't primary_doc.xml (verified live: Vanguard's table
+// is "13F_<cik>_<date>.xml" with no "info" in the name). Undefined when the
+// filing carries no table (amendment shells) — the caller skips those.
+export function pickInfoTable(
+  items: { name: string; size?: unknown }[],
+): string | undefined {
+  return items
+    .filter((i) => i.name.endsWith(".xml") && i.name !== "primary_doc.xml")
+    .sort((a, b) => Number(b.size || 0) - Number(a.size || 0))[0]?.name;
+}
+
 async function infoTableXml(cikNum: string, accn: string): Promise<string> {
   const stub = accn.replace(/-/g, "");
   const base = `${ARCHIVE_URL}/${cikNum}/${stub}`;
@@ -168,13 +180,7 @@ async function infoTableXml(cikNum: string, accn: string): Promise<string> {
   }>(`13f/filings/${cikNum}/${stub}/index.json`, () =>
     secGet(`${base}/index.json`),
   );
-  // The information table dwarfs the primary doc (MBs vs KBs): pick the
-  // largest .xml that isn't primary_doc.xml (verified live: Vanguard's table
-  // is "13F_<cik>_<date>.xml" with no "info" in the name).
-  const tables = (listing.directory?.item ?? [])
-    .filter((i) => i.name.endsWith(".xml") && i.name !== "primary_doc.xml")
-    .sort((a, b) => Number(b.size || 0) - Number(a.size || 0));
-  const doc = tables[0]?.name;
+  const doc = pickInfoTable(listing.directory?.item ?? []);
   if (!doc) {
     throw new Error(`[13f] no information table in ${base}/index.json`);
   }

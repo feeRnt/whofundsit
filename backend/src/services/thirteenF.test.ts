@@ -7,6 +7,7 @@ import {
   discoverManagers,
   normalizeIssuerName,
   parseInfoTable,
+  pickInfoTable,
 } from "./thirteenF.js";
 
 // Fixture lives next to this file (committed); runners against dist must
@@ -79,5 +80,27 @@ describe("discoverManagers", () => {
     assert.deepEqual(found, [
       { cik: "1234", name: "TEST FUND LP", accn: "a2", filingDate: "d2" },
     ]);
+  });
+});
+
+describe("pickInfoTable", () => {
+  it("picks the largest non-primary xml", () => {
+    assert.equal(
+      pickInfoTable([
+        { name: "primary_doc.xml", size: "99999999" },
+        { name: "13F_0000102909_20251231.xml", size: "23016794" },
+        { name: "small.xml", size: "100" },
+        { name: "notes.txt", size: "50" },
+      ]),
+      "13F_0000102909_20251231.xml",
+    );
+  });
+
+  it("returns undefined for table-less filings (amendment shells)", () => {
+    assert.equal(pickInfoTable([]), undefined);
+    assert.equal(
+      pickInfoTable([{ name: "primary_doc.xml", size: "10" }]),
+      undefined,
+    );
   });
 });
