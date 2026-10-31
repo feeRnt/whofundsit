@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildTickerIndex,
   discoverManagers,
+  mapLimit,
   normalizeIssuerName,
   parseInfoTable,
   pickInfoTable,
@@ -140,5 +141,23 @@ describe("pickTicker", () => {
   it("returns null when no venue carries a ticker", () => {
     assert.equal(pickTicker([]), null);
     assert.equal(pickTicker([{ exchCode: "US" }]), null);
+  });
+});
+
+describe("mapLimit", () => {
+  it("covers every item without exceeding the worker cap", async () => {
+    let live = 0;
+    let peak = 0;
+    const seen: number[] = [];
+    await mapLimit([1, 2, 3, 4, 5, 6], 2, async (n) => {
+      live += 1;
+      peak = Math.max(peak, live);
+      await new Promise((r) => setTimeout(r, 5));
+      live -= 1;
+      seen.push(n);
+    });
+    assert.deepEqual(seen.sort((a, b) => a - b), [1, 2, 3, 4, 5, 6]);
+    assert.ok(peak <= 2, `peak ${peak} exceeded cap 2`);
+    assert.ok(peak >= 2, `peak ${peak} shows no parallelism`);
   });
 });

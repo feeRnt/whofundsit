@@ -15,7 +15,8 @@ const NOMINATIM_MIN_INTERVAL_MS = 1100; // Nominatim usage policy: <= 1 req/s
 const MODAL_MIN_INTERVAL_MS = 250;
 
 // Minimal in-memory rate limiter: one outbound call at a time, spaced out.
-function createRateLimiter(minIntervalMs: number) {
+// Promise-chained, so it holds under concurrent callers (ToS-safe).
+export function createRateLimiter(minIntervalMs: number) {
   let lastAt = 0;
   let tail: Promise<void> = Promise.resolve();
   return function schedule<T>(fn: () => Promise<T>): Promise<T> {

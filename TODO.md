@@ -8,9 +8,9 @@
       Needs the currency column below first.
 - [ ] **Multi-currency support** (`Entity.currency`, default USD; ¥/€NT$/₩ display).
       Regional facts arrive in native units — storing them as `$` would lie.
-- [ ] **13F concurrency** (full 16k-filer run is single-threaded: sequential download →
-      parse → upsert per manager). Parallelize with the existing SEC ≤10/s + Nominatim
-      1/s throttles kept; caches make restarts cheap.
+- [x] **13F concurrency.** (8-worker pool via `mapLimit`; SEC ≤10/s, Nominatim 1/s
+      and OpenFIGI limits all hold via chained limiters; shared CUSIP map flushed
+      every 25 managers. Tune with `THIRTEENF_CONCURRENCY`.)
 - [x] **CUSIP/ticker-based 13F matching.** (Holdings resolve CUSIP → ticker via
       OpenFIGI, then ticker → placed entity; normalized-name match stays as fallback.
       NOTE: only 294/18,925 entities are placed — most misses are ungeocoded targets,

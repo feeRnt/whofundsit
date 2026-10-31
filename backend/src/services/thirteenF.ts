@@ -11,7 +11,7 @@ import {
   readAddressMap,
   type BulkAddress,
 } from "./bulkLoad.js";
-import { geocodeLocal } from "./pipeline.js";
+import { createRateLimiter, geocodeLocal } from "./pipeline.js";
 
 // 13F-HR holdings -> dollar-denominated CapitalFlow arcs (fund -> portfolio
 // company). Full-filer scale-up: every 13F-HR filer in the local bulk archive
@@ -34,30 +34,27 @@ const DATA_DIR = path.join(
 );
 const SEC_MIN_INTERVAL_MS = 150;
 
-let lastSecAt = 0;
-
-async function secThrottle(): Promise<void> {
-  const waitMs = Math.max(0, lastSecAt + SEC_MIN_INTERVAL_MS - Date.now());
-  if (waitMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-  }
-  lastSecAt = Date.now();
-}
+// Chained limiters hold under the worker pool (plain timestamps would not).
+const secLimit = createRateLimiter(SEC_MIN_INTERVAL_MS);
+const openfigiLimit = createRateLimiter(
+  process.env.OPENFIGI_API_KEY ? 300 : 2500,
+);
 
 function secUA(): string {
   return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
 }
 
 async function secGet<T>(url: string): Promise<T> {
-  await secThrottle();
-  const { data } = await axios.get<T>(url, {
-    headers: {
-      "User-Agent": secUA(),
-      Accept: "application/json",
-      "Accept-Encoding": "gzip, deflate",
-    },
+  return secLimit(async () => {
+    const { data } = await axios.get<T>(url, {
+      headers: {
+        "User-Agent": secUA(),
+        Accept: "application/json",
+        "Accept-Encoding": "gzip, deflate",
+      },
+    });
+    return data;
   });
-  return data;
 }
 
 interface ManagerSpec {
@@ -184,14 +181,15 @@ async function infoTableXml(cikNum: string, accn: string): Promise<string> {
   if (!doc) {
     throw new Error(`[13f] no information table in ${base}/index.json`);
   }
-  return cachedJson<string>(`13f/filings/${cikNum}/${stub}/${doc}`, async () => {
-    await secThrottle();
-    const { data } = await axios.get<string>(`${base}/${doc}`, {
-      headers: { "User-Agent": secUA(), Accept: "application/xml, text/xml" },
-      responseType: "text",
-    });
-    return data;
-  });
+  return cachedJson<string>(`13f/filings/${cikNum}/${stub}/${doc}`, () =>
+    secLimit(async () => {
+      const { data } = await axios.get<string>(`${base}/${doc}`, {
+        headers: { "User-Agent": secUA(), Accept: "application/xml, text/xml" },
+        responseType: "text",
+      });
+      return data;
+    }),
+  );
 }
 
 export interface Holding {
@@ -306,15 +304,28 @@ export function pickTicker(
 
 const CUSIP_MAP_CACHE = "13f/cusip-map.json";
 
+// Shared across workers (single-threaded mutation is race-free); flushed to
+// disk periodically and at the end so a crash loses minutes, not the run.
+let sharedCusipMap: Map<string, string | null> | null = null;
+
+function flushCusipMap(): void {
+  if (sharedCusipMap) {
+    writeCache(CUSIP_MAP_CACHE, Object.fromEntries(sharedCusipMap));
+  }
+}
+
 // CUSIP -> ticker via OpenFIGI (FIGI data is public-domain dedicated; see
 // DATASETS.md). Batched + persisted to the gitignored cache: CUSIPs are only
 // ever lookup keys, never committed anywhere new.
 async function resolveCusipTickers(
   cusips: string[],
 ): Promise<Map<string, string | null>> {
-  const map = new Map<string, string | null>(
-    Object.entries(readCache<Record<string, string | null>>(CUSIP_MAP_CACHE) ?? {}),
+  sharedCusipMap ??= new Map<string, string | null>(
+    Object.entries(
+      readCache<Record<string, string | null>>(CUSIP_MAP_CACHE) ?? {},
+    ),
   );
+  const map = sharedCusipMap;
   const missing = [...new Set(cusips)].filter(
     (c) => c.length > 0 && !map.has(c),
   );
@@ -323,31 +334,55 @@ async function resolveCusipTickers(
   }
   const key = process.env.OPENFIGI_API_KEY;
   const batchSize = key ? 100 : 10;
-  const intervalMs = key ? 300 : 2500; // 250/min keyed, 25/min keyless
   for (let i = 0; i < missing.length; i += batchSize) {
     const batch = missing.slice(i, i + batchSize);
-    if (i > 0) {
-      await new Promise((r) => setTimeout(r, intervalMs));
-    }
-    const { data } = await axios.post<
-      { data?: { ticker?: unknown; exchCode?: unknown; securityType?: unknown }[] }[]
-    >(
-      "https://api.openfigi.com/v3/mapping",
-      batch.map((c) => ({ idType: "ID_CUSIP", idValue: c })),
-      {
+    const { data } = await openfigiLimit(() =>
+      axios.post<
+        {
+          data?: {
+            ticker?: unknown;
+            exchCode?: unknown;
+            securityType?: unknown;
+          }[];
+        }[]
+      >("https://api.openfigi.com/v3/mapping", batch.map((c) => ({ idType: "ID_CUSIP", idValue: c })), {
         headers: {
           "Content-Type": "application/json",
           ...(key ? { "X-OPENFIGI-APIKEY": key } : {}),
         },
         timeout: 60000,
-      },
+      }),
     );
     batch.forEach((c, j) => {
       map.set(c, pickTicker(data[j]?.data ?? []));
     });
-    writeCache(CUSIP_MAP_CACHE, Object.fromEntries(map));
   }
   return map;
+}
+
+// Bounded worker pool over an array, results in completion order.
+export async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = [];
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(limit, items.length)) },
+    async () => {
+      for (;;) {
+        const i = next;
+        next += 1;
+        if (i >= items.length) {
+          return;
+        }
+        out.push(await fn(items[i], i));
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
 }
 
 // Famous HQs pinned at city precision (plenty for a globe; these never move
@@ -506,13 +541,20 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       Number(process.env.THIRTEENF_MAX_MANAGERS ?? 0),
     );
     const queue = maxManagers > 0 ? jobs.slice(0, maxManagers) : jobs;
-    console.log(`[13f] processing ${queue.length} managers`);
-
+    console.log(`[13f] queue ready: ${queue.length} managers`);
     const managerStats: ThirteenFSummary["managers"] = [];
     let flows = 0;
     let unmatched = 0;
     let done = 0;
-    for (const job of queue) {
+    const concurrency = Math.max(
+      1,
+      Number(process.env.THIRTEENF_CONCURRENCY || 8),
+    );
+    console.log(`[13f] ${concurrency} workers over ${queue.length} managers`);
+    const processJob = async (job: Job): Promise<void> => {
+      if (flows >= MAX_13F_FLOWS) {
+        return; // soft ceiling: in-flight work finishes, the rest skips
+      }
       const { spec } = job;
       let cikNum: string;
       let filing: { accn: string; filingDate: string; state: string | null };
@@ -534,7 +576,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
           matched: 0,
           flows: 0,
         });
-        continue;
+        return;
       }
       const cik10 = cikNum.padStart(10, "0");
       console.log(
@@ -571,7 +613,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
           matched: 0,
           flows: 0,
         });
-        continue;
+        return;
       }
       const at = await geocodeFund(spec, cikNum, addrCache);
       if (!at) {
@@ -584,7 +626,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
           matched: 0,
           flows: 0,
         });
-        continue;
+        return;
       }
       await prisma.entity.upsert({
         where: { id: fundId },
@@ -649,11 +691,13 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       done += 1;
       if (done % 25 === 0) {
         console.log(`[13f] ${done}/${queue.length} managers, ${flows} flows...`);
+        flushCusipMap();
       }
-      if (flows >= MAX_13F_FLOWS) {
-        console.log(`[13f] flow ceiling hit (${MAX_13F_FLOWS}); stopping`);
-        break;
-      }
+    };
+    await mapLimit(queue, concurrency, processJob);
+    flushCusipMap();
+    if (flows >= MAX_13F_FLOWS) {
+      console.log(`[13f] flow ceiling hit (${MAX_13F_FLOWS})`);
     }
     return { managers: managerStats, flows, unmatched };
   } finally {
