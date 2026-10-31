@@ -65,3 +65,8 @@
       dollars (not thousands); table doc is the largest non-primary .xml.
 - [ ] **Verify 13F arcs in the browser.** (Run `npm run flows:13f`, reload: dollar arcs from the three funds;
       hover shows fund → company + $ amount. Check the match log for miss rate.)
+
+## Later: international (IFRS) coverage
+
+- [ ] **Add `ifrs-full` frames/bulk tags** (Samsung, Toyota, Nestlé… barely appear in us-gaap). Needs tag
+      mapping + testing; demo story stays US-centric until the core loop is judge-ready.
