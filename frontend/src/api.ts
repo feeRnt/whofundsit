@@ -17,6 +17,7 @@ export interface Entity {
   exchanges: string[];
   category: string | null;
   formerNames: string[];
+  source: string;
 }
 
 // Relative by default: same-origin in dev (Vite proxy) and in deploys

@@ -39,7 +39,11 @@ function tooltip({ object }: PickingInfo) {
     return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}`;
   }
   const entity = object as Entity;
-  return `${entity.name} — $${entity.fundsVolume.toLocaleString("en-US")} (${entity.rawAddressText})`;
+  const val =
+    entity.source === "openalex"
+      ? `${entity.fundsVolume.toLocaleString("en-US")} funded works`
+      : `$${entity.fundsVolume.toLocaleString("en-US")}`;
+  return `${entity.name} — ${val} (${entity.rawAddressText})`;
 }
 
 // Great-circle interpolation in JS: deck interpolates ArcLayer in flat map

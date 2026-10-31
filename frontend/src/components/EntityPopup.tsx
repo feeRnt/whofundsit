@@ -16,8 +16,17 @@ export interface DocLink {
 // Wikipedia-style supporting documents for one entity row: the EDGAR filing
 // validating the datapoint, the company's EDGAR page, and the source dataset.
 export function docLinks(entity: Entity): DocLink[] {
-  const cik = entity.id.split(":")[0] ?? "";
-  const cikNum = String(Number(cik));
+  if (entity.id.startsWith("openalex:")) {
+    const oid = entity.id.slice("openalex:".length);
+    return [{ label: "OpenAlex record", href: `https://openalex.org/${oid}` }];
+  }
+  const raw = entity.id.startsWith("13f:")
+    ? (entity.id.split(":")[1] ?? "")
+    : (entity.id.split(":")[0] ?? "");
+  if (!/^\d+$/.test(raw)) {
+    return [];
+  }
+  const cikNum = String(Number(raw));
   const links: DocLink[] = [];
   const accnPath = entity.secFilingNumber?.replace(/-/g, "");
   if (accnPath) {
@@ -27,7 +36,7 @@ export function docLinks(entity: Entity): DocLink[] {
     });
   }
   links.push({
-    label: "Company on EDGAR",
+    label: entity.type === "Fund" ? "Fund on EDGAR" : "Company on EDGAR",
     href: `https://www.sec.gov/edgar/browse/?CIK=${cikNum}&owner=exclude`,
   });
   if (entity.conceptTag && entity.sourceTimeFrame) {
@@ -49,12 +58,20 @@ function formatDate(iso: string | null): string {
 export default function EntityPopup({ entity }: { entity: Entity }) {
   const label = entity.conceptTag
     ? (CONCEPT_LABELS[entity.conceptTag] ?? entity.conceptTag)
-    : "Reported value";
+    : entity.source === "openalex"
+      ? "Funded works"
+      : entity.type === "Fund"
+        ? "Holdings value"
+        : "Reported value";
+  const valueText =
+    entity.source === "openalex"
+      ? entity.fundsVolume.toLocaleString("en-US")
+      : `$${entity.fundsVolume.toLocaleString("en-US")}`;
   return (
     <div className="entity-popup">
       <h2>{entity.name}</h2>
       <p className="entity-value">
-        {label}: ${entity.fundsVolume.toLocaleString("en-US")}
+        {label}: {valueText}
       </p>
       <dl>
         <div>

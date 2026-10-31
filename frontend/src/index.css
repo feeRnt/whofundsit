@@ -139,6 +139,10 @@ body {
   color: #fbbf24;
 }
 
+.map .maplibre-popup {
+  z-index: 30;
+}
+
 .map .maplibre-popup-content {
   background: #141927;
   border: 1px solid #3a4358;
