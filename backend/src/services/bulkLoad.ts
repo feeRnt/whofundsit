@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
-import * as unzipper from "unzipper";
+import yauzl from "yauzl";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { readCache, writeCache } from "./httpCache.js";
@@ -91,68 +91,84 @@ interface ZipJson {
 
 // Entry layout verified live via Range probes: flat per-CIK files, e.g.
 // submissions.zip -> "CIK0000004926.json", companyfacts.zip ->
-// "CIK0000001750.json". Parsed as one sequential stream: random access did
-// ~800 docs/s on the 1M-entry archive; streaming is an order of magnitude
-// faster. Samples still log as a tripwire. Sidecar "-submissions-*.json"
+// "CIK0000001750.json". Parsed sequentially with yauzl's lazyEntries: true
+// pull iteration (one entry at a time, nothing buffered ahead), which the
+// old random-access reads (~800 docs/s) and event-stream hacks couldn't do
+// safely. Samples still log as a tripwire. Sidecar "-submissions-*.json"
 // entries carry filings only (no cik) and are skipped by callers.
-export async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
-  // Pull-based: Parse() emits 'entry' events (nothing reaches the readable
-  // side, so for-await sees zero entries). The source stays paused while an
-  // entry is handled, so a slow consumer (DB upserts) can't buffer the
-  // archive in memory.
-  interface RawEntry {
-    path: string;
-    type: string;
-    autodrain: () => void;
-    buffer: () => Promise<Buffer>;
-  }
-  const source = fs.createReadStream(zipPath);
-  const parser = source.pipe(unzipper.Parse());
-  const pending: RawEntry[] = [];
-  let done = false;
-  let failure: unknown = null;
-  let notify: (() => void) | null = null;
-  const wake = (): void => {
-    const next = notify;
-    notify = null;
-    next?.();
-  };
-  parser.on("entry", (entry: RawEntry) => {
-    source.pause();
-    pending.push(entry);
-    wake();
+function openZip(zipPath: string): Promise<yauzl.ZipFile> {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
+      if (err || !zipfile) {
+        reject(err ?? new Error(`[bulk] cannot open ${zipPath}`));
+      } else {
+        resolve(zipfile);
+      }
+    });
   });
-  parser.on("close", () => {
-    done = true;
-    wake();
-  });
-  parser.on("error", (err: unknown) => {
-    failure = err;
-    done = true;
-    wake();
-  });
+}
 
+function nextEntry(zipfile: yauzl.ZipFile): Promise<yauzl.Entry | null> {
+  return new Promise((resolve, reject) => {
+    const cleanup = (): void => {
+      zipfile.removeListener("entry", onEntry);
+      zipfile.removeListener("end", onEnd);
+      zipfile.removeListener("error", onError);
+    };
+    const onEntry = (entry: yauzl.Entry): void => {
+      cleanup();
+      resolve(entry);
+    };
+    const onEnd = (): void => {
+      cleanup();
+      resolve(null);
+    };
+    const onError = (err: unknown): void => {
+      cleanup();
+      reject(err instanceof Error ? err : new Error(String(err)));
+    };
+    zipfile.once("entry", onEntry);
+    zipfile.once("end", onEnd);
+    zipfile.once("error", onError);
+    zipfile.readEntry();
+  });
+}
+
+function entryBuffer(
+  zipfile: yauzl.ZipFile,
+  entry: yauzl.Entry,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    zipfile.openReadStream(entry, (err, stream) => {
+      if (err || !stream) {
+        reject(err ?? new Error(`[bulk] cannot read ${entry.fileName}`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.once("end", () => resolve(Buffer.concat(chunks)));
+      stream.once("error", reject);
+    });
+  });
+}
+
+export async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
+  const zipfile = await openZip(zipPath);
   const samples: string[] = [];
   let count = 0;
   let parseErrors = 0;
   try {
     for (;;) {
-      while (pending.length === 0 && !done) {
-        source.resume();
-        await new Promise<void>((resolve) => {
-          notify = resolve;
-        });
-      }
-      const entry = pending.shift();
+      const entry = await nextEntry(zipfile);
       if (!entry) {
         break;
       }
-      if (entry.type !== "File" || !entry.path.endsWith(".json")) {
-        entry.autodrain();
+      const name = entry.fileName;
+      if (name.endsWith("/") || !name.endsWith(".json")) {
         continue;
       }
       if (samples.length < 3) {
-        samples.push(entry.path);
+        samples.push(name);
         if (samples.length === 3) {
           console.log(
             `[bulk] ${path.basename(zipPath)} streaming, e.g. ${samples.join(", ")}`,
@@ -160,22 +176,19 @@ export async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
         }
       }
       try {
-        const buf: Buffer = await entry.buffer();
+        const buf = await entryBuffer(zipfile, entry);
         const json: unknown = JSON.parse(buf.toString("utf8"));
         count += 1;
-        yield { name: entry.path, json };
+        yield { name, json };
       } catch {
         parseErrors += 1;
         if (parseErrors <= 3) {
-          console.log(`[bulk] unparsable entry skipped: ${entry.path}`);
+          console.log(`[bulk] unparsable entry skipped: ${name}`);
         }
       }
     }
   } finally {
-    source.destroy();
-  }
-  if (failure) {
-    throw failure;
+    zipfile.close();
   }
   console.log(
     `[bulk] ${path.basename(zipPath)}: ${count} json entries streamed` +

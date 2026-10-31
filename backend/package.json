@@ -16,24 +16,24 @@
     "db:export": "tsx src/scripts/seed_export.ts",
     "db:seed": "tsx src/scripts/seed_import.ts",
     "flows:openalex": "tsx src/scripts/openalex_flows.ts",
-    "test": "tsx --test src/services/openalexFlows.test.ts"
+    "test": "tsx --test src/services/openalexFlows.test.ts src/services/bulkLoad.test.ts"
   },
   "keywords": [],
   "type": "module",
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "7.10.1",
+    "@types/yauzl": "^3.4.0",
     "axios": "^1.21.0",
     "dotenv": "^18.0.9",
     "express": "^5.3.0",
     "pg": "^8.23.1",
-    "unzipper": "^0.12.5"
+    "yauzl": "^3.4.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
-    "@types/unzipper": "^0.10.11",
     "prisma": "7.10.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3"
