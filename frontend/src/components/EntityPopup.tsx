@@ -48,6 +48,24 @@ export function docLinks(entity: Entity): DocLink[] {
   return links;
 }
 
+// One Entity row per XBRL concept ({CIK}:{ConceptTag}), so a company has
+// sibling rows. Both click pathways show the full set via this lookup.
+export function siblingConcepts(
+  entities: Entity[],
+  entity: Entity,
+): Entity[] {
+  const group = entity.id.split(":")[0] ?? "";
+  if (!/^\d+$/.test(group)) {
+    return [];
+  }
+  return entities.filter(
+    (e) =>
+      e.id !== entity.id &&
+      e.id.startsWith(`${group}:`) &&
+      e.conceptTag !== null,
+  );
+}
+
 function formatDate(iso: string | null): string {
   if (!iso) {
     return "—";
@@ -57,15 +75,18 @@ function formatDate(iso: string | null): string {
 
 export default function EntityPopup({
   entity,
+  entities,
   hasFlows,
   flowsOn,
   onToggleFlows,
 }: {
   entity: Entity;
+  entities: Entity[];
   hasFlows: boolean;
   flowsOn: boolean;
   onToggleFlows: () => void;
 }) {
+  const siblings = siblingConcepts(entities, entity);
   const label = entity.conceptTag
     ? (CONCEPT_LABELS[entity.conceptTag] ?? entity.conceptTag)
     : entity.source === "openalex"
@@ -83,6 +104,12 @@ export default function EntityPopup({
       <p className="entity-value">
         {label}: {valueText}
       </p>
+      {siblings.map((s) => (
+        <p key={s.id} className="entity-value sibling">
+          {CONCEPT_LABELS[s.conceptTag ?? ""] ?? s.conceptTag}: $
+          {s.fundsVolume.toLocaleString("en-US")}
+        </p>
+      ))}
       {hasFlows && (
         <button
           type="button"

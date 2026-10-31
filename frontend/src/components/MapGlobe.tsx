@@ -139,6 +139,11 @@ export default function MapGlobe({
     }
   }, [focused]);
 
+  // The map remounts on projection toggle; show the spinner until onLoad.
+  useEffect(() => {
+    setMapReady(false);
+  }, [projection]);
+
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
   // funders to grantees, width by works count.
@@ -209,6 +214,7 @@ export default function MapGlobe({
   // Fresh map instance per projection: MapLibre corrupts tile buffers
   // when switching globe/mercator at runtime (pastel noise blocks).
   return (
+    <>
     <Map
       key={projection}
       ref={mapRef}
@@ -250,6 +256,7 @@ export default function MapGlobe({
         >
           <EntityPopup
             entity={selected}
+            entities={entities}
             hasFlows={flowEndpoints.has(selected.id)}
             flowsOn={!companyFlowsHidden.has(selected.id)}
             onToggleFlows={() => onToggleCompanyFlows(selected.id)}
@@ -293,5 +300,11 @@ export default function MapGlobe({
         </button>
       </div>
     </Map>
+    {!mapReady && !mapError && (
+      <div className="map-loading" aria-label="Loading map">
+        <div className="spinner" />
+      </div>
+    )}
+    </>
   );
 }
