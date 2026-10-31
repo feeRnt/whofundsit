@@ -1,0 +1,702 @@
+[
+  {
+    "id": "openalex:F4320307808:I102322142",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I102322142",
+    "amount": 8,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I111979921",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I111979921",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I114027177",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I114027177",
+    "amount": 6,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I1174212",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I1174212",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I118564535",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I118564535",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I121748325",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I121748325",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I124055696",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I124055696",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I126744593",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I126744593",
+    "amount": 6,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I1283280774",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I1283280774",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I1298207432",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I1298207432",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I129902397",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I129902397",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I1299303238",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I1299303238",
+    "amount": 32,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I130828816",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I130828816",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I1336742384",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I1336742384",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I135140700",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I135140700",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I135310074",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I135310074",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I136199984",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I136199984",
+    "amount": 13,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I145311948",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I145311948",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I145608581",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I145608581",
+    "amount": 6,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I154387261",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I154387261",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I161318765",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I161318765",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I165779595",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I165779595",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I165951966",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I165951966",
+    "amount": 8,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I166337079",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I166337079",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I175532246",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I175532246",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I177877127",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I177877127",
+    "amount": 6,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I17974374",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I17974374",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I180670191",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I180670191",
+    "amount": 9,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I181391015",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I181391015",
+    "amount": 6,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I183935753",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I183935753",
+    "amount": 16,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I184840846",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I184840846",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I185261750",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I185261750",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I189460059",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I189460059",
+    "amount": 10,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I193531525",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I193531525",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I200763008",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I200763008",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I200777214",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I200777214",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I201448701",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I201448701",
+    "amount": 8,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I204337017",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I204337017",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I24185976",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I24185976",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I25041050",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I25041050",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I27837315",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I27837315",
+    "amount": 9,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I2799503643",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I2799503643",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I2800072022",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I2800072022",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I2800717037",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I2800717037",
+    "amount": 8,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I2801367772",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I2801367772",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I28022161",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I28022161",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I2802709434",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I2802709434",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I28407311",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I28407311",
+    "amount": 10,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I28792581",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I28792581",
+    "amount": 8,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I2898155008",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I2898155008",
+    "amount": 8,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I32389192",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I32389192",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I33213144",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I33213144",
+    "amount": 11,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I36258959",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I36258959",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I39422238",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I39422238",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210087915",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210087915",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210088259",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210088259",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210089578",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210089578",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210090185",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210090185",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210090567",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210090567",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210101935",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210101935",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210106489",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210106489",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210110767",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210110767",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210125983",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210125983",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210127875",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210127875",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210130649",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210130649",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210133214",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210133214",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210134534",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210134534",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210135004",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210135004",
+    "amount": 20,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210140884",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210140884",
+    "amount": 15,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210149717",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210149717",
+    "amount": 10,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210155647",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210155647",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210156075",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210156075",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4210158500",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4210158500",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4387154366",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4387154366",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4388446366",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4388446366",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4390039250",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4390039250",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4391768043",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4391768043",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I4405268108",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I4405268108",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I45129253",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I45129253",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I5388228",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I5388228",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I55769427",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I55769427",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I57206974",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I57206974",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I58956616",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I58956616",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I592451",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I592451",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I63190737",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I63190737",
+    "amount": 6,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I67581229",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I67581229",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I71395657",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I71395657",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I78577930",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I78577930",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I79576946",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I79576946",
+    "amount": 13,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I80281795",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I80281795",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I84392919",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I84392919",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I84884186",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I84884186",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I881427289",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I881427289",
+    "amount": 7,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I887064364",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I887064364",
+    "amount": 5,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I889458895",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I889458895",
+    "amount": 4,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I91045830",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I91045830",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I95457486",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I95457486",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I97018004",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I97018004",
+    "amount": 3,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I98704320",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I98704320",
+    "amount": 2,
+    "flowType": "grant"
+  },
+  {
+    "id": "openalex:F4320307808:I99464096",
+    "sourceEntityId": "openalex:F4320307808",
+    "targetEntityId": "openalex:I99464096",
+    "amount": 3,
+    "flowType": "grant"
+  }
+]
