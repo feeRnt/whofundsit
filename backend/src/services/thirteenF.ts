@@ -313,19 +313,19 @@ export async function discoverManagers(
       continue;
     }
     const recent = doc.filings?.recent;
-    const idx =
-      recent?.form.findIndex(
-        (f) => typeof f === "string" && f.startsWith("13F-HR"),
-      ) ?? -1;
-    if (!recent || idx < 0) {
+    const forms = recent?.form ?? [];
+    const idx = forms.findIndex(
+      (f) => typeof f === "string" && f.startsWith("13F-HR"),
+    );
+    if (idx < 0) {
       continue;
     }
-    out.push({
-      cik: String(cik),
-      name: doc.name,
-      accn: recent.accessionNumber[idx],
-      filingDate: recent.filingDate[idx],
-    });
+    const accn = recent?.accessionNumber?.[idx];
+    const filingDate = recent?.filingDate?.[idx];
+    if (typeof accn !== "string" || typeof filingDate !== "string") {
+      continue;
+    }
+    out.push({ cik: String(cik), name: doc.name, accn, filingDate });
   }
   return out;
 }
