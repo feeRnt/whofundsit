@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Globe as GlobeIcon } from "lucide-react";
+import { Globe as GlobeIcon, Map as MapIcon } from "lucide-react";
 import MapGlobe from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
@@ -63,6 +63,22 @@ export default function App() {
         >
           {showFlows ? "Hide flows" : "Show flows"}
         </button>
+        <button
+          type="button"
+          className="toggle"
+          onClick={() =>
+            setProjection((p) => (p === "globe" ? "mercator" : "globe"))
+          }
+          aria-pressed={projection === "globe"}
+          title="Toggle globe / flat map"
+        >
+          {projection === "globe" ? (
+            <MapIcon size={16} />
+          ) : (
+            <GlobeIcon size={16} />
+          )}
+          {projection === "globe" ? "Flat map" : "Globe"}
+        </button>
         <label
           className="arcs-control"
           title="Max arcs shown, biggest first"
@@ -80,7 +96,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={showFlows ? visibleFlows : []} projection={projection} focused={focused} flowEndpoints={flowEndpoints} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} />
+          <MapGlobe entities={entities} flows={showFlows ? visibleFlows : []} projection={projection} focused={focused} flowEndpoints={flowEndpoints} />
         )}</main>
     </div>
   );

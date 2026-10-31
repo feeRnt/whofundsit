@@ -42,3 +42,16 @@ describe("normalizeIssuerName", () => {
     );
   });
 });
+
+describe("parseInfoTable aggregation", () => {
+  it("sums same-CUSIP sleeves instead of last-write-wins", () => {
+    const row = (value: number, mgr: number) =>
+      `<infoTable><nameOfIssuer>META PLATFORMS INC</nameOfIssuer><titleOfClass>CL A</titleOfClass><cusip>30303M102</cusip><value>${value}</value><shrsOrPrnAmt><sshPrnamt>10</sshPrnamt><sshPrnamtType>SH</sshPrnamtType></shrsOrPrnAmt><otherManager>${mgr}</otherManager></infoTable>`;
+    const holdings = parseInfoTable(
+      `<?xml version="1.0"?><informationTable>${row(37255044697, 21)}${row(56329, 4)}</informationTable>`,
+    );
+    assert.equal(holdings.length, 1);
+    assert.equal(holdings[0].valueUsd, 37255044697 + 56329);
+    assert.equal(holdings[0].shares, 20);
+  });
+});

@@ -231,7 +231,19 @@ export function parseInfoTable(xml: string): Holding[] {
       shares: Number(shrs?.sshPrnamt ?? 0) || 0,
     });
   }
-  return out.sort((a, b) => b.valueUsd - a.valueUsd);
+  // Same-CUSIP lines (other-manager sleeves) sum: last-write-wins kept a
+  // $56k fragment of BlackRock's ~$95B Meta position. Sort after merging.
+  const merged = new Map<string, Holding>();
+  for (const h of out) {
+    const prev = merged.get(h.cusip);
+    if (prev) {
+      prev.valueUsd += h.valueUsd;
+      prev.shares += h.shares;
+    } else {
+      merged.set(h.cusip, { ...h });
+    }
+  }
+  return [...merged.values()].sort((a, b) => b.valueUsd - a.valueUsd);
 }
 
 // Famous HQs pinned at city precision (plenty for a globe; these never move
@@ -377,8 +389,8 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
           continue;
         }
         matched += 1;
-        // One flow per holding (CUSIP in the id: same company, two classes =
-        // two flows, e.g. GOOGL/GOOG).
+        // One flow per CUSIP (same-company sleeves already summed; different
+        // classes keep separate flows, e.g. GOOGL/GOOG).
         await prisma.capitalFlow.upsert({
           where: { id: `13f:${cik10}:${h.cusip}` },
           create: {

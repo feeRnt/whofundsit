@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
-import {
-  Globe as GlobeIcon,
-  Home,
-  Map as MapIcon,
-  Minus,
-  Plus,
-} from "lucide-react";
+import { Home, Minus, Plus } from "lucide-react";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -62,14 +56,12 @@ export default function MapGlobe({
   projection,
   focused,
   flowEndpoints,
-  onToggleProjection,
 }: {
   entities: Entity[];
   flows: Flow[];
   projection: "globe" | "mercator";
   focused: Entity | null;
   flowEndpoints: Set<string>;
-  onToggleProjection: () => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -119,10 +111,14 @@ export default function MapGlobe({
       getTargetPosition: (d) => [d.targetEntity.lng, d.targetEntity.lat],
       getSourceColor: [45, 212, 191, 220],
       getTargetColor: [251, 191, 36, 220],
-      getWidth: (d) => Math.sqrt(d.amount),
+      // Per-type widths (works-counts vs dollars need different scales).
+      getWidth: (d) =>
+        d.flowType === "13f"
+          ? Math.max(1, Math.min(5, Math.log10(d.amount) - 4))
+          : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2)),
       widthUnits: "pixels",
       widthMinPixels: 1,
-      widthMaxPixels: 8,
+      widthMaxPixels: 5,
     }),
   ];
 
@@ -206,18 +202,6 @@ export default function MapGlobe({
           aria-label="Reset view"
         >
           <Home size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={onToggleProjection}
-          title="Toggle globe / flat map"
-          aria-label="Toggle globe or flat map"
-        >
-          {projection === "globe" ? (
-            <MapIcon size={16} />
-          ) : (
-            <GlobeIcon size={16} />
-          )}
         </button>
       </div>
     </Map>

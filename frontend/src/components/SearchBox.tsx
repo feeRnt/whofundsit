@@ -18,13 +18,29 @@ export default function SearchBox({
     if (q.length < 2) {
       return [];
     }
-    return entities
-      .filter((e) =>
-        `${e.name} ${e.tickers.join(" ")} ${e.businessAddress ?? ""} ${e.rawAddressText}`
-          .toLowerCase()
-          .includes(q),
-      )
-      .slice(0, 10);
+    // One row per company (entities hold one row per concept tag).
+    const seen = new Set<string>();
+    const out: Entity[] = [];
+    for (const e of entities) {
+      const hay =
+        `${e.name} ${e.tickers.join(" ")} ${e.businessAddress ?? ""} ${e.rawAddressText}`.toLowerCase();
+      if (!hay.includes(q)) {
+        continue;
+      }
+      const key =
+        e.id.startsWith("openalex:") || e.id.startsWith("13f:")
+          ? e.id
+          : e.id.split(":")[0];
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      out.push(e);
+      if (out.length >= 10) {
+        break;
+      }
+    }
+    return out;
   }, [entities, query]);
 
   return (
