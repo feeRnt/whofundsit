@@ -8,12 +8,16 @@ export interface FunderInfo {
 // Native <details> dropdown: master arcs switch plus one checkbox per funder
 // (13F funds and the OpenAlex grant source alike).
 export default function FlowsDropdown({
+  title,
+  masterLabel,
   funders,
   showFlows,
   enabledFunders,
   onToggleMaster,
   onToggleFunder,
 }: {
+  title: string;
+  masterLabel: string;
   funders: FunderInfo[];
   showFlows: boolean;
   enabledFunders: Set<string>;
@@ -22,8 +26,8 @@ export default function FlowsDropdown({
 }) {
   return (
     <details className="flows-menu">
-      <summary className="toggle" aria-label="Flow visibility options">
-        Flows
+      <summary className="toggle" aria-label={`${title} visibility options`}>
+        {title}
       </summary>
       <div className="flows-panel">
         <label className="flows-row">
@@ -32,7 +36,7 @@ export default function FlowsDropdown({
             checked={showFlows}
             onChange={onToggleMaster}
           />
-          Show arcs
+          {masterLabel}
         </label>
         {funders.map((f) => (
           <label key={f.id} className="flows-row" title={f.kind}>

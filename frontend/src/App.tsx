@@ -10,6 +10,7 @@ export default function App() {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [focused, setFocused] = useState<Entity | null>(null);
   const [showFlows, setShowFlows] = useState(true);
+  const [showGrants, setShowGrants] = useState(false);
   const [funderOverrides, setFunderOverrides] = useState<Map<
     string,
     boolean
@@ -28,7 +29,7 @@ export default function App() {
     return ids;
   }, [flows]);
 
-  const funders = useMemo(() => {
+  const { funders13f, fundersGrants } = useMemo(() => {
     const byId = new Map<string, FunderInfo>();
     for (const f of flows) {
       const entry = byId.get(f.sourceEntityId) ?? {
@@ -40,16 +41,17 @@ export default function App() {
       entry.count += 1;
       byId.set(f.sourceEntityId, entry);
     }
-    return [...byId.values()].sort((a, b) =>
-      a.kind === b.kind ? b.count - a.count : a.kind === "13f" ? -1 : 1,
-    );
+    const sorted = [...byId.values()].sort((a, b) => b.count - a.count);
+    return {
+      funders13f: sorted.filter((f) => f.kind === "13f"),
+      fundersGrants: sorted.filter((f) => f.kind !== "13f"),
+    };
   }, [flows]);
 
-  // BlackRock on by default; everything else (incl. OpenAlex grants) off
-  // until toggled.
+  // BlackRock on by default; everything else off until toggled.
   const enabledFunders = useMemo(() => {
     const ids = new Set<string>();
-    for (const f of funders) {
+    for (const f of [...funders13f, ...fundersGrants]) {
       const on =
         funderOverrides?.get(f.id) ??
         f.name.toLowerCase().includes("blackrock");
@@ -58,20 +60,28 @@ export default function App() {
       }
     }
     return ids;
-  }, [funders, funderOverrides]);
+  }, [funders13f, fundersGrants, funderOverrides]);
 
   const visibleFlows = useMemo(
     () =>
       flows
         .filter(
           (f) =>
-            showFlows &&
+            ((f.flowType === "13f" && showFlows) ||
+              (f.flowType === "grant" && showGrants)) &&
             enabledFunders.has(f.sourceEntityId) &&
             !disabledCompanies.has(f.sourceEntityId) &&
             !disabledCompanies.has(f.targetEntityId),
         )
         .slice(0, flowLimit),
-    [flows, flowLimit, showFlows, enabledFunders, disabledCompanies],
+    [
+      flows,
+      flowLimit,
+      showFlows,
+      showGrants,
+      enabledFunders,
+      disabledCompanies,
+    ],
   );
 
   const toggleFunder = (id: string) => {
@@ -124,10 +134,21 @@ export default function App() {
         </p>
         <SearchBox entities={entities} onSelect={setFocused} />
         <FlowsDropdown
-          funders={funders}
+          title="Hedge-Funds"
+          masterLabel="Show funding map"
+          funders={funders13f}
           showFlows={showFlows}
           enabledFunders={enabledFunders}
           onToggleMaster={() => setShowFlows((v) => !v)}
+          onToggleFunder={toggleFunder}
+        />
+        <FlowsDropdown
+          title="University funds"
+          masterLabel="Show grants"
+          funders={fundersGrants}
+          showFlows={showGrants}
+          enabledFunders={enabledFunders}
+          onToggleMaster={() => setShowGrants((v) => !v)}
           onToggleFunder={toggleFunder}
         />
         <button

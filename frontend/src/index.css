@@ -139,22 +139,22 @@ body {
   color: #fbbf24;
 }
 
-.maplibre-popup {
+div.maplibre-popup {
   z-index: 30;
 }
 
-.maplibre-popup-content {
+div.maplibre-popup-content {
   background: #141927;
   border: 1px solid #3a4358;
   border-radius: 8px;
   padding: 0.8rem 1rem;
 }
 
-.maplibre-popup-anchor-top .maplibre-popup-tip {
+.maplibre-popup-anchor-top div.maplibre-popup-tip {
   border-top-color: #141927;
 }
 
-.maplibre-popup-close-button {
+button.maplibre-popup-close-button {
   color: #aeb6c2;
 }
 

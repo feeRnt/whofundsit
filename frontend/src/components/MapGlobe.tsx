@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
 import { Home, Minus, Plus } from "lucide-react";
 import * as maplibregl from "maplibre-gl";
@@ -139,7 +139,7 @@ export default function MapGlobe({
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
   // funders to grantees, width by works count.
-  const layers = [
+  const layers = useMemo(() => [
     new ScatterplotLayer<Entity>({
       id: "entities",
       data: entities,
@@ -153,9 +153,13 @@ export default function MapGlobe({
       getRadius: (d) => (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2,
       radiusMinPixels: 3,
       radiusMaxPixels: 11,
-      // Purple marks companies on at least one money flow (arcs toggleable).
+      // Amber universities, purple flow endpoints, teal everything else.
       getFillColor: (d) =>
-        flowEndpoints.has(d.id) ? [168, 85, 247, 210] : [45, 212, 191, 200],
+        d.type.toLowerCase() === "education"
+          ? [251, 191, 36, 210]
+          : flowEndpoints.has(d.id)
+            ? [168, 85, 247, 210]
+            : [45, 212, 191, 200],
       getLineColor: (d) =>
         selected?.id === d.id ? [45, 212, 191, 255] : [255, 255, 255, 140],
     }),
@@ -181,7 +185,7 @@ export default function MapGlobe({
       widthMinPixels: 1,
       widthMaxPixels: 5,
     }),
-  ];
+  ], [entities, flows, flowEndpoints, selected]);
 
   function handleClick(info: PickingInfo) {
     const object = info.object as Record<string, unknown> | undefined;
