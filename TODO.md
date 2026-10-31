@@ -6,9 +6,8 @@
 
 ## ⚠️ BIG TODO — SEC ingestion follow-ups (`backend/src/services/secIngestion.ts`)
 
-- [ ] **Replace the placeholder `Entity.type = "Company"` with real SIC industry data.**
-      SEC Frames has no SIC. Enrich per CIK from the SEC submissions API (`sicDescription`, e.g. medical, electronics),
-      so `Entity.type` reflects the actual industry/trading category instead of the placeholder.
+- [x] **Real SIC industry in `Entity.type`.** (Done: `sicDescription` from the submissions payload, e.g.
+      "Aircraft & Parts"; falls back to `"Company"` only when absent. Backfills existing rows on next ingest.)
 - [x] **Business address + real coordinates.** (Done: ingest fetches submissions addresses into `businessAddress`;
       `npm run pipeline` geocodes them via Nominatim. `rawAddressText` keeps `loc`.)
 - [ ] **Run live ingestion once `DATABASE_URL` is configured** (`backend/.env`), then verify row counts

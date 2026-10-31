@@ -33,10 +33,6 @@ const MIN_INTERVAL_MS = 150;
 // Back off (never hammer) on rate limits and server errors.
 const SEC_MAX_RETRIES = 3;
 
-// TODO(SIC): type below is the placeholder "Company". The submissions payload
-// already carries sicDescription — wire it in when the SIC TODO is picked up.
-// See whofundsit/TODO.md.
-
 interface SecFrameRow {
   accn: string; // SEC filing (accession) number validating this datapoint, e.g. "0001104659-19-016320"
   cik: number; // SEC Central Index Key -> part of Entity.id
@@ -68,6 +64,7 @@ interface SecSubmissions {
     mailing?: SecAddress | null;
   } | null;
   tickers?: unknown;
+  sicDescription?: unknown;
 }
 
 export interface FrameSummary {
@@ -168,6 +165,7 @@ async function secGet<T>(url: string): Promise<T> {
 interface SubmissionsInfo {
   address: string | null;
   tickers: string[];
+  sicDescription: string | null;
 }
 
 // Run-scoped submissions cache: the same CIK appears in several frames, so
@@ -197,6 +195,10 @@ async function fetchSubmissions(cik: number): Promise<SubmissionsInfo> {
     tickers: Array.isArray(data.tickers)
       ? data.tickers.filter((t): t is string => typeof t === "string")
       : [],
+    sicDescription:
+      typeof data.sicDescription === "string" && data.sicDescription.length > 0
+        ? data.sicDescription
+        : null,
   };
   submissionsCache.set(cik, info);
   return info;
@@ -291,30 +293,38 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
         const id = `${row.cik}:${frame.tag}`;
         const existing = await prisma.entity.findUnique({
           where: { id },
-          select: { businessAddress: true, tickers: true },
+          select: { businessAddress: true, tickers: true, type: true },
         });
         let businessAddress: string | null = existing?.businessAddress ?? null;
         let tickers: string[] = existing?.tickers ?? [];
-        if (businessAddress === null || tickers.length === 0) {
+        let industry: string | null =
+          existing?.type && existing.type !== "Company" ? existing.type : null;
+        if (
+          businessAddress === null ||
+          tickers.length === 0 ||
+          industry === null
+        ) {
           try {
             const info = await fetchSubmissions(row.cik);
             businessAddress = businessAddress ?? info.address;
             if (tickers.length === 0) {
               tickers = info.tickers;
             }
+            industry = industry ?? info.sicDescription;
           } catch (err) {
             if (err instanceof SecBlockedError) {
               throw err; // fatal: stop the run instead of burning calls
             }
           }
         }
+        const type = industry ?? "Company";
 
         await prisma.entity.upsert({
           where: { id },
           create: {
             id,
             name: row.entityName,
-            type: "Company", // placeholder — see TODO(SIC) above
+            type,
             lat: 0, // placeholder — see pipeline.ts geocoding
             lng: 0,
             fundsVolume: row.val,
@@ -329,6 +339,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           },
           update: {
             name: row.entityName,
+            type,
             fundsVolume: row.val,
             rawAddressText: row.loc,
             businessAddress,
