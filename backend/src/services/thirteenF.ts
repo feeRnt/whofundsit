@@ -361,6 +361,22 @@ async function resolveCusipTickers(
   return map;
 }
 
+// Stale filer test: latest 13F older than maxAgeYears (EDGAR YYYY-MM-DD).
+// Unparseable dates never skip — better a wasted fetch than a lost filer.
+export function isStaleFiling(
+  filingDate: string,
+  maxAgeYears = 2,
+  now = new Date(),
+): boolean {
+  const filed = new Date(`${filingDate}T00:00:00Z`);
+  if (Number.isNaN(filed.getTime())) {
+    return false;
+  }
+  const cutoff = new Date(now);
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - maxAgeYears);
+  return filed < cutoff;
+}
+
 // Bounded worker pool over an array, results in completion order.
 export async function mapLimit<T, R>(
   items: T[],
@@ -541,7 +557,18 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       0,
       Number(process.env.THIRTEENF_MAX_MANAGERS ?? 0),
     );
-    const queue = maxManagers > 0 ? jobs.slice(0, maxManagers) : jobs;
+    let queue = maxManagers > 0 ? jobs.slice(0, maxManagers) : jobs;
+    // Off by default: drop filers whose latest 13F predates the cutoff so
+    // dead shells (AmSouth, AT&T Corp 2000) never enter the worker pool.
+    if (process.env.THIRTEENF_SKIP_STALE === "1") {
+      const before = queue.length;
+      queue = queue.filter(
+        (j) => !j.filing || !isStaleFiling(j.filing.filingDate),
+      );
+      console.log(
+        `[13f] skipped ${before - queue.length} stale filers (>2y since last 13F)`,
+      );
+    }
     console.log(`[13f] queue ready: ${queue.length} managers`);
     const managerStats: ThirteenFSummary["managers"] = [];
     let flows = 0;

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildTickerIndex,
   discoverManagers,
+  isStaleFiling,
   mapLimit,
   normalizeIssuerName,
   parseInfoTable,
@@ -141,6 +142,20 @@ describe("pickTicker", () => {
   it("returns null when no venue carries a ticker", () => {
     assert.equal(pickTicker([]), null);
     assert.equal(pickTicker([{ exchCode: "US" }]), null);
+  });
+});
+
+describe("isStaleFiling", () => {
+  const now = new Date("2026-10-31T00:00:00Z");
+  it("flags filings older than two years, keeps the rest", () => {
+    assert.equal(isStaleFiling("2026-08-07", 2, now), false);
+    assert.equal(isStaleFiling("2024-10-31", 2, now), false);
+    assert.equal(isStaleFiling("2024-10-30", 2, now), true);
+    assert.equal(isStaleFiling("2006-01-01", 2, now), true);
+  });
+  it("never skips on unparseable dates", () => {
+    assert.equal(isStaleFiling("", 2, now), false);
+    assert.equal(isStaleFiling("not-a-date", 2, now), false);
   });
 });
 
