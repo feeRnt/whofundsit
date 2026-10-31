@@ -14,7 +14,8 @@
     "ingest:all": "npm run ingest && npm run coords_populate",
     "db:push": "prisma db push",
     "db:export": "tsx src/scripts/seed_export.ts",
-    "db:seed": "tsx src/scripts/seed_import.ts"
+    "db:seed": "tsx src/scripts/seed_import.ts",
+    "flows:openalex": "tsx src/scripts/openalex_flows.ts"
   },
   "keywords": [],
   "type": "module",

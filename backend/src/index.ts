@@ -47,6 +47,30 @@ app.get("/api/entities", async (req, res) => {
   }
 });
 
+// Grant arcs for the map: flows whose endpoints both have real coordinates.
+// Largest first; capped like entities.
+app.get("/api/flows", async (req, res) => {
+  try {
+    const requested = Number(req.query.limit ?? 500);
+    const limit = Math.min(
+      Math.max(Number.isFinite(requested) ? requested : 500, 1),
+      1000,
+    );
+    const endpoint = { id: true, name: true, lat: true, lng: true };
+    const placed = { lat: { not: 0 }, lng: { not: 0 } };
+    const flows = await prisma.capitalFlow.findMany({
+      take: limit,
+      orderBy: { amount: "desc" },
+      where: { sourceEntity: placed, targetEntity: placed },
+      include: { sourceEntity: { select: endpoint }, targetEntity: { select: endpoint } },
+    });
+    res.json(flows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to load flows" });
+  }
+});
+
 // Same-origin deploy: serve the built frontend from this same port so every
 // visitor just opens one URL. Requires `npm --prefix ../frontend run build`;
 // skipped silently when no build exists (pure API dev mode).

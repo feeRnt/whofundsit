@@ -6,10 +6,10 @@ import {
   MapLibreOverlay,
   type MapLibreOverlayProps,
 } from "@deck.gl/maplibre";
-import { ScatterplotLayer } from "@deck.gl/layers";
+import { ArcLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { Entity } from "../api";
+import type { Entity, Flow } from "../api";
 import EntityPopup from "./EntityPopup";
 
 // Vite dev does not serve MapLibre's auto-detected worker URL with a JS MIME
@@ -23,10 +23,15 @@ const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const TILE_ERROR_BUDGET = 25;
 
 function tooltip({ object }: PickingInfo) {
-  const entity = object as Entity | undefined;
-  if (!entity) {
+  if (!object) {
     return null;
   }
+  if ("flowType" in object) {
+    const flow = object as unknown as Flow;
+    const units = flow.flowType === "grant" ? "funded works" : "units";
+    return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}`;
+  }
+  const entity = object as Entity;
   return `${entity.name} — $${entity.fundsVolume.toLocaleString("en-US")} (${entity.rawAddressText})`;
 }
 
@@ -40,9 +45,11 @@ function DeckGLOverlay(props: MapLibreOverlayProps) {
 
 export default function MapGlobe({
   entities,
+  flows,
   projection,
 }: {
   entities: Entity[];
+  flows: Flow[];
   projection: "globe" | "mercator";
 }) {
   const [mapReady, setMapReady] = useState(false);
@@ -50,8 +57,9 @@ export default function MapGlobe({
   const [selected, setSelected] = useState<Entity | null>(null);
   const tileErrorsRef = useRef(0);
 
-  // WebGL scatterplot (never DOM/SVG nodes, per ground rules). Radius grows
-  // with sqrt(fundsVolume) so massive capital nodes stand out.
+  // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
+  // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
+  // funders to grantees, width by works count.
   const layers = [
     new ScatterplotLayer<Entity>({
       id: "entities",
@@ -68,11 +76,29 @@ export default function MapGlobe({
       getFillColor: [45, 212, 191, 200],
       getLineColor: [255, 255, 255, 140],
     }),
+    new ArcLayer<Flow>({
+      id: "flows",
+      data: flows,
+      pickable: true,
+      getSourcePosition: (d) => [d.sourceEntity.lng, d.sourceEntity.lat],
+      getTargetPosition: (d) => [d.targetEntity.lng, d.targetEntity.lat],
+      getSourceColor: [45, 212, 191, 220],
+      getTargetColor: [251, 191, 36, 220],
+      getWidth: (d) => Math.sqrt(d.amount),
+      widthUnits: "pixels",
+      widthMinPixels: 1,
+      widthMaxPixels: 8,
+    }),
   ];
 
   function handleClick(info: PickingInfo) {
-    const entity = info.object as Entity | undefined;
-    setSelected(entity ?? null);
+    const object = info.object as Record<string, unknown> | undefined;
+    // Dots open the popup; arcs (hover tooltips only) and empty space close it.
+    if (object && !("flowType" in object)) {
+      setSelected(object as unknown as Entity);
+    } else {
+      setSelected(null);
+    }
   }
 
   return (

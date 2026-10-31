@@ -26,3 +26,24 @@
 - [x] **Index members always covered.** (Ticker snapshots in `backend/src/data`, CIK-mapped live each run via
       `company_tickers.json`; frame rows sorted members-first within the 500 cap. Tickers stored per entity.
       Refresh snapshots with `backend/scripts/fetch_constituents.py`.)
+
+## Grant arcs follow-up (OpenAlex → CapitalFlow)
+
+- [ ] **Verify grant arcs in the browser.** (Run `npm run flows:openalex`, reload the globe: arcs should fan
+      from the funder to grantee institutions; hover shows funder → university + works count.)
+
+## Hill's / OpenAlex caveats (found live, 2026-10-29)
+
+- [ ] **Frame the story as Colgate-Palmolive (parent of Hill's Pet Nutrition) → vet schools.** ("Hill's" has
+      no standalone OpenAlex funder ID; funder search returns keyword matches plus a generic "Hills" entry
+      with 1 work. All reliable Hill's grant data sits under the parent `F4320307808`.)
+- [ ] **Label arc amounts as funded-works counts, never dollars.** (OpenAlex exposes no reliable grant
+      amounts; keep the "funded works" tooltip wording and say so on the demo slide.)
+- [ ] **Get a free OpenAlex API key before the demo.** (Keyless shares a $0.10/day IP pool — observed 0
+      requests remaining during probing; cursor-paging past 200 works needs a key anyway.)
+
+## OpenAlex scale-up (after the demo works)
+
+- [ ] **Cursor-page all funder works** (currently first 200/page; Colgate has 1417) once an API key exists.
+- [ ] **Consider merging institution duplicates** (e.g. "College of Veterinary Medicine" vs parent university
+      appear as separate arc targets).
