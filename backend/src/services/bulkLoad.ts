@@ -37,6 +37,11 @@ const TAGS = [
 // Hard ceiling per bulk run (ground-rules guardrail 1).
 const MAX_BULK_ROWS = 20000;
 
+// Optional testing cap: stop scanning entries after this many (both phases
+// honor it; the row ceiling still applies). Unset = full scan. Capped runs
+// never write the address-map cache (a partial map must not poison it).
+const BULK_MAX_ENTRIES = Math.max(0, Number(process.env.BULK_MAX_ENTRIES ?? 0));
+
 function userAgent(): string {
   return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
 }
@@ -277,13 +282,21 @@ async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>
     if (n % 2000 === 0) {
       console.log(`[bulk] addresses: ${n}...`);
     }
+    if (BULK_MAX_ENTRIES > 0 && n >= BULK_MAX_ENTRIES) {
+      console.log(`[bulk] entry cap hit (${BULK_MAX_ENTRIES}); stopping scan`);
+      break;
+    }
   }
-  const dump: Record<string, BulkAddress> = {};
-  for (const [cik, addr] of map) {
-    dump[String(cik)] = addr;
+  if (BULK_MAX_ENTRIES <= 0) {
+    const dump: Record<string, BulkAddress> = {};
+    for (const [cik, addr] of map) {
+      dump[String(cik)] = addr;
+    }
+    writeCache(ADDRESS_MAP_CACHE, dump);
+    console.log(`[bulk] addresses: ${map.size} companies (saved to disk cache)`);
+  } else {
+    console.log(`[bulk] addresses: ${map.size} companies (capped; cache untouched)`);
   }
-  writeCache(ADDRESS_MAP_CACHE, dump);
-  console.log(`[bulk] addresses: ${map.size} companies (saved to disk cache)`);
   return map;
 }
 
@@ -319,6 +332,10 @@ async function loadFacts(
 
   for await (const { json } of jsonEntries(zipPath)) {
     entries += 1;
+    if (BULK_MAX_ENTRIES > 0 && entries > BULK_MAX_ENTRIES) {
+      console.log(`[bulk] entry cap hit (${BULK_MAX_ENTRIES}); stopping scan`);
+      break;
+    }
     const doc = json as {
       cik?: unknown;
       entityName?: unknown;
