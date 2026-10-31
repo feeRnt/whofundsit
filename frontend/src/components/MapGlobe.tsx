@@ -147,10 +147,14 @@ export default function MapGlobe({
       filled: true,
       stroked: true,
       lineWidthUnits: "pixels",
-      getLineWidth: (d) => (selected?.id === d.id ? 3 : 1),
+      getLineWidth: (d) => (selected?.id === d.id ? 9 : 1),
       getPosition: (d) => [d.lng, d.lat],
       // Half the area (÷√2 radius); the money×2 multiplier stays.
-      getRadius: (d) => (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2,
+      // Selected node renders 3x for visibility.
+      getRadius: (d) => {
+        const base = (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2;
+        return selected?.id === d.id ? base * 3 : base;
+      },
       radiusMinPixels: 3,
       radiusMaxPixels: 11,
       // Amber universities, purple flow endpoints, teal everything else.
