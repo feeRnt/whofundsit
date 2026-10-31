@@ -35,10 +35,17 @@ Running log for picking work back up. Update when the picture changes.
 
 ## Next steps (ordered)
 
-1. User: finish 13F run → global:sync → coords backfill → db:export → commit seeds.
-2. Me: 13F concurrency (worker pool, keep SEC ≤10/s + Nominatim 1/s) — throttles
-   inspected, NOT concurrency-safe yet (module-level timestamps need a mutex).
-3. Me: regional loaders (ESEF + TWSE verified shapes; EDINET + DART defensive).
-4. Me: currency column + display (needed before regional facts land).
-5. User: fresh-DB `npm run demo` rehearsal.
-6. Last: dark mode, beneficial ownership, OpenAlex cursor paging.
+1. User morning: check overnight chain (global:sync → coords --all → 13f/500 →
+   db:export → seed commit). If green, run `npx prisma db push` (currency col).
+2. User: trial regionals (`regional:esef`, `regional:twse`), then `db:export`.
+3. User: fresh-DB `npm run demo` rehearsal (non-negotiable before new features).
+4. Later: phase-2 regionals (EDINET + DART need keys + LEI join), CUSIP gains
+   check, OpenFIGI key, dark mode last, beneficial ownership, OpenAlex paging.
+
+## Shipped overnight (all as Muse Code, builds green, 44/44 tests)
+
+- Multi-currency: `Entity.currency` + formatMoney display (needs db:push).
+- `regional:esef` + `regional:twse` with tests, docs, ToS entries.
+- 13F: CUSIP matching, worker pool, core-scaled workers, stale-filer skip.
+- Focus mode (single-company arcs), green grant arcs, ownership layer.
+- Demo packaging, DATASETS.md, script reference, geo LICENSE.txt.
