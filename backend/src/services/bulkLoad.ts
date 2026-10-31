@@ -9,8 +9,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 // Bulk base layer: SEC nightly ZIPs parsed locally. Run on good wifi
 // (`npm run bulk`), then use `npm run ingest` (frames API) for incremental
-// additions. Grep TODO(net-first) for every assumption needing one real run
-// to confirm. Nothing here is downloaded or executed in the coding sandbox.
+// additions. ZIP layout and both JSON shapes were verified against live SEC
+// responses (HEAD + Range + aborted-stream peeks, KBs total); the full
+// multi-GB download itself is still untested and needs good wifi.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(here, "..", "..", "data");
@@ -52,19 +53,26 @@ async function ensureArchive(name: string, url: string): Promise<string> {
     return dest;
   }
   console.log(`[bulk] downloading ${name} (submissions is ~1.6 GB)...`);
-  const response = await axios({
-    url,
-    method: "GET",
-    responseType: "stream",
-    headers: {
-      "User-Agent": userAgent(),
-      Accept: "application/zip",
-      "Accept-Encoding": "gzip, deflate",
-    },
-  });
-  // TODO(net-first): confirm SEC serves the full file to a single polite
-  // stream (no auth wall, no truncation); the .part guard catches interrupts.
+  const headers = {
+    "User-Agent": userAgent(),
+    Accept: "application/zip",
+    "Accept-Encoding": "gzip, deflate",
+  };
+  // Verified live: both ZIPs HEAD 200 as application/zip with Content-Length
+  // (submissions 1,572,128,284 B; companyfacts 1,414,913,699 B) and no auth
+  // wall. The length check below turns a truncated stream into a loud retry
+  // error instead of a silently corrupt archive.
+  const head = await axios.head(url, { headers });
+  const expected = Number(head.headers["content-length"]);
+  const response = await axios({ url, method: "GET", responseType: "stream", headers });
   await pipeline(response.data, fs.createWriteStream(`${dest}.part`));
+  const actual = fs.statSync(`${dest}.part`).size;
+  if (Number.isFinite(expected) && expected > 0 && actual !== expected) {
+    fs.rmSync(`${dest}.part`);
+    throw new Error(
+      `[bulk] truncated download: ${name} got ${actual}B, expected ${expected}B — retry with BULK_REFRESH=1`,
+    );
+  }
   fs.renameSync(`${dest}.part`, dest);
   return dest;
 }
@@ -74,8 +82,9 @@ interface ZipJson {
   json: unknown;
 }
 
-// TODO(net-first): confirm entry layout (expect flat per-CIK *.json). The
-// first run logs entry samples; adjust the filter if SEC nests directories.
+// Entry layout verified live via Range probes: flat per-CIK files, e.g.
+// submissions.zip -> "CIK0000004926.json", companyfacts.zip ->
+// "CIK0000001750.json". The run still logs samples as a tripwire.
 async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
   const dir = await unzipper.Open.file(zipPath);
   const names = dir.files.map((f) => f.path).filter((p) => p.endsWith(".json"));
@@ -123,8 +132,9 @@ function joinAddress(addr: {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-// TODO(net-first): confirm submissions bulk docs match the API shape
-// ({cik, tickers[], addresses: {business, mailing}}).
+// Submissions shape verified live against data.sec.gov: {cik, tickers[],
+// addresses: {business, mailing}}. Note cik is a zero-padded STRING
+// ("0000320193"), unlike companyfacts' number — both are accepted.
 async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>> {
   const map = new Map<number, BulkAddress>();
   let n = 0;
@@ -137,12 +147,13 @@ async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>
         mailing?: Record<string, unknown> | null;
       } | null;
     };
-    if (typeof doc.cik !== "number") {
+    const cik = typeof doc.cik === "string" ? Number(doc.cik) : doc.cik;
+    if (typeof cik !== "number" || !Number.isFinite(cik)) {
       continue;
     }
     const business = doc.addresses?.business ?? doc.addresses?.mailing ?? null;
     const state = business?.stateOrCountry;
-    map.set(doc.cik, {
+    map.set(cik, {
       address: business ? joinAddress(business) : null,
       state: typeof state === "string" ? state : null,
       tickers: Array.isArray(doc.tickers)
@@ -165,9 +176,10 @@ interface BulkFact {
   frame?: unknown;
 }
 
-// TODO(net-first): confirm companyfacts shape
-// ({cik, entityName, facts: {taxonomy: {tag: {units: {uom: [{end, val, accn, frame?}]}}}}}})
-// and that `frame` is present for link-building; falls back to "BULK".
+// Companyfacts shape verified live: {cik (number), entityName, facts:
+// {taxonomy: {tag: {units: {uom: [{end, val, accn, frame?}]}}}}}. `frame` is
+// present on most facts but missing on some (e.g. FY 10-K), so the "BULK"
+// fallback stays.
 async function loadFacts(
   zipPath: string,
   addresses: Map<number, BulkAddress>,
