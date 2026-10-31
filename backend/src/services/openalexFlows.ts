@@ -31,8 +31,25 @@ function contact(): string {
   return process.env.OPENALEX_CONTACT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
 }
 
-function apiUrl(pathOrUrl: string, params: Record<string, string>): string {
-  const url = new URL(pathOrUrl.startsWith("http") ? pathOrUrl : `${API}${pathOrUrl}`);
+// Canonical OpenAlex ids (https://openalex.org/F...) are human web pages,
+// not JSON: normalize any id form to its api.openalex.org entity route.
+// Plain API paths ("/works") pass through untouched.
+export function apiUrl(pathOrUrl: string, params: Record<string, string>): string {
+  const ENTITY: Record<string, string> = {
+    F: "funders",
+    I: "institutions",
+    W: "works",
+  };
+  let target = pathOrUrl;
+  const id = target.match(/^(?:https:\/\/(?:api\.)?openalex\.org\/)?([A-Z]\d+)$/);
+  if (id) {
+    const entity = ENTITY[id[1][0]];
+    if (!entity) {
+      throw new Error(`[flows] unsupported OpenAlex id: ${pathOrUrl}`);
+    }
+    target = `${API}/${entity}/${id[1]}`;
+  }
+  const url = new URL(target.startsWith("http") ? target : `${API}${target}`);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
