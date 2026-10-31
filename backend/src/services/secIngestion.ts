@@ -1,6 +1,8 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { NASDAQ100_TICKERS } from "../data/nasdaq100";
+import { SP500_TICKERS } from "../data/sp500";
 
 // SEC EDGAR Frames API: one funding-relevant concept per frame, Q2 2026
 // (last fully-filed quarter). Payloads are parsed in memory only — raw JSON is
@@ -65,12 +67,14 @@ interface SecSubmissions {
     business?: SecAddress | null;
     mailing?: SecAddress | null;
   } | null;
+  tickers?: unknown;
 }
 
 export interface FrameSummary {
   tag: string;
   fetched: number;
   upserted: number;
+  indexMembers: number;
 }
 
 export interface IngestSummary {
@@ -80,6 +84,7 @@ export interface IngestSummary {
   skipped: number; // malformed rows skipped (fetched = upserted + skipped)
   withAddress: number; // rows that also got a businessAddress
   pruned: number; // stale rows from other frames removed
+  indexMembers: number; // rows belonging to S&P 500 / Nasdaq-100
 }
 
 // Minimal in-memory rate limiter gating every outbound SEC call
@@ -160,12 +165,17 @@ async function secGet<T>(url: string): Promise<T> {
 // Frames rows carry no street address, so each CIK gets one submissions call
 // (business address preferred, mailing as fallback). Best-effort per row:
 // a single failure resolves to null instead of failing the whole run.
+interface SubmissionsInfo {
+  address: string | null;
+  tickers: string[];
+}
+
 // Run-scoped submissions cache: the same CIK appears in several frames, so
 // without this we'd re-download identical docs (ingest is a one-shot process,
 // so module scope == one run).
-const submissionsCache = new Map<number, string | null>();
+const submissionsCache = new Map<number, SubmissionsInfo>();
 
-async function fetchBusinessAddress(cik: number): Promise<string | null> {
+async function fetchSubmissions(cik: number): Promise<SubmissionsInfo> {
   const cached = submissionsCache.get(cik);
   if (cached !== undefined) {
     return cached;
@@ -173,20 +183,46 @@ async function fetchBusinessAddress(cik: number): Promise<string | null> {
   const padded = String(cik).padStart(10, "0");
   const data = await secGet<SecSubmissions>(`${SUBMISSIONS_URL}/CIK${padded}.json`);
   const addr = data.addresses?.business ?? data.addresses?.mailing ?? null;
-  if (!addr) {
-    submissionsCache.set(cik, null);
-    return null;
+  const parts = addr
+    ? [
+        addr.street1,
+        addr.street2,
+        addr.city,
+        addr.stateOrCountry,
+        addr.zipCode,
+      ].filter((p): p is string => !!p)
+    : [];
+  const info: SubmissionsInfo = {
+    address: parts.length > 0 ? parts.join(", ") : null,
+    tickers: Array.isArray(data.tickers)
+      ? data.tickers.filter((t): t is string => typeof t === "string")
+      : [],
+  };
+  submissionsCache.set(cik, info);
+  return info;
+}
+
+// S&P 500 + Nasdaq-100 CIKs, resolved live each run via SEC's ticker map so
+// the map always covers index members instead of whoever filed first.
+const TICKER_MAP_URL = "https://www.sec.gov/files/company_tickers.json";
+
+interface TickerEntry {
+  cik_str: number;
+  ticker: string;
+}
+
+async function fetchIndexCiks(): Promise<Set<number>> {
+  const data = await secGet<Record<string, TickerEntry>>(TICKER_MAP_URL);
+  const wanted = new Set(
+    [...SP500_TICKERS, ...NASDAQ100_TICKERS].map((t) => t.toUpperCase()),
+  );
+  const ciks = new Set<number>();
+  for (const entry of Object.values(data)) {
+    if (wanted.has(entry.ticker.toUpperCase())) {
+      ciks.add(entry.cik_str);
+    }
   }
-  const parts = [
-    addr.street1,
-    addr.street2,
-    addr.city,
-    addr.stateOrCountry,
-    addr.zipCode,
-  ].filter((p): p is string => !!p);
-  const address = parts.length > 0 ? parts.join(", ") : null;
-  submissionsCache.set(cik, address);
-  return address;
+  return ciks;
 }
 
 /**
@@ -215,18 +251,28 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
       },
     });
 
+    const indexCiks = await fetchIndexCiks();
+    console.log(`[ingest] tracking ${indexCiks.size} index-member CIKs`);
+
     const frames: FrameSummary[] = [];
     let fetched = 0;
     let upserted = 0;
     let skipped = 0;
     let withAddress = 0;
+    let indexMembers = 0;
 
     for (const frame of FRAMES) {
       const url = `${FRAME_API}/${frame.taxonomy}/${frame.tag}/${frame.uom}/${frame.ccp}.json`;
       const payload = await secGet<SecFramesPayload>(url);
-      const rows = payload.data.slice(0, MAX_PER_FRAME);
+      // Members first (stable sort keeps everyone else's order), then cap.
+      const rows = [...payload.data]
+        .sort(
+          (a, b) => Number(indexCiks.has(b.cik)) - Number(indexCiks.has(a.cik)),
+        )
+        .slice(0, MAX_PER_FRAME);
+      const frameIndexRows = rows.filter((r) => indexCiks.has(r.cik)).length;
       console.log(
-        `[ingest] ${frame.tag}: ${rows.length} rows (frame holds ${payload.data.length})`,
+        `[ingest] ${frame.tag}: ${rows.length} rows (${frameIndexRows} index members; frame holds ${payload.data.length})`,
       );
       let frameUpserted = 0;
 
@@ -237,21 +283,26 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           continue;
         }
 
-        // Skip the submissions call when a previous run already stored the address.
+        // Skip the submissions call when a previous run already stored the
+        // address and tickers.
         const id = `${row.cik}:${frame.tag}`;
         const existing = await prisma.entity.findUnique({
           where: { id },
-          select: { businessAddress: true },
+          select: { businessAddress: true, tickers: true },
         });
         let businessAddress: string | null = existing?.businessAddress ?? null;
-        if (!businessAddress) {
+        let tickers: string[] = existing?.tickers ?? [];
+        if (businessAddress === null || tickers.length === 0) {
           try {
-            businessAddress = await fetchBusinessAddress(row.cik);
+            const info = await fetchSubmissions(row.cik);
+            businessAddress = businessAddress ?? info.address;
+            if (tickers.length === 0) {
+              tickers = info.tickers;
+            }
           } catch (err) {
             if (err instanceof SecBlockedError) {
               throw err; // fatal: stop the run instead of burning calls
             }
-            businessAddress = null;
           }
         }
 
@@ -266,6 +317,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             fundsVolume: row.val,
             rawAddressText: row.loc,
             businessAddress,
+            tickers,
             conceptTag: frame.tag,
             secFilingNumber: row.accn,
             sourceTimeFrame: payload.ccp,
@@ -276,6 +328,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             fundsVolume: row.val,
             rawAddressText: row.loc,
             businessAddress,
+            tickers,
             conceptTag: frame.tag,
             secFilingNumber: row.accn,
             sourceTimeFrame: payload.ccp,
@@ -294,11 +347,25 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
         }
       }
 
+      indexMembers += frameIndexRows;
       fetched += rows.length;
-      frames.push({ tag: frame.tag, fetched: rows.length, upserted: frameUpserted });
+      frames.push({
+        tag: frame.tag,
+        fetched: rows.length,
+        upserted: frameUpserted,
+        indexMembers: frameIndexRows,
+      });
     }
 
-    return { frames, fetched, upserted, skipped, withAddress, pruned: pruned.count };
+    return {
+      frames,
+      fetched,
+      upserted,
+      skipped,
+      withAddress,
+      pruned: pruned.count,
+      indexMembers,
+    };
   } finally {
     await prisma.$disconnect();
   }

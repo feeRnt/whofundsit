@@ -21,6 +21,9 @@ model Entity {
   // XBRL concept this row measures, e.g. "StockholdersEquity" (part of the id).
   conceptTag String?
 
+  // Tickers from the submissions payload (index membership source).
+  tickers String[] @default([])
+
   // Provenance (SEC ingestion): which filing validates this row, for which period, as of when.
   secFilingNumber String?
   sourceTimeFrame String?

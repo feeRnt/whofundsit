@@ -9,8 +9,10 @@ node_modules/
 dist/
 **/dist/
 
-# Raw downloads & local data (SEC dumps, JSON caches)
-data/
+# Raw downloads & local data (SEC dumps, JSON caches). Rooted so the committed
+# ticker snapshots in backend/src/data/ stay tracked.
+/data/
+backend/data/
 downloads/
 *.json
 !package.json

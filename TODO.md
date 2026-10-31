@@ -22,10 +22,8 @@
       that file is the first place to look. Note: the worker import must stay in `?url` form —
       `?worker&url` reintroduced the MIME error in the browser.
 
-## ⚠️ Data scope follow-up — index membership (S&P 500 / Nasdaq-100)
+## ✅ DONE — index membership (S&P 500 / Nasdaq-100)
 
-- [ ] **Cover index members always, not just whoever filed in the frame.**
-      Ingest currently takes the first 500 rows of each frame — whoever happens
-      to have filed a fitting fact. Add a constituent list (ticker → CIK), store
-      tickers from the submissions payload, and filter/prioritize S&P 500 and
-      Nasdaq-100 members so the map always covers them.
+- [x] **Index members always covered.** (Ticker snapshots in `backend/src/data`, CIK-mapped live each run via
+      `company_tickers.json`; frame rows sorted members-first within the 500 cap. Tickers stored per entity.
+      Refresh snapshots with `backend/scripts/fetch_constituents.py`.)
