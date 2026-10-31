@@ -234,23 +234,45 @@ export function parseInfoTable(xml: string): Holding[] {
   return out.sort((a, b) => b.valueUsd - a.valueUsd);
 }
 
-async function geocodeManager(name: string): Promise<{ lat: number; lng: number }> {
-  return cachedJson(`13f/manager-geo-${cacheKey(name)}.json`, async () => {
-    await new Promise((resolve) =>
-      setTimeout(resolve, NOMINATIM_MIN_INTERVAL_MS),
-    );
-    const { data } = await axios.get<{ lat: string; lon: string }[]>(
-      "https://nominatim.openstreetmap.org/search",
-      {
-        params: { format: "jsonv2", limit: 1, q: `${name} headquarters` },
-        headers: { "User-Agent": nomUA(), Accept: "application/json" },
+// Famous HQs pinned at city precision (plenty for a globe; these never move
+// and Nominatim lookups for fund names are flaky). Unknown future managers
+// try Nominatim once; total failure returns null (skip, don't crash).
+const MANAGER_COORDS: Record<string, { lat: number; lng: number }> = {
+  "BlackRock, Inc.": { lat: 40.75, lng: -74.0 },
+  "The Vanguard Group, Inc.": { lat: 40.04, lng: -75.51 },
+  "Berkshire Hathaway Inc": { lat: 41.26, lng: -95.93 },
+};
+
+async function geocodeManager(
+  spec: ManagerSpec,
+): Promise<{ lat: number; lng: number } | null> {
+  const pin = MANAGER_COORDS[spec.name];
+  if (pin) {
+    return pin;
+  }
+  try {
+    return await cachedJson(
+      `13f/manager-geo-${cacheKey(spec.name)}.json`,
+      async () => {
+        await new Promise((resolve) =>
+          setTimeout(resolve, NOMINATIM_MIN_INTERVAL_MS),
+        );
+        const { data } = await axios.get<{ lat: string; lon: string }[]>(
+          "https://nominatim.openstreetmap.org/search",
+          {
+            params: { format: "jsonv2", limit: 1, q: `${spec.name} headquarters` },
+            headers: { "User-Agent": nomUA(), Accept: "application/json" },
+          },
+        );
+        if (!data[0]) {
+          throw new Error("no hit");
+        }
+        return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
       },
     );
-    if (!data[0]) {
-      throw new Error(`[13f] could not geocode ${name}`);
-    }
-    return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
-  });
+  } catch {
+    return null;
+  }
 }
 
 export interface ThirteenFSummary {
@@ -303,8 +325,20 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       console.log(
         `[13f] ${spec.label}: ${holdings.length} holdings (filing ${filing.accn})`,
       );
-      const at = await geocodeManager(spec.name);
+      const at = await geocodeManager(spec);
       const fundId = `13f:${cik10}`;
+      if (!at) {
+        console.log(
+          `[13f] ${spec.label}: unplaceable, skipping ${holdings.length} holdings`,
+        );
+        managerStats.push({
+          label: spec.label,
+          holdings: holdings.length,
+          matched: 0,
+          flows: 0,
+        });
+        continue;
+      }
       const totalUsd = holdings.reduce((s, h) => s + h.valueUsd, 0);
       const state = filing.state;
       await prisma.entity.upsert({

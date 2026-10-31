@@ -122,40 +122,111 @@ async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null
   return out;
 }
 
-// Prefers the business street address from SEC submissions; falls back to the
-// raw Frames state code (e.g. "US-IL"), whose hits land on state centroids.
-async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>> {
-  if (process.env.GEOCODE_BACKEND === "modal") {
-    // Batch only texts missing from both caches; file results back.
-    const out = new Map<string, Coords | null>();
-    const missing: string[] = [];
-    for (const text of new Set(texts)) {
-      const mem = geocodeCache.get(text);
-      if (mem !== undefined) {
-        out.set(text, mem);
-        continue;
-      }
-      const file = readCache<Coords | null>(geoPath(text));
-      if (file !== undefined) {
-        geocodeCache.set(text, file);
-        out.set(text, file);
-        continue;
-      }
-      missing.push(text);
-    }
-    if (missing.length > 0) {
-      const fresh = await geocodeRemote(missing);
-      for (const [text, coords] of fresh) {
-        geocodeCache.set(text, coords);
-        writeCache(geoPath(text), coords);
-        out.set(text, coords);
-      }
-    }
-    return out;
+// Raw state codes ("US-IL") expand to full names: Nominatim resolves
+// "Illinois, United States" (state centroid) but not the code. Placeholders
+// ("—") and empties resolve to null with zero API calls. Unknown codes pass
+// through and miss rather than misplace; bare 2-letter codes are NOT mapped
+// ("CA" could be Canada, not California).
+const US_STATES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", DC: "District of Columbia",
+  FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+  IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+  ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan",
+  MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana",
+  NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey",
+  NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota",
+  OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota",
+  TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia",
+  WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+  PR: "Puerto Rico", GU: "Guam", VI: "U.S. Virgin Islands",
+  MP: "Northern Mariana Islands", AS: "American Samoa",
+};
+
+export function expandLocationText(text: string): string | null {
+  if (!text || text === "—") {
+    return null;
   }
+  const m = text.match(/^US-([A-Z]{2})$/);
+  if (m) {
+    const full = US_STATES[m[1]];
+    if (full) {
+      return `${full}, United States`;
+    }
+  }
+  return text;
+}
+
+// Prefers the business street address from SEC submissions; falls back to the
+// raw Frames state code, expanded so its hits land on state centroids.
+async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>> {
   const out = new Map<string, Coords | null>();
+  const byQuery = new Map<string, string[]>();
   for (const text of new Set(texts)) {
-    out.set(text, await geocodeLocal(text));
+    const q = expandLocationText(text);
+    if (q === null) {
+      out.set(text, null);
+      continue;
+    }
+    const group = byQuery.get(q);
+    if (group) {
+      group.push(text);
+    } else {
+      byQuery.set(q, [text]);
+    }
+  }
+  const queries = [...byQuery.keys()];
+  const results =
+    process.env.GEOCODE_BACKEND === "modal"
+      ? await geocodeRemoteCached(queries)
+      : await geocodeLocalEach(queries);
+  for (const [q, originals] of byQuery) {
+    const r = results.get(q) ?? null;
+    for (const o of originals) {
+      out.set(o, r);
+    }
+  }
+  return out;
+}
+
+async function geocodeLocalEach(
+  queries: string[],
+): Promise<Map<string, Coords | null>> {
+  const out = new Map<string, Coords | null>();
+  for (const q of queries) {
+    out.set(q, await geocodeLocal(q));
+  }
+  return out;
+}
+
+async function geocodeRemoteCached(
+  queries: string[],
+): Promise<Map<string, Coords | null>> {
+  // Batch only queries missing from both caches; file results back.
+  const out = new Map<string, Coords | null>();
+  const missing: string[] = [];
+  for (const q of queries) {
+    const mem = geocodeCache.get(q);
+    if (mem !== undefined) {
+      out.set(q, mem);
+      continue;
+    }
+    const file = readCache<Coords | null>(geoPath(q));
+    if (file !== undefined) {
+      geocodeCache.set(q, file);
+      out.set(q, file);
+      continue;
+    }
+    missing.push(q);
+  }
+  if (missing.length > 0) {
+    const fresh = await geocodeRemote(missing);
+    for (const [q, coords] of fresh) {
+      geocodeCache.set(q, coords);
+      writeCache(geoPath(q), coords);
+      out.set(q, coords);
+    }
   }
   return out;
 }
