@@ -125,6 +125,9 @@ export default function MapGlobe({
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [selected, setSelected] = useState<Entity | null>(null);
+  // Last camera, re-applied as initialViewState when the map remounts
+  // on projection toggle so the user keeps their view.
+  const cameraRef = useRef(HOME);
   const tileErrorsRef = useRef(0);
   const mapRef = useRef<MapRef>(null);
 
@@ -203,13 +206,22 @@ export default function MapGlobe({
     }
   }
 
+  // Fresh map instance per projection: MapLibre corrupts tile buffers
+  // when switching globe/mercator at runtime (pastel noise blocks).
   return (
     <Map
+      key={projection}
       ref={mapRef}
-      reuseMaps
       mapLib={maplibregl}
       mapStyle={MAP_STYLE}
-      initialViewState={HOME}
+      initialViewState={cameraRef.current}
+      onMove={(e) =>
+        (cameraRef.current = {
+          longitude: e.viewState.longitude,
+          latitude: e.viewState.latitude,
+          zoom: e.viewState.zoom,
+        })
+      }
       projection={projection}
       onLoad={() => setMapReady(true)}
       onError={() => {
