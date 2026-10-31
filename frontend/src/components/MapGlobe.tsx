@@ -10,7 +10,7 @@ import {
 import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { Entity, Flow } from "../api";
+import { formatMoney, type Entity, type Flow } from "../api";
 import EntityPopup from "./EntityPopup";
 
 // Vite dev does not serve MapLibre's auto-detected worker URL with a JS MIME
@@ -50,7 +50,7 @@ function tooltip({ object }: PickingInfo) {
   const val =
     entity.source === "openalex"
       ? `${entity.fundsVolume.toLocaleString("en-US")} funded works`
-      : `$${entity.fundsVolume.toLocaleString("en-US")}`;
+      : formatMoney(entity.fundsVolume, entity.currency);
   return `${entity.name} — ${val} (${entity.rawAddressText})`;
 }
 

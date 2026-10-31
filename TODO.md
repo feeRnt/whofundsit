@@ -2,12 +2,15 @@
 
 ## ⏳ Not yet built (ordered by demo impact)
 
-- [ ] **Regional financial loaders** (`global:sync` gives dots + ownership; facts still missing).
-      ESEF/EU-UK + TWSE/Taiwan first (both keyless, ToS cleared, shapes verified live);
-      EDINET/Japan + Open DART/Korea after free keys exist (ToS accepted at signup).
-      Needs the currency column below first.
-- [ ] **Multi-currency support** (`Entity.currency`, default USD; ¥/€NT$/₩ display).
-      Regional facts arrive in native units — storing them as `$` would lie.
+- [x] **Regional financial loaders, phase 1.** (`regional:esef` + `regional:twse`
+      shipped with tests; native currencies. NOT yet run live — needs `db:push`
+      for the currency column, then a trial + `db:export`.)
+- [ ] **Regional financial loaders, phase 2** (EDINET/Japan + Open DART/Korea:
+      needs free keys (ToS accepted at signup) AND a join key to LEI rows —
+      EDINET secCode / DART corp_code don't map to LEI yet. Options: Wikidata
+      ticker map per exchange (as TWSE does), or filer-name matching.)
+- [x] **Multi-currency support** (`Entity.currency`, default USD; formatMoney
+      display in popups/tooltips. Needs `db:push`; old seeds imply USD.)
 - [x] **13F concurrency.** (8-worker pool via `mapLimit`; SEC ≤10/s, Nominatim 1/s
       and OpenFIGI limits all hold via chained limiters; shared CUSIP map flushed
       every 25 managers. Tune with `THIRTEENF_CONCURRENCY`.)

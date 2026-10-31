@@ -77,6 +77,8 @@ From `whofundsit/backend/` (pipeline order):
 | `flows:openalex` | Grant arcs from OpenAlex (cached) |
 | `flows:13f` | Fund arcs from every 13F-HR filer (8 workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it) |
 | `global:sync` | International companies (Wikidata → GLEIF) + ownership arcs (`GLOBAL_LIMIT`, `GLOBAL_MAX_CHILDREN`) |
+| `regional:esef` | EU/UK financial facts onto `lei:` rows, native currency (`ESEF_LIMIT`) |
+| `regional:twse` | Taiwan balance-sheet facts onto `lei:` rows in TWD (`TWSE_LIMIT`) |
 | `names:sync` | Backfill legal filer names from the local archive |
 | `merge -- <keep> <drop>` | Fold a duplicate row (repoints flows, keeps provenance) |
 | `dedupe:report` | Print candidate duplicate groups for review (read-only) |

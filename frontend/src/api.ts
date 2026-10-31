@@ -1,3 +1,22 @@
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: "$",
+  EUR: "€",
+  JPY: "¥",
+  KRW: "₩",
+  TWD: "NT$",
+  GBP: "£",
+  CHF: "CHF ",
+  CNY: "¥",
+  HKD: "HK$",
+};
+
+// Native-unit money display (regional facts are never silently USD).
+export function formatMoney(amount: number, currency?: string | null): string {
+  const code = currency && currency.length > 0 ? currency : "USD";
+  const symbol = CURRENCY_SYMBOLS[code] ?? `${code} `;
+  return `${symbol}${amount.toLocaleString("en-US")}`;
+}
+
 export interface Entity {
   id: string;
   name: string;
@@ -5,6 +24,8 @@ export interface Entity {
   lat: number;
   lng: number;
   fundsVolume: number;
+  // Absent on rows seeded before multi-currency (implies USD).
+  currency?: string | null;
   rawAddressText: string;
   businessAddress: string | null;
   tickers: string[];

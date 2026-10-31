@@ -45,6 +45,9 @@ model Entity {
   // Merge provenance: [{id, name, source}] rows folded into this one.
   mergedFrom Json?
 
+  // Native reporting currency of fundsVolume (regional facts land unflattened).
+  currency String @default("USD")
+
   sourceFlows CapitalFlow[] @relation("SourceFlows")
   targetFlows CapitalFlow[] @relation("TargetFlows")
 }

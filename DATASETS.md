@@ -77,6 +77,26 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   gitignored cache and CUSIPs are never committed anywhere new.
 - **Local copies (gitignored):** `backend/data/cache/13f/cusip-map.json`.
 
+## ESEF repository (EU/UK financial facts)
+
+- **What we take:** per-LEI filing lookup + latest xBRL-JSON facts file
+  (`filings.xbrl.org/api`, `npm run regional:esef`).
+- **Terms:** **no license stated** — XBRL International demonstrator whose
+  intended users explicitly include analysts/fund managers; no rate limits
+  published. Posture: small-scale, polite (250ms), cached, link back; never
+  bulk-mirror the repository. Re-check before any big expansion.
+- **Local copies (gitignored):** `backend/data/cache/regional/esef-*.json`.
+
+## TWSE OpenAPI (Taiwan financial facts)
+
+- **What we take:** balance sheets per industry + company basics
+  (`/v1/opendata/t187ap*`, `npm run regional:twse`).
+- **Terms:** Taiwan **Open Government Data License** (via data.gov.tw):
+  free reuse with attribution, data kept intact. TWSE site terms ban
+  scraping *outside* agreed means — the official OpenAPI is the agreed
+  means, so we use only `/v1/opendata/*` endpoints.
+- **Local copies (gitignored):** `backend/data/cache/regional/twse-*.json`.
+
 ## Wikipedia (index snapshots)
 
 - **What we take:** S&P 500 + Nasdaq-100 constituent ticker lists, via

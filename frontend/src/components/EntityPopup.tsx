@@ -1,4 +1,4 @@
-import type { Entity } from "../api";
+import { formatMoney, type Entity } from "../api";
 
 const CONCEPT_LABELS: Record<string, string> = {
   StockholdersEquity: "Stockholders' equity",
@@ -123,7 +123,7 @@ export default function EntityPopup({
   const valueText =
     entity.source === "openalex"
       ? entity.fundsVolume.toLocaleString("en-US")
-      : `$${entity.fundsVolume.toLocaleString("en-US")}`;
+      : formatMoney(entity.fundsVolume, entity.currency);
   const noFinancials = !entity.conceptTag && entity.fundsVolume === 0;
   return (
     <div className="entity-popup">
@@ -133,8 +133,8 @@ export default function EntityPopup({
       </p>
       {siblings.map((s) => (
         <p key={s.id} className="entity-value sibling">
-          {CONCEPT_LABELS[s.conceptTag ?? ""] ?? s.conceptTag}: $
-          {s.fundsVolume.toLocaleString("en-US")}
+          {CONCEPT_LABELS[s.conceptTag ?? ""] ?? s.conceptTag}:{" "}
+          {formatMoney(s.fundsVolume, s.currency)}
         </p>
       ))}
       {hasFlows && (

@@ -66,6 +66,7 @@ try {
       category: asString(r.category),
       formerNames: asStringArray(r.formerNames),
       mergedFrom: r.mergedFrom as Prisma.InputJsonValue | undefined,
+      currency: asString(r.currency) ?? "USD",
     }),
   );
   const flows: Prisma.CapitalFlowCreateManyInput[] = loadSeed("flows.json").map(

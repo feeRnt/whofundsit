@@ -1,0 +1,197 @@
+import axios from "axios";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { cachedJson } from "./httpCache.js";
+
+// EU/UK financial facts from the ESEF repository (filings.xbrl.org): per-LEI
+// filing lookup, latest xBRL-JSON facts, Assets preferred, Revenue fallback.
+// LEI-native, so it joins global:sync rows directly. No key, no stated rate
+// limit; polite + cached anyway. Row ceiling: ESEF_LIMIT (default 500).
+// NOTE: repository ToS is unstated (see DATASETS.md) — small-scale use only.
+
+const ESEF = "https://filings.xbrl.org/api";
+const UA =
+  process.env.WIKIDATA_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+
+export interface EsefFact {
+  value: number;
+  currency: string;
+  periodEnd: string;
+}
+
+interface XbrlJsonFact {
+  value?: unknown;
+  decimals?: unknown;
+  dimensions?: {
+    concept?: unknown;
+    period?: unknown;
+    unit?: unknown;
+  };
+}
+
+// Latest Assets (instant) wins; Revenue (duration) is the fallback. decimals
+// scales the value (xBRL spec: value * 10^decimals). Pure + unit-tested.
+export function extractEsefFacts(doc: {
+  facts?: Record<string, XbrlJsonFact>;
+}): { assets?: EsefFact; revenue?: EsefFact } {
+  const out: { assets?: EsefFact; revenue?: EsefFact } = {};
+  for (const fact of Object.values(doc.facts ?? {})) {
+    const concept =
+      typeof fact.dimensions?.concept === "string"
+        ? fact.dimensions.concept
+        : "";
+    const slot =
+      concept === "ifrs-full:Assets"
+        ? "assets"
+        : concept === "ifrs-full:Revenue"
+          ? "revenue"
+          : null;
+    if (!slot) {
+      continue;
+    }
+    const raw = Number(fact.value);
+    if (!Number.isFinite(raw)) {
+      continue;
+    }
+    const dec = Number(fact.decimals);
+    const value = Number.isFinite(dec) ? raw * Math.pow(10, dec) : raw;
+    const period =
+      typeof fact.dimensions?.period === "string"
+        ? fact.dimensions.period
+        : "";
+    const periodEnd = period.includes("/") ? period.split("/")[1] : period;
+    const unit =
+      typeof fact.dimensions?.unit === "string" ? fact.dimensions.unit : "";
+    const currency = unit.startsWith("iso4217:") ? unit.slice(8) : "";
+    if (!periodEnd || !currency) {
+      continue;
+    }
+    const prev = out[slot];
+    if (!prev || periodEnd > prev.periodEnd) {
+      out[slot] = { value, currency, periodEnd };
+    }
+  }
+  return out;
+}
+
+interface EsefFiling {
+  id: string;
+  json_url?: unknown;
+  date?: unknown;
+}
+
+export function pickLatestJsonUrl(filings: EsefFiling[]): string | null {
+  const dated = filings
+    .filter(
+      (f): f is EsefFiling & { json_url: string; date: string } =>
+        typeof f.json_url === "string" &&
+        f.json_url.length > 0 &&
+        typeof f.date === "string",
+    )
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  return dated[0]?.json_url ?? null;
+}
+
+async function latestJsonUrl(lei: string): Promise<string | null> {
+  const doc = await cachedJson<{
+    data?: { id?: unknown; json_url?: unknown; date?: unknown }[];
+  }>(`regional/esef-filings/${lei}.json`, async () => {
+    await new Promise((r) => setTimeout(r, 250));
+    return (
+      await axios.get(`${ESEF}/entities/${lei}/filings`, {
+        params: { "page[size]": 10, sort: "-date" },
+        headers: { "User-Agent": UA },
+        timeout: 60000,
+      })
+    ).data;
+  });
+  if (!Array.isArray(doc.data)) {
+    return null;
+  }
+  return pickLatestJsonUrl(
+    doc.data.map((f) => ({
+      id: String(f.id ?? ""),
+      json_url: f.json_url,
+      date: f.date,
+    })),
+  );
+}
+
+export async function runRegionalEsef(): Promise<{
+  considered: number;
+  updated: number;
+  skipped: string[];
+}> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set (see backend/.env)");
+  }
+  const limit = Math.max(1, Number(process.env.ESEF_LIMIT ?? 500));
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  });
+  const skipped: string[] = [];
+  let updated = 0;
+  try {
+    const rows = await prisma.entity.findMany({
+      where: { id: { startsWith: "lei:" } },
+      select: { id: true, name: true },
+      take: limit,
+    });
+    for (const row of rows) {
+      const lei = row.id.slice("lei:".length);
+      let jsonUrl: string | null;
+      try {
+        jsonUrl = await latestJsonUrl(lei);
+      } catch {
+        skipped.push(`${row.name} (filings lookup failed)`);
+        continue;
+      }
+      if (!jsonUrl) {
+        skipped.push(`${row.name} (no ESEF filing)`);
+        continue;
+      }
+      let facts: { assets?: EsefFact; revenue?: EsefFact };
+      try {
+        const doc = await cachedJson<{ facts?: Record<string, XbrlJsonFact> }>(
+          `regional/esef-facts/${lei}.json`,
+          async () => {
+            await new Promise((r) => setTimeout(r, 250));
+            return (
+              await axios.get(jsonUrl, {
+                headers: { "User-Agent": UA },
+                timeout: 120000,
+              })
+            ).data;
+          },
+        );
+        facts = extractEsefFacts(doc);
+      } catch {
+        skipped.push(`${row.name} (facts download failed)`);
+        continue;
+      }
+      const pick = facts.assets
+        ? { ...facts.assets, conceptTag: "Assets" }
+        : facts.revenue
+          ? { ...facts.revenue, conceptTag: "Revenues" }
+          : null;
+      if (!pick) {
+        skipped.push(`${row.name} (no Assets/Revenue fact)`);
+        continue;
+      }
+      await prisma.entity.update({
+        where: { id: row.id },
+        data: {
+          fundsVolume: pick.value,
+          conceptTag: pick.conceptTag,
+          financialDate: new Date(pick.periodEnd),
+          currency: pick.currency,
+          sourceTimeFrame: pick.periodEnd.slice(0, 10),
+        },
+      });
+      updated += 1;
+    }
+    return { considered: rows.length, updated, skipped };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
