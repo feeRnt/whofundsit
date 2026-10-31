@@ -66,7 +66,7 @@ function geoPath(text: string): string {
   return `geo/nominatim-${cacheKey(text)}.json`;
 }
 
-async function geocodeLocal(text: string): Promise<Coords | null> {
+export async function geocodeLocal(text: string): Promise<Coords | null> {
   const cached = geocodeCache.get(text);
   if (cached !== undefined) {
     return cached;

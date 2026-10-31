@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { normalizeIssuerName, parseInfoTable } from "./thirteenF.js";
+import {
+  discoverManagers,
+  normalizeIssuerName,
+  parseInfoTable,
+} from "./thirteenF.js";
 
 // Fixture lives next to this file (committed); runners against dist must
 // copy __fixtures__ alongside the compiled test.
@@ -53,5 +57,16 @@ describe("parseInfoTable aggregation", () => {
     assert.equal(holdings.length, 1);
     assert.equal(holdings[0].valueUsd, 37255044697 + 56329);
     assert.equal(holdings[0].shares, 20);
+  });
+});
+
+describe("discoverManagers", () => {
+  it("finds 13F-HR filers and skips the rest", async () => {
+    const found = await discoverManagers(
+      path.join(here, "__fixtures__", "submissions-sample.zip"),
+    );
+    assert.deepEqual(found, [
+      { cik: "1234", name: "TEST FUND LP", accn: "a2", filingDate: "d2" },
+    ]);
   });
 });

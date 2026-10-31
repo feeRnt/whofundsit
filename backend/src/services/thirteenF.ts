@@ -1,24 +1,38 @@
 import axios from "axios";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { XMLParser } from "fast-xml-parser";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey } from "./httpCache.js";
+import { cachedJson, readCache, writeCache } from "./httpCache.js";
+import {
+  ADDRESS_MAP_CACHE,
+  jsonEntries,
+  type BulkAddress,
+} from "./bulkLoad.js";
+import { geocodeLocal } from "./pipeline.js";
 
 // 13F-HR holdings -> dollar-denominated CapitalFlow arcs (fund -> portfolio
-// company). Full holdings for three mega-managers. XML values are whole USD
-// (verified live: value / shares == market price, e.g. $45.92 Brookfield).
-// CUSIP->company mapping is offline name normalization against placed
-// entities (no new API); misses log with CUSIP for audit. BlackRock and
-// Berkshire resolve via the ticker map (shared cache, zero new calls after
-// ingest); Vanguard has no ticker so its CIK is pinned (verify live).
+// company). Full-filer scale-up: every 13F-HR filer in the local bulk archive
+// is discovered (cached) with the three curated managers first. XML values
+// are whole USD (verified live: value / shares == market price). CUSIP->
+// company mapping is offline name normalization against placed entities;
+// funds with zero matches skip the entity + geocode entirely (lazy).
 
 const SUBMISSIONS_URL = "https://data.sec.gov/submissions";
 const ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data";
 const TICKER_MAP_URL = "https://www.sec.gov/files/company_tickers.json";
 
-const MAX_13F_FLOWS = 20000; // guardrail: full holdings for all managers
+const MAX_13F_FLOWS = 100000; // guardrail: matched flows only, still bounded
+const MANAGERS_CACHE = "13f/managers.json";
+const DATA_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "data",
+);
 const SEC_MIN_INTERVAL_MS = 150;
-const NOMINATIM_MIN_INTERVAL_MS = 1100;
 
 let lastSecAt = 0;
 
@@ -32,12 +46,6 @@ async function secThrottle(): Promise<void> {
 
 function secUA(): string {
   return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
-}
-
-function nomUA(): string {
-  return (
-    process.env.NOMINATIM_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)"
-  );
 }
 
 async function secGet<T>(url: string): Promise<T> {
@@ -255,36 +263,67 @@ const MANAGER_COORDS: Record<string, { lat: number; lng: number }> = {
   "Berkshire Hathaway Inc": { lat: 41.26, lng: -95.93 },
 };
 
-async function geocodeManager(
+async function geocodeFund(
   spec: ManagerSpec,
+  cikNum: string,
+  addrCache: Record<string, BulkAddress> | undefined,
 ): Promise<{ lat: number; lng: number } | null> {
   const pin = MANAGER_COORDS[spec.name];
   if (pin) {
     return pin;
   }
+  // Bulk address when the v2 map is cached, else a bare name query; both go
+  // through the shared throttled + cached local geocoder.
+  const query = addrCache?.[cikNum]?.address ?? `${spec.name} headquarters`;
   try {
-    return await cachedJson(
-      `13f/manager-geo-${cacheKey(spec.name)}.json`,
-      async () => {
-        await new Promise((resolve) =>
-          setTimeout(resolve, NOMINATIM_MIN_INTERVAL_MS),
-        );
-        const { data } = await axios.get<{ lat: string; lon: string }[]>(
-          "https://nominatim.openstreetmap.org/search",
-          {
-            params: { format: "jsonv2", limit: 1, q: `${spec.name} headquarters` },
-            headers: { "User-Agent": nomUA(), Accept: "application/json" },
-          },
-        );
-        if (!data[0]) {
-          throw new Error("no hit");
-        }
-        return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
-      },
-    );
+    return await geocodeLocal(query);
   } catch {
     return null;
   }
+}
+
+export interface DiscoveredManager {
+  cik: string;
+  name: string;
+  accn: string;
+  filingDate: string;
+}
+
+// Local scan of the bulk submissions archive: every filer whose recent
+// filings include a 13F-HR, with its latest accession (newest first).
+export async function discoverManagers(
+  zipPath: string,
+): Promise<DiscoveredManager[]> {
+  const out: DiscoveredManager[] = [];
+  for await (const { json } of jsonEntries(zipPath)) {
+    const doc = json as {
+      cik?: unknown;
+      name?: unknown;
+      filings?: { recent?: RecentFilings } | null;
+    };
+    const cik = typeof doc.cik === "string" ? Number(doc.cik) : doc.cik;
+    if (typeof cik !== "number" || !Number.isFinite(cik)) {
+      continue;
+    }
+    if (typeof doc.name !== "string" || !doc.name) {
+      continue;
+    }
+    const recent = doc.filings?.recent;
+    const idx =
+      recent?.form.findIndex(
+        (f) => typeof f === "string" && f.startsWith("13F-HR"),
+      ) ?? -1;
+    if (!recent || idx < 0) {
+      continue;
+    }
+    out.push({
+      cik: String(cik),
+      name: doc.name,
+      accn: recent.accessionNumber[idx],
+      filingDate: recent.filingDate[idx],
+    });
+  }
+  return out;
 }
 
 export interface ThirteenFSummary {
@@ -325,23 +364,98 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       `[13f] ${byName.size} matchable companies (${placed.length} placed rows)`,
     );
 
+    // Full-filer discovery: local bulk scan (cached), curated first.
+    let discovered = readCache<DiscoveredManager[]>(MANAGERS_CACHE);
+    if (discovered === undefined) {
+      const zipPath = path.join(DATA_DIR, "submissions.zip");
+      if (!fs.existsSync(zipPath)) {
+        console.log("[13f] no bulk submissions.zip; curated managers only");
+        discovered = [];
+      } else {
+        console.log("[13f] discovering 13F filers in the bulk archive...");
+        discovered = await discoverManagers(zipPath);
+        writeCache(MANAGERS_CACHE, discovered);
+      }
+      console.log(`[13f] discovered ${discovered.length} 13F filers`);
+    } else {
+      console.log(`[13f] ${discovered.length} 13F filers (from discovery cache)`);
+    }
+    const addrCache = readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE);
+    type Job = {
+      spec: ManagerSpec;
+      filing: { accn: string; filingDate: string; state: string | null } | null;
+    };
+    const jobs: Job[] = managers().map((spec) => ({ spec, filing: null }));
+    const curated = new Set<string>();
+    for (const job of jobs) {
+      curated.add(await resolveCik(job.spec));
+    }
+    for (const d of discovered) {
+      if (!curated.has(d.cik)) {
+        jobs.push({
+          spec: {
+            label: d.name,
+            name: d.name,
+            tickers: [],
+            pinnedCik: d.cik,
+            envCik: undefined,
+          },
+          filing: { accn: d.accn, filingDate: d.filingDate, state: null },
+        });
+      }
+    }
+    const maxManagers = Math.max(
+      0,
+      Number(process.env.THIRTEENF_MAX_MANAGERS ?? 0),
+    );
+    const queue = maxManagers > 0 ? jobs.slice(0, maxManagers) : jobs;
+    console.log(`[13f] processing ${queue.length} managers`);
+
     const managerStats: ThirteenFSummary["managers"] = [];
     let flows = 0;
     let unmatched = 0;
-    for (const spec of managers()) {
+    let done = 0;
+    for (const job of queue) {
+      const { spec } = job;
       const cikNum = await resolveCik(spec);
       const cik10 = cikNum.padStart(10, "0");
-      const filing = await latest13F(cik10, spec.label);
+      const filing = job.filing ?? (await latest13F(cik10, spec.label));
       const xml = await infoTableXml(cikNum, filing.accn);
       const holdings = parseInfoTable(xml);
       console.log(
         `[13f] ${spec.label}: ${holdings.length} holdings (filing ${filing.accn})`,
       );
-      const at = await geocodeManager(spec);
       const fundId = `13f:${cik10}`;
+      const totalUsd = holdings.reduce((s, h) => s + h.valueUsd, 0);
+      const state = filing.state;
+      // Match first: funds with no placed holdings skip entity + geocode.
+      const matched: { holding: Holding; targetId: string }[] = [];
+      const missSample: string[] = [];
+      for (const h of holdings) {
+        const targetId = byName.get(normalizeIssuerName(h.issuer));
+        if (!targetId) {
+          unmatched += 1;
+          if (missSample.length < 5) {
+            missSample.push(`${h.issuer} [${h.cusip}]`);
+          }
+          continue;
+        }
+        matched.push({ holding: h, targetId });
+      }
+      if (matched.length === 0) {
+        console.log(`[13f] ${spec.label}: 0/${holdings.length} matched, skipping`);
+        managerStats.push({
+          label: spec.label,
+          holdings: holdings.length,
+          matched: 0,
+          flows: 0,
+        });
+        continue;
+      }
+      const at = await geocodeFund(spec, cikNum, addrCache);
       if (!at) {
         console.log(
-          `[13f] ${spec.label}: unplaceable, skipping ${holdings.length} holdings`,
+          `[13f] ${spec.label}: unplaceable, skipping ${matched.length} matches`,
         );
         managerStats.push({
           label: spec.label,
@@ -351,8 +465,6 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
         });
         continue;
       }
-      const totalUsd = holdings.reduce((s, h) => s + h.valueUsd, 0);
-      const state = filing.state;
       await prisma.entity.upsert({
         where: { id: fundId },
         create: {
@@ -376,19 +488,8 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
         },
       });
 
-      let matched = 0;
       let wrote = 0;
-      const missSample: string[] = [];
-      for (const h of holdings) {
-        const targetId = byName.get(normalizeIssuerName(h.issuer));
-        if (!targetId) {
-          unmatched += 1;
-          if (missSample.length < 5) {
-            missSample.push(`${h.issuer} [${h.cusip}]`);
-          }
-          continue;
-        }
-        matched += 1;
+      for (const { holding: h, targetId } of matched) {
         // One flow per CUSIP (same-company sleeves already summed; different
         // classes keep separate flows, e.g. GOOGL/GOOG).
         await prisma.capitalFlow.upsert({
@@ -419,9 +520,13 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
       managerStats.push({
         label: spec.label,
         holdings: holdings.length,
-        matched,
+        matched: matched.length,
         flows: wrote,
       });
+      done += 1;
+      if (done % 25 === 0) {
+        console.log(`[13f] ${done}/${queue.length} managers, ${flows} flows...`);
+      }
       if (flows >= MAX_13F_FLOWS) {
         console.log(`[13f] flow ceiling hit (${MAX_13F_FLOWS}); stopping`);
         break;

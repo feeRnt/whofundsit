@@ -201,7 +201,7 @@ export async function* jsonEntries(zipPath: string): AsyncGenerator<ZipJson> {
   );
 }
 
-interface BulkAddress {
+export interface BulkAddress {
   address: string | null;
   state: string | null;
   tickers: string[];
@@ -227,7 +227,7 @@ function joinAddress(addr: {
 // addresses: {business, mailing}}. Note cik is a zero-padded STRING
 // ("0000320193"), unlike companyfacts' number — both are accepted.
 // v2: carries exchanges/category/formerNames (v1 rows lack them).
-const ADDRESS_MAP_CACHE = "sec/address-map-v2.json";
+export const ADDRESS_MAP_CACHE = "sec/address-map-v2.json";
 
 async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>> {
   const hit = readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE);

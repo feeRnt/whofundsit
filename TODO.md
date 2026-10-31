@@ -63,7 +63,8 @@
 - [x] **Vanguard CIK verified live** (`102909` = VANGUARD GROUP INC, 13F-HR filed 2026-01-29).
       Also verified: BLK → 2012383, BRK-A/BRK-B → 1067983; info-table XML shape; values are whole
       dollars (not thousands); table doc is the largest non-primary .xml.
-- [ ] **Verify 13F arcs in the browser.** (Run `npm run flows:13f`, reload: dollar arcs from the three funds;
+- [x] **Full-filer discovery** (local bulk scan → all 13F-HR filers, curated 3 first, lazy geocoding).
+- [ ] **Verify 13F arcs in the browser.** (Run `npm run flows:13f`, reload: dollar arcs from the funds;
       hover shows fund → company + $ amount. Check the match log for miss rate.)
 
 ## Legal follow-ups
