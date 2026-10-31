@@ -27,6 +27,12 @@
       `company_tickers.json`; frame rows sorted members-first within the 500 cap. Tickers stored per entity.
       Refresh snapshots with `backend/scripts/fetch_constituents.py`.)
 
+## ✅ DONE — bulk ZIPs fetched + verified (2026-10-31)
+
+- [x] **Both nightly ZIPs in `backend/data/`** (gitignored): byte-exact vs SEC Content-Length
+      (submissions 1,572,128,284 B; companyfacts 1,414,913,699 B) and CRC-clean per `unzip -t`.
+- [ ] **Run the load once Postgres is up:** `npx prisma db push` (adds `source`), then `npm run bulk`.
+
 ## Grant arcs follow-up (OpenAlex → CapitalFlow)
 
 - [ ] **Verify grant arcs in the browser.** (Run `npm run flows:openalex`, reload the globe: arcs should fan
