@@ -34,6 +34,8 @@
 - [x] **Base loaded** (991,164 address entries scanned; 11,771 rows upserted, 11,763 with addresses).
 - [x] **Loader optimized after the slow first run** (sequential streaming parse, address map cached to
       disk, 8-way concurrent upserts).
+- [ ] **Enrichment batch needs `db push` + re-run** (`bulk`, then `ingest`) to backfill the new `form`,
+      `filed`, `exchanges`, `category`, `formerNames` columns and the Revenues/NetIncomeLoss rows.
 
 ## Grant arcs follow-up (OpenAlex → CapitalFlow)
 

@@ -26,7 +26,13 @@ const COMPANYFACTS_ZIP_URL =
 const BULK_YEARS = 2;
 
 // Concepts mirror the frames-API ingest so rows stay comparable.
-const TAGS = ["StockholdersEquity", "LongTermDebt", "Assets"] as const;
+const TAGS = [
+  "StockholdersEquity",
+  "LongTermDebt",
+  "Assets",
+  "Revenues",
+  "NetIncomeLoss",
+] as const;
 
 // Hard ceiling per bulk run (ground-rules guardrail 1).
 const MAX_BULK_ROWS = 20000;
@@ -181,6 +187,9 @@ interface BulkAddress {
   address: string | null;
   state: string | null;
   tickers: string[];
+  exchanges: string[];
+  category: string | null;
+  formerNames: string[];
 }
 
 function joinAddress(addr: {
@@ -199,7 +208,8 @@ function joinAddress(addr: {
 // Submissions shape verified live against data.sec.gov: {cik, tickers[],
 // addresses: {business, mailing}}. Note cik is a zero-padded STRING
 // ("0000320193"), unlike companyfacts' number — both are accepted.
-const ADDRESS_MAP_CACHE = "sec/address-map.json";
+// v2: carries exchanges/category/formerNames (v1 rows lack them).
+const ADDRESS_MAP_CACHE = "sec/address-map-v2.json";
 
 async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>> {
   const hit = readCache<Record<string, BulkAddress>>(ADDRESS_MAP_CACHE);
@@ -217,6 +227,9 @@ async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>
     const doc = json as {
       cik?: unknown;
       tickers?: unknown;
+      exchanges?: unknown;
+      category?: unknown;
+      formerNames?: unknown;
       addresses?: {
         business?: Record<string, unknown> | null;
         mailing?: Record<string, unknown> | null;
@@ -233,6 +246,18 @@ async function loadAddressMap(zipPath: string): Promise<Map<number, BulkAddress>
       state: typeof state === "string" ? state : null,
       tickers: Array.isArray(doc.tickers)
         ? doc.tickers.filter((t): t is string => typeof t === "string")
+        : [],
+      exchanges: Array.isArray(doc.exchanges)
+        ? doc.exchanges.filter((t): t is string => typeof t === "string")
+        : [],
+      category:
+        typeof doc.category === "string" && doc.category.length > 0
+          ? doc.category
+          : null,
+      formerNames: Array.isArray(doc.formerNames)
+        ? doc.formerNames
+            .map((f) => (f as { name?: unknown })?.name)
+            .filter((n): n is string => typeof n === "string" && n.length > 0)
         : [],
     });
     n += 1;
@@ -254,6 +279,8 @@ interface BulkFact {
   val?: unknown;
   accn?: unknown;
   frame?: unknown;
+  form?: unknown;
+  filed?: unknown;
 }
 
 // Companyfacts shape verified live: {cik (number), entityName, facts:
@@ -312,6 +339,9 @@ async function loadFacts(
       const info = addresses.get(doc.cik);
       const state = info?.state ?? null;
       const id = `${doc.cik}:${tag}`;
+      const form = typeof fact.form === "string" ? fact.form : null;
+      const filed =
+        typeof fact.filed === "string" ? new Date(fact.filed) : null;
       const hasAddress = !!info?.address;
       batch.push(
         prisma.entity
@@ -333,6 +363,11 @@ async function loadFacts(
               sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",
               financialDate: new Date(fact.end as string),
               source: "bulk-zip",
+              form,
+              filed,
+              exchanges: info?.exchanges ?? [],
+              category: info?.category ?? null,
+              formerNames: info?.formerNames ?? [],
             },
             update: {
               name: doc.entityName,
@@ -346,6 +381,11 @@ async function loadFacts(
               sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",
               financialDate: new Date(fact.end as string),
               source: "bulk-zip",
+              form,
+              filed,
+              exchanges: info?.exchanges ?? [],
+              category: info?.category ?? null,
+              formerNames: info?.formerNames ?? [],
             },
           })
           .then(() => {

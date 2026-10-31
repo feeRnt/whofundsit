@@ -4,6 +4,8 @@ const CONCEPT_LABELS: Record<string, string> = {
   StockholdersEquity: "Stockholders' equity",
   LongTermDebt: "Long-term debt",
   Assets: "Total assets",
+  Revenues: "Revenue (quarter)",
+  NetIncomeLoss: "Net income (quarter)",
 };
 
 export interface DocLink {
@@ -63,6 +65,31 @@ export default function EntityPopup({ entity }: { entity: Entity }) {
           <dt>Address</dt>
           <dd>{entity.businessAddress ?? entity.rawAddressText}</dd>
         </div>
+        {entity.form && (
+          <div>
+            <dt>Source filing</dt>
+            <dd>
+              {entity.form}
+              {entity.filed ? ` filed ${formatDate(entity.filed)}` : ""}
+            </dd>
+          </div>
+        )}
+        {(entity.exchanges.length > 0 || entity.category) && (
+          <div>
+            <dt>Listing</dt>
+            <dd>
+              {[entity.exchanges.join(", "), entity.category]
+                .filter(Boolean)
+                .join(" · ")}
+            </dd>
+          </div>
+        )}
+        {entity.formerNames.length > 0 && (
+          <div>
+            <dt>Formerly</dt>
+            <dd>{entity.formerNames.join(", ")}</dd>
+          </div>
+        )}
       </dl>
       <h3>Supporting documents</h3>
       <ul>

@@ -11,6 +11,11 @@ export interface Entity {
   secFilingNumber: string | null;
   sourceTimeFrame: string | null;
   financialDate: string | null;
+  form: string | null;
+  filed: string | null;
+  exchanges: string[];
+  category: string | null;
+  formerNames: string[];
 }
 
 // Relative by default: same-origin in dev (Vite proxy) and in deploys

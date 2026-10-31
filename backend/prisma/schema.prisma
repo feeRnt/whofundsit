@@ -33,6 +33,15 @@ model Entity {
   sourceTimeFrame String?
   financialDate   DateTime?
 
+  // Filing form + date, e.g. "10-Q" filed 2026-07-30.
+  form  String?
+  filed DateTime?
+
+  // Submissions extras: listing exchanges, filer size, past company names.
+  exchanges   String[] @default([])
+  category    String?
+  formerNames String[] @default([])
+
   sourceFlows CapitalFlow[] @relation("SourceFlows")
   targetFlows CapitalFlow[] @relation("TargetFlows")
 }

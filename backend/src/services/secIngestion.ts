@@ -22,6 +22,9 @@ const FRAMES: FrameSpec[] = [
   { taxonomy: "us-gaap", tag: "StockholdersEquity", uom: "USD", ccp: "CY2026Q2I" },
   { taxonomy: "us-gaap", tag: "LongTermDebt", uom: "USD", ccp: "CY2026Q2I" },
   { taxonomy: "us-gaap", tag: "Assets", uom: "USD", ccp: "CY2026Q2I" },
+  // Duration concepts use quarterly (non-instantaneous) frames.
+  { taxonomy: "us-gaap", tag: "Revenues", uom: "USD", ccp: "CY2026Q2" },
+  { taxonomy: "us-gaap", tag: "NetIncomeLoss", uom: "USD", ccp: "CY2026Q2" },
 ];
 
 // Hard ceiling per frame: never ingest more than this many rows per frame
@@ -41,6 +44,8 @@ interface SecFrameRow {
   loc: string; // state code, e.g. "US-IL" -> Entity.rawAddressText
   end: string; // balance-sheet date, e.g. "2019-02-28" -> Entity.financialDate
   val: number; // -> Entity.fundsVolume
+  form?: unknown; // e.g. "10-Q" -> Entity.form (when the frame carries it)
+  filed?: unknown; // e.g. "2026-07-30" -> Entity.filed
 }
 
 interface SecFramesPayload {
@@ -66,6 +71,9 @@ interface SecSubmissions {
   } | null;
   tickers?: unknown;
   sicDescription?: unknown;
+  exchanges?: unknown; // e.g. ["Nasdaq"] -> Entity.exchanges
+  category?: unknown; // filer size, e.g. "Large accelerated filer" -> Entity.category
+  formerNames?: unknown; // [{name, from, to}] -> Entity.formerNames (names only)
 }
 
 export interface FrameSummary {
@@ -167,6 +175,9 @@ interface SubmissionsInfo {
   address: string | null;
   tickers: string[];
   sicDescription: string | null;
+  exchanges: string[];
+  category: string | null;
+  formerNames: string[];
 }
 
 // Run-scoped submissions cache: the same CIK appears in several frames, so
@@ -203,6 +214,18 @@ async function fetchSubmissions(cik: number): Promise<SubmissionsInfo> {
       typeof data.sicDescription === "string" && data.sicDescription.length > 0
         ? data.sicDescription
         : null,
+    exchanges: Array.isArray(data.exchanges)
+      ? data.exchanges.filter((t): t is string => typeof t === "string")
+      : [],
+    category:
+      typeof data.category === "string" && data.category.length > 0
+        ? data.category
+        : null,
+    formerNames: Array.isArray(data.formerNames)
+      ? data.formerNames
+          .map((f) => (f as { name?: unknown })?.name)
+          .filter((n): n is string => typeof n === "string" && n.length > 0)
+      : [],
   };
   submissionsCache.set(cik, info);
   return info;
@@ -304,16 +327,30 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
         const id = `${row.cik}:${frame.tag}`;
         const existing = await prisma.entity.findUnique({
           where: { id },
-          select: { businessAddress: true, tickers: true, type: true },
+          select: {
+            businessAddress: true,
+            tickers: true,
+            type: true,
+            exchanges: true,
+            category: true,
+            formerNames: true,
+          },
         });
         let businessAddress: string | null = existing?.businessAddress ?? null;
         let tickers: string[] = existing?.tickers ?? [];
         let industry: string | null =
           existing?.type && existing.type !== "Company" ? existing.type : null;
+        let exchanges: string[] = existing?.exchanges ?? [];
+        let category: string | null = existing?.category ?? null;
+        let formerNames: string[] = existing?.formerNames ?? [];
+        // formerNames piggybacks: empty is legitimate (no past names), so it
+        // never triggers a fetch on its own.
         if (
           businessAddress === null ||
           tickers.length === 0 ||
-          industry === null
+          industry === null ||
+          exchanges.length === 0 ||
+          category === null
         ) {
           try {
             const info = await fetchSubmissions(row.cik);
@@ -322,6 +359,13 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
               tickers = info.tickers;
             }
             industry = industry ?? info.sicDescription;
+            if (exchanges.length === 0) {
+              exchanges = info.exchanges;
+            }
+            category = category ?? info.category;
+            if (formerNames.length === 0) {
+              formerNames = info.formerNames;
+            }
           } catch (err) {
             if (err instanceof SecBlockedError) {
               throw err; // fatal: stop the run instead of burning calls
@@ -329,6 +373,8 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           }
         }
         const type = industry ?? "Company";
+        const form = typeof row.form === "string" ? row.form : null;
+        const filed = typeof row.filed === "string" ? new Date(row.filed) : null;
 
         await prisma.entity.upsert({
           where: { id },
@@ -347,6 +393,11 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             secFilingNumber: row.accn,
             sourceTimeFrame: payload.ccp,
             financialDate: new Date(row.end),
+            form,
+            filed,
+            exchanges,
+            category,
+            formerNames,
           },
           update: {
             name: row.entityName,
@@ -360,6 +411,11 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             secFilingNumber: row.accn,
             sourceTimeFrame: payload.ccp,
             financialDate: new Date(row.end),
+            form,
+            filed,
+            exchanges,
+            category,
+            formerNames,
           },
         });
         upserted += 1;
