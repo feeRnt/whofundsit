@@ -53,7 +53,15 @@ async function oaGet<T>(url: string): Promise<T> {
 
 const shortId = (url: string): string => url.replace("https://openalex.org/", "");
 
-interface Funder {
+// Empty/whitespace env values fall back to the default: `??` alone let ""
+// through, which queried the API root and crashed downstream in geocoding.
+export function resolveFunderId(
+  env: string | undefined = process.env.OPENALEX_FUNDER_ID,
+): string {
+  return env?.trim() || DEFAULT_FUNDER;
+}
+
+export interface Funder {
   id: string;
   display_name: string;
   country_code: string | null;
@@ -79,6 +87,19 @@ interface Institution {
   country_code: string | null;
   type: string;
   geo: { latitude: number; longitude: number } | null;
+}
+
+// Fail loud on a junk funder payload (wrong id, API-root object, stale cache)
+// instead of crashing later in geocoding with "undefined".
+export function assertValidFunder(funder: Funder, funderId: string): void {
+  if (
+    typeof funder.display_name !== "string" ||
+    typeof funder.works_count !== "number"
+  ) {
+    throw new Error(
+      `[flows] OpenAlex returned no funder for ${funderId} — check OPENALEX_FUNDER_ID in backend/.env (want a full https://openalex.org/F... URL), then retry with CACHE_REFRESH=1`,
+    );
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -130,7 +151,7 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
   }
 
-  const funderId = process.env.OPENALEX_FUNDER_ID ?? DEFAULT_FUNDER;
+  const funderId = resolveFunderId();
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   const prisma = new PrismaClient({ adapter });
 
@@ -139,6 +160,7 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
       `openalex/funder-${shortId(funderId)}.json`,
       () => oaGet<Funder>(apiUrl(funderId, {})),
     );
+    assertValidFunder(funder, funderId);
     console.log(`[flows] funder: ${funder.display_name} (${funder.works_count} works)`);
     const funderAt = await cachedJson(
       `openalex/funder-geo-${shortId(funderId)}.json`,
