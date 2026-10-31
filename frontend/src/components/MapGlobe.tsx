@@ -121,6 +121,8 @@ export default function MapGlobe({
   flowEndpoints,
   companyFlowsHidden,
   onToggleCompanyFlows,
+  focusCompanyId,
+  onToggleFocusCompany,
 }: {
   entities: Entity[];
   flows: Flow[];
@@ -129,6 +131,8 @@ export default function MapGlobe({
   flowEndpoints: Set<string>;
   companyFlowsHidden: Set<string>;
   onToggleCompanyFlows: (id: string) => void;
+  focusCompanyId: string | null;
+  onToggleFocusCompany: (id: string) => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -272,6 +276,8 @@ export default function MapGlobe({
             hasFlows={flowEndpoints.has(selected.id)}
             flowsOn={!companyFlowsHidden.has(selected.id)}
             onToggleFlows={() => onToggleCompanyFlows(selected.id)}
+            focused={focusCompanyId === selected.id}
+            onToggleFocus={() => onToggleFocusCompany(selected.id)}
           />
         </Popup>
       )}

@@ -101,12 +101,16 @@ export default function EntityPopup({
   hasFlows,
   flowsOn,
   onToggleFlows,
+  focused,
+  onToggleFocus,
 }: {
   entity: Entity;
   entities: Entity[];
   hasFlows: boolean;
   flowsOn: boolean;
   onToggleFlows: () => void;
+  focused: boolean;
+  onToggleFocus: () => void;
 }) {
   const siblings = siblingConcepts(entities, entity);
   const label = entity.conceptTag
@@ -140,6 +144,15 @@ export default function EntityPopup({
           onClick={onToggleFlows}
         >
           {flowsOn ? "Hide this company's flows" : "Show this company's flows"}
+        </button>
+      )}
+      {hasFlows && (
+        <button
+          type="button"
+          className="flow-toggle"
+          onClick={onToggleFocus}
+        >
+          {focused ? "Show all companies' arcs" : "Only this company's arcs"}
         </button>
       )}
       {entity.mergedFrom && entity.mergedFrom.length > 0 && (

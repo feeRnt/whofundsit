@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Globe as GlobeIcon, Map as MapIcon } from "lucide-react";
+import { Globe as GlobeIcon, Map as MapIcon, X } from "lucide-react";
 import MapGlobe from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
@@ -12,6 +12,8 @@ export default function App() {
   const [showFlows, setShowFlows] = useState(true);
   const [showGrants, setShowGrants] = useState(false);
   const [showOwnership, setShowOwnership] = useState(false);
+  // Focus mode: arcs for one company only; dropdowns tick just its funders.
+  const [focusCompany, setFocusCompany] = useState<string | null>(null);
   const [funderOverrides, setFunderOverrides] = useState<Map<
     string,
     boolean
@@ -64,6 +66,38 @@ export default function App() {
     return ids;
   }, [funders13f, fundersGrants, fundersOwnership, funderOverrides]);
 
+  // Funders with at least one arc touching the focused company.
+  const focusFunders = useMemo(() => {
+    const ids = new Set<string>();
+    if (!focusCompany) {
+      return ids;
+    }
+    for (const f of flows) {
+      if (
+        f.sourceEntityId === focusCompany ||
+        f.targetEntityId === focusCompany
+      ) {
+        ids.add(f.sourceEntityId);
+      }
+    }
+    return ids;
+  }, [flows, focusCompany]);
+
+  // Effective checkbox state: in focus mode only the company's funders are
+  // ticked (explicit unchecks still apply so boxes stay toggleable).
+  const effectiveFunders = useMemo(() => {
+    if (!focusCompany) {
+      return enabledFunders;
+    }
+    const ids = new Set(focusFunders);
+    for (const [id, on] of funderOverrides ?? []) {
+      if (!on) {
+        ids.delete(id);
+      }
+    }
+    return ids;
+  }, [focusCompany, focusFunders, enabledFunders, funderOverrides]);
+
   const visibleFlows = useMemo(
     () =>
       flows
@@ -72,9 +106,12 @@ export default function App() {
             ((f.flowType === "13f" && showFlows) ||
               (f.flowType === "grant" && showGrants) ||
               (f.flowType === "ownership" && showOwnership)) &&
-            enabledFunders.has(f.sourceEntityId) &&
+            effectiveFunders.has(f.sourceEntityId) &&
             !disabledCompanies.has(f.sourceEntityId) &&
-            !disabledCompanies.has(f.targetEntityId),
+            !disabledCompanies.has(f.targetEntityId) &&
+            (!focusCompany ||
+              f.sourceEntityId === focusCompany ||
+              f.targetEntityId === focusCompany),
         )
         .slice(0, flowLimit),
     [
@@ -83,10 +120,47 @@ export default function App() {
       showFlows,
       showGrants,
       showOwnership,
-      enabledFunders,
+      effectiveFunders,
       disabledCompanies,
+      focusCompany,
     ],
   );
+
+  const toggleFocusCompany = (id: string) => {
+    if (focusCompany === id) {
+      setFocusCompany(null);
+      return;
+    }
+    // Fresh lens: clear stale unchecks for this company's funders, and make
+    // sure the layers carrying its arcs are switched on.
+    setFunderOverrides((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const next = new Map(prev);
+      for (const f of flows) {
+        if (f.sourceEntityId === id || f.targetEntityId === id) {
+          next.delete(f.sourceEntityId);
+        }
+      }
+      return next;
+    });
+    const kinds = new Set(
+      flows
+        .filter((f) => f.sourceEntityId === id || f.targetEntityId === id)
+        .map((f) => f.flowType),
+    );
+    if (kinds.has("13f")) {
+      setShowFlows(true);
+    }
+    if (kinds.has("grant")) {
+      setShowGrants(true);
+    }
+    if (kinds.has("ownership")) {
+      setShowOwnership(true);
+    }
+    setFocusCompany(id);
+  };
 
   const funderKinds = useMemo(() => {
     const kinds = new Map<string, string>();
@@ -102,7 +176,7 @@ export default function App() {
   const toggleFunder = (id: string) => {
     setFunderOverrides((prev) => {
       const next = new Map(prev ?? []);
-      next.set(id, !enabledFunders.has(id));
+      next.set(id, !effectiveFunders.has(id));
       return next;
     });
   };
@@ -130,12 +204,16 @@ export default function App() {
   const companyFlowsHidden = useMemo(() => {
     const hidden = new Set(disabledCompanies);
     for (const id of funderKinds.keys()) {
-      if (!enabledFunders.has(id)) {
+      if (!effectiveFunders.has(id)) {
         hidden.add(id);
       }
     }
     return hidden;
-  }, [disabledCompanies, funderKinds, enabledFunders]);
+  }, [disabledCompanies, funderKinds, effectiveFunders]);
+
+  const focusName = focusCompany
+    ? (entities.find((e) => e.id === focusCompany)?.name ?? focusCompany)
+    : null;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
@@ -166,12 +244,22 @@ export default function App() {
               : `${entities.length} entities · ${visibleFlows.length}/${flows.length} flows · SEC EDGAR CY2026Q2`}
         </p>
         <SearchBox entities={entities} onSelect={setFocused} />
+        {focusCompany && (
+          <button
+            type="button"
+            className="toggle"
+            onClick={() => setFocusCompany(null)}
+            title="Exit single-company view"
+          >
+            Only {focusName} <X size={14} />
+          </button>
+        )}
         <FlowsDropdown
           title="Hedge-Funds"
           masterLabel="Show funding map"
           funders={funders13f}
           showFlows={showFlows}
-          enabledFunders={enabledFunders}
+          enabledFunders={effectiveFunders}
           open={openMenu === "hedge"}
           onToggleOpen={() =>
             setOpenMenu((m) => (m === "hedge" ? null : "hedge"))
@@ -184,7 +272,7 @@ export default function App() {
           masterLabel="Show grants"
           funders={fundersGrants}
           showFlows={showGrants}
-          enabledFunders={enabledFunders}
+          enabledFunders={effectiveFunders}
           open={openMenu === "grants"}
           onToggleOpen={() =>
             setOpenMenu((m) => (m === "grants" ? null : "grants"))
@@ -197,7 +285,7 @@ export default function App() {
           masterLabel="Show ownership"
           funders={fundersOwnership}
           showFlows={showOwnership}
-          enabledFunders={enabledFunders}
+          enabledFunders={effectiveFunders}
           open={openMenu === "ownership"}
           onToggleOpen={() =>
             setOpenMenu((m) => (m === "ownership" ? null : "ownership"))
@@ -238,7 +326,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} />
+          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} />
         )}</main>
     </div>
   );
