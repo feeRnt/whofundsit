@@ -7,7 +7,7 @@ import {
   MapLibreOverlay,
   type MapLibreOverlayProps,
 } from "@deck.gl/maplibre";
-import { ArcLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Entity, Flow } from "../api";
@@ -40,6 +40,57 @@ function tooltip({ object }: PickingInfo) {
   }
   const entity = object as Entity;
   return `${entity.name} — $${entity.fundsVolume.toLocaleString("en-US")} (${entity.rawAddressText})`;
+}
+
+// Great-circle interpolation in JS: deck interpolates ArcLayer in flat map
+// space, so chords shoot into space on the globe — but projected vertices
+// are correct, so arcs become multi-vertex paths that hug the surface in
+// both projections.
+function greatCirclePath(
+  from: [number, number],
+  to: [number, number],
+  segments = 32,
+): [number, number][] {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const toDeg = (r: number) => (r * 180) / Math.PI;
+  const [lng1, lat1] = [toRad(from[0]), toRad(from[1])];
+  const [lng2, lat2] = [toRad(to[0]), toRad(to[1])];
+  const p1: [number, number, number] = [
+    Math.cos(lat1) * Math.cos(lng1),
+    Math.cos(lat1) * Math.sin(lng1),
+    Math.sin(lat1),
+  ];
+  const p2: [number, number, number] = [
+    Math.cos(lat2) * Math.cos(lng2),
+    Math.cos(lat2) * Math.sin(lng2),
+    Math.sin(lat2),
+  ];
+  const dot = Math.min(
+    1,
+    Math.max(-1, p1[0] * p2[0] + p1[1] * p2[1] + p1[2] * p2[2]),
+  );
+  const omega = Math.acos(dot);
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= segments; i += 1) {
+    const t = i / segments;
+    let a: number;
+    let b: number;
+    if (omega < 1e-6) {
+      a = 1 - t;
+      b = t;
+    } else {
+      a = Math.sin((1 - t) * omega) / Math.sin(omega);
+      b = Math.sin(t * omega) / Math.sin(omega);
+    }
+    const x = a * p1[0] + b * p2[0];
+    const y = a * p1[1] + b * p2[1];
+    const z = a * p1[2] + b * p2[2];
+    pts.push([
+      toDeg(Math.atan2(y, x)),
+      toDeg(Math.asin(Math.min(1, Math.max(-1, z)))),
+    ]);
+  }
+  return pts;
 }
 
 // Documented deck.gl + react-map-gl pattern: the overlay attaches to the map
@@ -99,18 +150,19 @@ export default function MapGlobe({
         flowEndpoints.has(d.id) ? [168, 85, 247, 210] : [45, 212, 191, 200],
       getLineColor: [255, 255, 255, 140],
     }),
-    new ArcLayer<Flow>({
+    new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows",
-      data: flows,
+      data: flows.map((f) => ({
+        ...f,
+        path: greatCirclePath(
+          [f.sourceEntity.lng, f.sourceEntity.lat],
+          [f.targetEntity.lng, f.targetEntity.lat],
+        ),
+      })),
       pickable: true,
-      // Straight chords cut through the globe interior and get occluded;
-      // surface-hugging great circles stay visible in both projections.
-      greatCircle: true,
       wrapLongitude: true,
-      getSourcePosition: (d) => [d.sourceEntity.lng, d.sourceEntity.lat],
-      getTargetPosition: (d) => [d.targetEntity.lng, d.targetEntity.lat],
-      getSourceColor: [45, 212, 191, 220],
-      getTargetColor: [251, 191, 36, 220],
+      getPath: (d) => d.path,
+      getColor: [251, 191, 36, 220],
       // Per-type widths (works-counts vs dollars need different scales).
       getWidth: (d) =>
         d.flowType === "13f"
