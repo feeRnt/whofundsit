@@ -244,9 +244,12 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
   try {
     // Drop rows from any frame outside this config (e.g. the old 2019 frame),
     // so the map never mixes snapshots.
+    // Prune only frames-api rows outside this config; bulk-zip rows are the
+    // base layer and are never touched here.
     const current = FRAMES.map((f) => f.ccp);
     const pruned = await prisma.entity.deleteMany({
       where: {
+        source: "frames-api",
         OR: [{ sourceTimeFrame: null }, { sourceTimeFrame: { notIn: current } }],
       },
     });
@@ -318,6 +321,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             rawAddressText: row.loc,
             businessAddress,
             tickers,
+            source: "frames-api",
             conceptTag: frame.tag,
             secFilingNumber: row.accn,
             sourceTimeFrame: payload.ccp,
@@ -329,6 +333,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             rawAddressText: row.loc,
             businessAddress,
             tickers,
+            source: "frames-api",
             conceptTag: frame.tag,
             secFilingNumber: row.accn,
             sourceTimeFrame: payload.ccp,

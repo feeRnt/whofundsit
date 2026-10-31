@@ -24,6 +24,10 @@ model Entity {
   // Tickers from the submissions payload (index membership source).
   tickers String[] @default([])
 
+  // Ingest path that wrote this row: "frames-api" (incremental) or "bulk-zip"
+  // (base layer, never pruned by API runs).
+  source String @default("frames-api")
+
   // Provenance (SEC ingestion): which filing validates this row, for which period, as of when.
   secFilingNumber String?
   sourceTimeFrame String?
