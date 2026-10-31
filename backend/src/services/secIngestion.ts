@@ -3,10 +3,11 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100";
 import { SP500_TICKERS } from "../data/sp500";
+import { cachedJson } from "./httpCache";
 
 // SEC EDGAR Frames API: one funding-relevant concept per frame, Q2 2026
-// (last fully-filed quarter). Payloads are parsed in memory only — raw JSON is
-// never written to disk (ground-rules §4).
+// (last fully-filed quarter). Responses are file-cached under gitignored
+// backend/data/cache (ground-rules §4); CACHE_REFRESH=1 re-fetches.
 const FRAME_API = "https://data.sec.gov/api/xbrl/frames";
 const SUBMISSIONS_URL = "https://data.sec.gov/submissions";
 
@@ -179,7 +180,10 @@ async function fetchSubmissions(cik: number): Promise<SubmissionsInfo> {
     return cached;
   }
   const padded = String(cik).padStart(10, "0");
-  const data = await secGet<SecSubmissions>(`${SUBMISSIONS_URL}/CIK${padded}.json`);
+  const data = await cachedJson<SecSubmissions>(
+    `sec/submissions/CIK${padded}.json`,
+    () => secGet<SecSubmissions>(`${SUBMISSIONS_URL}/CIK${padded}.json`),
+  );
   const addr = data.addresses?.business ?? data.addresses?.mailing ?? null;
   const parts = addr
     ? [
@@ -214,7 +218,11 @@ interface TickerEntry {
 }
 
 async function fetchIndexCiks(): Promise<Set<number>> {
-  const data = await secGet<Record<string, TickerEntry>>(TICKER_MAP_URL);
+  // Index membership changes slowly; refresh monthly or via CACHE_REFRESH=1.
+  const data = await cachedJson<Record<string, TickerEntry>>(
+    "sec/company_tickers.json",
+    () => secGet<Record<string, TickerEntry>>(TICKER_MAP_URL),
+  );
   const wanted = new Set(
     [...SP500_TICKERS, ...NASDAQ100_TICKERS].map((t) => t.toUpperCase()),
   );
@@ -268,7 +276,10 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
 
     for (const frame of FRAMES) {
       const url = `${FRAME_API}/${frame.taxonomy}/${frame.tag}/${frame.uom}/${frame.ccp}.json`;
-      const payload = await secGet<SecFramesPayload>(url);
+      const payload = await cachedJson<SecFramesPayload>(
+        `sec/frames/${frame.tag}-${frame.ccp}.json`,
+        () => secGet<SecFramesPayload>(url),
+      );
       // Members first (stable sort keeps everyone else's order), then cap.
       const rows = [...payload.data]
         .sort(

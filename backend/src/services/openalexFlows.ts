@@ -1,6 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { cachedJson } from "./httpCache";
 
 // Grant flows from OpenAlex: funder -> funded works -> grantee institutions.
 // One funder per run (OPENALEX_FUNDER_ID, default Colgate-Palmolive, the parent
@@ -134,18 +135,28 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
   const prisma = new PrismaClient({ adapter });
 
   try {
-    const funder = await oaGet<Funder>(apiUrl(funderId, {}));
+    const funder = await cachedJson<Funder>(
+      `openalex/funder-${shortId(funderId)}.json`,
+      () => oaGet<Funder>(apiUrl(funderId, {})),
+    );
     console.log(`[flows] funder: ${funder.display_name} (${funder.works_count} works)`);
-    const funderAt = await funderCoords(funder.display_name);
+    const funderAt = await cachedJson(
+      `openalex/funder-geo-${shortId(funderId)}.json`,
+      () => funderCoords(funder.display_name),
+    );
     const funderKey = shortId(funder.id);
     const funderRowId = `openalex:${funderKey}`;
 
-    const page = await oaGet<WorkPage>(
-      apiUrl("/works", {
-        filter: `funders.id:${funderId}`,
-        "per-page": String(MAX_FLOW_WORKS),
-        select: "id,display_name,authorships",
-      }),
+    const page = await cachedJson<WorkPage>(
+      `openalex/works-${shortId(funderId)}-p1.json`,
+      () =>
+        oaGet<WorkPage>(
+          apiUrl("/works", {
+            filter: `funders.id:${funderId}`,
+            "per-page": String(MAX_FLOW_WORKS),
+            select: "id,display_name,authorships",
+          }),
+        ),
     );
 
     const byInst = new Map<
@@ -205,12 +216,15 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
     let skippedNoGeo = 0;
     let done = 0;
     for (const [instId, info] of top) {
-      const full = await oaGet<Institution>(apiUrl(instId, {}));
+      const key = shortId(instId);
+      const full = await cachedJson<Institution>(
+        `openalex/inst-${key}.json`,
+        () => oaGet<Institution>(apiUrl(instId, {})),
+      );
       if (!full.geo) {
         skippedNoGeo += 1;
         continue;
       }
-      const key = shortId(instId);
       const instRowId = `openalex:${key}`;
       await prisma.entity.upsert({
         where: { id: instRowId },

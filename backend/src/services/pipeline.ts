@@ -1,6 +1,7 @@
 import axios from "axios";
 import { PrismaClient, type Entity } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { cachedJson, cacheKey, readCache, writeCache } from "./httpCache";
 
 // Background pipeline: give ingested SEC entities real coordinates, and route
 // shouty/complex names through the Modal Llama worker for normalization.
@@ -58,27 +59,34 @@ function nominatimUserAgent(): string {
   );
 }
 
-// Direct Nominatim calls from this machine, cached + rate-limited.
+// Direct Nominatim calls from this machine: memory, then file cache, then
+// one rate-limited call (misses cache too, so they never re-query).
+function geoPath(text: string): string {
+  return `geo/nominatim-${cacheKey(text)}.json`;
+}
+
 async function geocodeLocal(text: string): Promise<Coords | null> {
   const cached = geocodeCache.get(text);
   if (cached !== undefined) {
     return cached;
   }
-  const result = await nominatim(async () => {
-    const { data } = await axios.get<NominatimHit[]>(
-      "https://nominatim.openstreetmap.org/search",
-      {
-        params: { format: "jsonv2", limit: 1, q: text },
-        headers: {
-          "User-Agent": nominatimUserAgent(),
-          Accept: "application/json",
-          "Accept-Encoding": "gzip, deflate",
+  const result = await cachedJson<Coords | null>(geoPath(text), () =>
+    nominatim(async () => {
+      const { data } = await axios.get<NominatimHit[]>(
+        "https://nominatim.openstreetmap.org/search",
+        {
+          params: { format: "jsonv2", limit: 1, q: text },
+          headers: {
+            "User-Agent": nominatimUserAgent(),
+            Accept: "application/json",
+            "Accept-Encoding": "gzip, deflate",
+          },
         },
-      },
-    );
-    const hit = data[0];
-    return hit ? { lat: Number(hit.lat), lng: Number(hit.lon) } : null;
-  });
+      );
+      const hit = data[0];
+      return hit ? { lat: Number(hit.lat), lng: Number(hit.lon) } : null;
+    }),
+  );
   geocodeCache.set(text, result);
   return result;
 }
@@ -117,7 +125,32 @@ async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null
 // raw Frames state code (e.g. "US-IL"), whose hits land on state centroids.
 async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>> {
   if (process.env.GEOCODE_BACKEND === "modal") {
-    return geocodeRemote(texts);
+    // Batch only texts missing from both caches; file results back.
+    const out = new Map<string, Coords | null>();
+    const missing: string[] = [];
+    for (const text of new Set(texts)) {
+      const mem = geocodeCache.get(text);
+      if (mem !== undefined) {
+        out.set(text, mem);
+        continue;
+      }
+      const file = readCache<Coords | null>(geoPath(text));
+      if (file !== undefined) {
+        geocodeCache.set(text, file);
+        out.set(text, file);
+        continue;
+      }
+      missing.push(text);
+    }
+    if (missing.length > 0) {
+      const fresh = await geocodeRemote(missing);
+      for (const [text, coords] of fresh) {
+        geocodeCache.set(text, coords);
+        writeCache(geoPath(text), coords);
+        out.set(text, coords);
+      }
+    }
+    return out;
   }
   const out = new Map<string, Coords | null>();
   for (const text of new Set(texts)) {
@@ -138,13 +171,19 @@ async function normalizeWithLlama(
   if (!url) {
     return null;
   }
+  const input = `${entity.name} (${entity.rawAddressText})`;
   try {
-    const { data } = await modal(() =>
-      axios.post(
-        url,
-        { text: `${entity.name} (${entity.rawAddressText})` },
-        { headers: { "Content-Type": "application/json" }, timeout: 60000 },
-      ),
+    const data = await cachedJson<unknown>(
+      `ai/normalize-${cacheKey(input)}.json`,
+      () =>
+        modal(async () => {
+          const res = await axios.post(
+            url,
+            { text: input },
+            { headers: { "Content-Type": "application/json" }, timeout: 60000 },
+          );
+          return res.data as unknown;
+        }),
     );
     const parsed: unknown =
       typeof data === "string" ? JSON.parse(data) : data;
