@@ -84,15 +84,51 @@ export default function App() {
     ],
   );
 
-  const toggleFunder = (id: string) => {
-    setFunderOverrides((prev) => {
-      const next = new Map(prev ?? []);
-      next.set(id, !enabledFunders.has(id));
-      return next;
-    });
+  const funderKinds = useMemo(() => {
+    const kinds = new Map<string, string>();
+    for (const f of [...funders13f, ...fundersGrants]) {
+      kinds.set(f.id, f.kind);
+    }
+    return kinds;
+  }, [funders13f, fundersGrants]);
+
+  // Masters are mutually exclusive: activating one layer deactivates the
+  // other (the inactive dropdown's checkboxes disable themselves).
+  const toggleHedgeMaster = () => {
+    setShowFlows((v) => !v);
+    setShowGrants(false);
+  };
+  const toggleGrantMaster = () => {
+    setShowGrants((v) => !v);
+    setShowFlows(false);
   };
 
+  const toggleFunder = (id: string) => {
+    const turningOn = !enabledFunders.has(id);
+    setFunderOverrides((prev) => {
+      const next = new Map(prev ?? []);
+      next.set(id, turningOn);
+      return next;
+    });
+    // Checking a funder activates its layer so the arcs become visible.
+    if (turningOn) {
+      if (funderKinds.get(id) === "13f") {
+        setShowFlows(true);
+        setShowGrants(false);
+      } else {
+        setShowGrants(true);
+        setShowFlows(false);
+      }
+    }
+  };
+
+  // Popup button shares state with the dropdown checkboxes: funder ids
+  // route to the funder toggle, plain companies to the per-company set.
   const toggleCompanyFlows = (id: string) => {
+    if (funderKinds.has(id)) {
+      toggleFunder(id);
+      return;
+    }
     setDisabledCompanies((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -103,6 +139,18 @@ export default function App() {
       return next;
     });
   };
+
+  // What the map treats as hidden: per-company hides plus funders whose
+  // dropdown checkbox is off, so the popup button mirrors the checkbox.
+  const companyFlowsHidden = useMemo(() => {
+    const hidden = new Set(disabledCompanies);
+    for (const id of funderKinds.keys()) {
+      if (!enabledFunders.has(id)) {
+        hidden.add(id);
+      }
+    }
+    return hidden;
+  }, [disabledCompanies, funderKinds, enabledFunders]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
@@ -139,7 +187,7 @@ export default function App() {
           funders={funders13f}
           showFlows={showFlows}
           enabledFunders={enabledFunders}
-          onToggleMaster={() => setShowFlows((v) => !v)}
+          onToggleMaster={toggleHedgeMaster}
           onToggleFunder={toggleFunder}
         />
         <FlowsDropdown
@@ -148,7 +196,7 @@ export default function App() {
           funders={fundersGrants}
           showFlows={showGrants}
           enabledFunders={enabledFunders}
-          onToggleMaster={() => setShowGrants((v) => !v)}
+          onToggleMaster={toggleGrantMaster}
           onToggleFunder={toggleFunder}
         />
         <button
@@ -184,7 +232,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} flowEndpoints={flowEndpoints} companyFlowsHidden={disabledCompanies} onToggleCompanyFlows={toggleCompanyFlows} />
+          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} />
         )}</main>
     </div>
   );
