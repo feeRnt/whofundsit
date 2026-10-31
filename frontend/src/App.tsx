@@ -92,34 +92,15 @@ export default function App() {
     return kinds;
   }, [funders13f, fundersGrants]);
 
-  // Masters are mutually exclusive: activating one layer deactivates the
-  // other (the inactive dropdown's checkboxes disable themselves).
-  const toggleHedgeMaster = () => {
-    setShowFlows((v) => !v);
-    setShowGrants(false);
-  };
-  const toggleGrantMaster = () => {
-    setShowGrants((v) => !v);
-    setShowFlows(false);
-  };
+  // One dropdown open at a time (accordion); layers stay independent.
+  const [openMenu, setOpenMenu] = useState<"hedge" | "grants" | null>(null);
 
   const toggleFunder = (id: string) => {
-    const turningOn = !enabledFunders.has(id);
     setFunderOverrides((prev) => {
       const next = new Map(prev ?? []);
-      next.set(id, turningOn);
+      next.set(id, !enabledFunders.has(id));
       return next;
     });
-    // Checking a funder activates its layer so the arcs become visible.
-    if (turningOn) {
-      if (funderKinds.get(id) === "13f") {
-        setShowFlows(true);
-        setShowGrants(false);
-      } else {
-        setShowGrants(true);
-        setShowFlows(false);
-      }
-    }
   };
 
   // Popup button shares state with the dropdown checkboxes: funder ids
@@ -187,16 +168,24 @@ export default function App() {
           funders={funders13f}
           showFlows={showFlows}
           enabledFunders={enabledFunders}
-          onToggleMaster={toggleHedgeMaster}
+          open={openMenu === "hedge"}
+          onToggleOpen={() =>
+            setOpenMenu((m) => (m === "hedge" ? null : "hedge"))
+          }
+          onToggleMaster={() => setShowFlows((v) => !v)}
           onToggleFunder={toggleFunder}
         />
         <FlowsDropdown
-          title="University funds"
+          title="University Funds"
           masterLabel="Show grants"
           funders={fundersGrants}
           showFlows={showGrants}
           enabledFunders={enabledFunders}
-          onToggleMaster={toggleGrantMaster}
+          open={openMenu === "grants"}
+          onToggleOpen={() =>
+            setOpenMenu((m) => (m === "grants" ? null : "grants"))
+          }
+          onToggleMaster={() => setShowGrants((v) => !v)}
           onToggleFunder={toggleFunder}
         />
         <button

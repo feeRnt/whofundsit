@@ -13,6 +13,8 @@ export default function FlowsDropdown({
   funders,
   showFlows,
   enabledFunders,
+  open,
+  onToggleOpen,
   onToggleMaster,
   onToggleFunder,
 }: {
@@ -21,12 +23,22 @@ export default function FlowsDropdown({
   funders: FunderInfo[];
   showFlows: boolean;
   enabledFunders: Set<string>;
+  open: boolean;
+  onToggleOpen: () => void;
   onToggleMaster: () => void;
   onToggleFunder: (id: string) => void;
 }) {
   return (
-    <details className="flows-menu">
-      <summary className="toggle" aria-label={`${title} visibility options`}>
+    <details className="flows-menu" open={open}>
+      <summary
+        className="toggle"
+        aria-label={`${title} visibility options`}
+        onClick={(e) => {
+          // Controlled accordion: block the native toggle, let App decide.
+          e.preventDefault();
+          onToggleOpen();
+        }}
+      >
         {title}
       </summary>
       <div className="flows-panel">
