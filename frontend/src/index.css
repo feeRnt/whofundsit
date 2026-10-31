@@ -133,6 +133,12 @@ body {
   color: #5eead4;
 }
 
+.entity-popup .approx-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #fbbf24;
+}
+
 .map .maplibre-popup-content {
   background: #141927;
   border: 1px solid #3a4358;

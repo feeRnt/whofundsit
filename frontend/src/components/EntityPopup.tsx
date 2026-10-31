@@ -91,6 +91,11 @@ export default function EntityPopup({ entity }: { entity: Entity }) {
           </div>
         )}
       </dl>
+      {!entity.businessAddress && (
+        <p className="approx-note">
+          Approximate location — no street address on file.
+        </p>
+      )}
       <h3>Supporting documents</h3>
       <ul>
         {docLinks(entity).map((link) => (
