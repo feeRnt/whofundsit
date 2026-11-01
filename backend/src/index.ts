@@ -1,5 +1,6 @@
 import "dotenv/config";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -91,6 +92,40 @@ if (fs.existsSync(path.join(frontendDist, "index.html"))) {
 }
 
 const port = Number(process.env.PORT ?? 4000);
-app.listen(port, () => {
-  console.log(`backend listening on ${port}`);
+// LAN opt-in (vite-style `--host`): default is loopback-only, set
+// HOST=0.0.0.0 to serve the demo to the local network (firewall permitting).
+const host = process.env.HOST ?? "127.0.0.1";
+
+function lanIpv4Addrs(): string[] {
+  // Never throws: a lookup failure must not crash the server.
+  let ifaces: Record<string, os.NetworkInterfaceInfo[] | undefined>;
+  try {
+    ifaces = os.networkInterfaces();
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const nets of Object.values(ifaces)) {
+    for (const net of nets ?? []) {
+      if (net.family === "IPv4" && !net.internal) {
+        out.push(net.address);
+      }
+    }
+  }
+  return out;
+}
+
+app.listen(port, host, () => {
+  console.log(`backend listening on ${host}:${port}`);
+  console.log(`open your browser at http://localhost:${port}`);
+  if (host === "0.0.0.0") {
+    const lan = lanIpv4Addrs();
+    if (lan.length > 0) {
+      for (const ip of lan) {
+        console.log(`on your LAN: http://${ip}:${port}`);
+      }
+    } else {
+      console.log("on your LAN: address lookup failed — use this machine's IP");
+    }
+  }
 });
