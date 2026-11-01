@@ -27,18 +27,18 @@ describe("renderSeedProgress", () => {
   it("renders a 20-char bar with counts and percent", () => {
     assert.equal(
       renderSeedProgress("entities", 500, 1000),
-      "[entities] [##########----------] 500/1000 (50%)",
+      "[Loading entities] [##########----------] 500/1000 (50%)",
     );
     assert.equal(
       renderSeedProgress("flows", 40030, 40030),
-      "[flows] [####################] 40030/40030 (100%)",
+      "[Loading flows] [####################] 40030/40030 (100%)",
     );
   });
 
   it("treats an empty load as complete without dividing by zero", () => {
     assert.equal(
       renderSeedProgress("entities", 0, 0),
-      "[entities] [####################] 0/0 (100%)",
+      "[Loading entities] [####################] 0/0 (100%)",
     );
   });
 });

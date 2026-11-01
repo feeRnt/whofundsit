@@ -19,4 +19,9 @@ export default defineConfig({
       '/api': 'http://localhost:4000',
     },
   },
+  // deck.gl + maplibre-gl are inherently ~2MB; splitting them would
+  // complicate the globe overlay + worker setup. Revisit post-demo.
+  build: {
+    chunkSizeWarningLimit: 2500,
+  },
 })

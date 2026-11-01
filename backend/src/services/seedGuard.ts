@@ -24,5 +24,5 @@ export function renderSeedProgress(
   const pct = total === 0 ? 100 : Math.round((done / total) * 100);
   const width = 20;
   const filled = Math.round((pct / 100) * width);
-  return `[${label}] [${"#".repeat(filled)}${"-".repeat(width - filled)}] ${done}/${total} (${pct}%)`;
+  return `[Loading ${label}] [${"#".repeat(filled)}${"-".repeat(width - filled)}] ${done}/${total} (${pct}%)`;
 }
