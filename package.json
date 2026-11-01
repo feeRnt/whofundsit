@@ -11,6 +11,6 @@
     "dev:backend": "npm --prefix backend run dev",
     "build": "npm --prefix frontend run build && npm --prefix backend run build",
     "serve": "npm run build && npm --prefix backend start",
-    "demo": "npm --prefix backend run db:push && npm --prefix backend run db:seed && npm run serve"
+    "demo": "npm --prefix backend run db:generate && npm --prefix backend run db:push && npm --prefix backend run db:seed && npm run serve"
   }
 }
