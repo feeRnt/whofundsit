@@ -306,6 +306,31 @@ export default function MapGlobe({
     id: "",
     toFunder: false,
   });
+  // Sweep generation: rapid arc clicks supersede in-flight sweeps instead
+  // of chaining stale dives.
+  const sweepToken = useRef(0);
+
+  // Arc clicks always sweep out-then-in: unlike search picks, arc endpoints
+  // are already on screen, so distance-scaled easing would collapse to a
+  // plain pan. Pull back to the world view, then dive to the endpoint.
+  function sweepToPoint(lat: number, lng: number) {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+    if (map.getZoom() <= 2) {
+      // Already wide: zoomTo would no-op and fire no moveend to chain from.
+      map.flyTo({ center: [lng, lat], zoom: 4 });
+      return;
+    }
+    const token = ++sweepToken.current;
+    map.zoomTo(2, { duration: 450 });
+    map.once("moveend", () => {
+      if (token === sweepToken.current) {
+        mapRef.current?.flyTo({ center: [lng, lat], zoom: 4 });
+      }
+    });
+  }
 
   function handleClick(info: PickingInfo) {
     const object = info.object as Record<string, unknown> | undefined;
@@ -325,7 +350,7 @@ export default function MapGlobe({
       const dest = arcPingPong.current.toFunder
         ? flow.sourceEntity
         : flow.targetEntity;
-      flyToPoint(dest.lat, dest.lng);
+      sweepToPoint(dest.lat, dest.lng);
     }
     setSelected(null);
   }
