@@ -5,8 +5,9 @@ import { cachedJson } from "./httpCache.js";
 
 // EU/UK financial facts from the ESEF repository (filings.xbrl.org): per-LEI
 // filing lookup, latest xBRL-JSON facts, Assets preferred, Revenue fallback.
-// LEI-native, so it joins global:sync rows directly. No key, no stated rate
-// limit; polite + cached anyway. Row ceiling: ESEF_LIMIT (default 500).
+// LEI-native, so it joins global:sync rows directly. No key; the host 429s
+// past a few req/s, so 1s pacing + backoff retries (esefGet), cached anyway.
+// Row ceiling: ESEF_LIMIT (default 500).
 // NOTE: repository ToS is unstated (see DATASETS.md) — small-scale use only.
 
 const ESEF = "https://filings.xbrl.org/api";
@@ -113,23 +114,54 @@ export function pickLatestJsonUrl(filings: EsefFilingItem[]): string | null {
     : `${ESEF_ORIGIN}${best.url}`;
 }
 
+// The repository 429s past a few req/s (observed 2026-11-01): 1s base pace
+// plus up to 3 backoff retries honoring Retry-After. Failures still throw
+// (uncached, so reruns retry them).
+async function esefGet<T>(
+  url: string,
+  params?: Record<string, unknown>,
+  timeoutMs = 60000,
+): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+    try {
+      return (
+        await axios.get<T>(url, {
+          params,
+          headers: {
+            "User-Agent": UA,
+            Accept: "application/vnd.api+json",
+          },
+          timeout: timeoutMs,
+        })
+      ).data;
+    } catch (err) {
+      const status = axios.isAxiosError(err)
+        ? err.response?.status
+        : undefined;
+      const retryAfter = axios.isAxiosError(err)
+        ? Number(err.response?.headers?.["retry-after"])
+        : NaN;
+      if (status !== 429 || attempt >= 3) {
+        throw err;
+      }
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      }
+    }
+  }
+}
+
 async function latestJsonUrl(lei: string): Promise<string | null> {
   const doc = await cachedJson<{
     data?: { attributes?: EsefFilingItem }[];
-  }>(`regional/esef-filings/${lei}.json`, async () => {
-    await new Promise((r) => setTimeout(r, 250));
-    return (
-      await axios.get(`${ESEF}/entities/${lei}/filings`, {
-        // sort=-date 400s (no such attribute); -period_end verified live.
-        params: { "page[size]": 10, sort: "-period_end" },
-        headers: {
-          "User-Agent": UA,
-          Accept: "application/vnd.api+json",
-        },
-        timeout: 60000,
-      })
-    ).data;
-  });
+  }>(`regional/esef-filings/${lei}.json`, () =>
+    esefGet(`${ESEF}/entities/${lei}/filings`, {
+      // sort=-date 400s (no such attribute); -period_end verified live.
+      "page[size]": 10,
+      sort: "-period_end",
+    }),
+  );
   if (!Array.isArray(doc.data)) {
     return null;
   }
@@ -185,15 +217,7 @@ export async function runRegionalEsef(): Promise<{
       try {
         const doc = await cachedJson<{ facts?: Record<string, XbrlJsonFact> }>(
           `regional/esef-facts/${lei}.json`,
-          async () => {
-            await new Promise((r) => setTimeout(r, 250));
-            return (
-              await axios.get(jsonUrl, {
-                headers: { "User-Agent": UA },
-                timeout: 120000,
-              })
-            ).data;
-          },
+          () => esefGet(jsonUrl, undefined, 120000),
         );
         facts = extractEsefFacts(doc);
       } catch {

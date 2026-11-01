@@ -41,7 +41,7 @@ describe("fallbackQueries", () => {
   it("keeps the trailing city/state/zip off a PO-box street line", () => {
     assert.deepEqual(
       fallbackQueries("PO BOX 123, SPRINGFIELD, IL, 62701"),
-      ["SPRINGFIELD, IL, 62701"],
+      ["SPRINGFIELD, IL, 62701", "IL, 62701"],
     );
   });
 
@@ -54,6 +54,18 @@ describe("fallbackQueries", () => {
   it("skips empty parts from doubled commas", () => {
     assert.deepEqual(fallbackQueries("100 MAIN ST, , AUSTIN, TX, 78701"), [
       "AUSTIN, TX, 78701",
+      "TX, 78701",
     ]);
+  });
+
+  it("drops SEC country codes and falls back to the trailing pair", () => {
+    assert.deepEqual(
+      fallbackQueries("ONE COLEMAN STREET, LONDON, X0, EC2R 5AA"),
+      ["ONE COLEMAN STREET, LONDON, EC2R 5AA", "LONDON, EC2R 5AA"],
+    );
+    assert.deepEqual(
+      fallbackQueries("ONE FRANKLIN PARKWAY, LEGAL-FT SECRETARY, SAN MATEO, CA"),
+      ["LEGAL-FT SECRETARY, SAN MATEO, CA", "SAN MATEO, CA"],
+    );
   });
 });

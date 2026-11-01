@@ -189,7 +189,7 @@ describe("fundGeocodeQueries", () => {
     formerNames: [],
   });
 
-  it("orders full address, city fallback, then name query", () => {
+  it("orders full address, city fallbacks, then name query", () => {
     assert.deepEqual(
       fundGeocodeQueries(
         "FOO LLC",
@@ -198,6 +198,7 @@ describe("fundGeocodeQueries", () => {
       [
         "PO BOX 123, SPRINGFIELD, IL, 62701",
         "SPRINGFIELD, IL, 62701",
+        "IL, 62701",
         "FOO LLC headquarters",
       ],
     );

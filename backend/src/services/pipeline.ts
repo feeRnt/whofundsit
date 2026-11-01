@@ -160,7 +160,9 @@ export function expandLocationText(text: string): string | null {
 }
 
 // Nominatim chokes on street lines (PO boxes, suite numbers); the trailing
-// city/state/zip alone often resolves. Pure for testing.
+// city/state/zip alone often resolves, then the trailing pair. SEC
+// letter-digit country codes (X0, E9, … — 57k addresses carry them) poison
+// every query they touch, so they are dropped first. Pure for testing.
 export function fallbackQueries(address: string): string[] {
   const parts = address
     .split(",")
@@ -169,7 +171,15 @@ export function fallbackQueries(address: string): string[] {
   if (parts.length <= 3) {
     return [];
   }
-  return [parts.slice(-3).join(", ")];
+  const clean = parts.filter((p) => !/^[A-Z]\d$/.test(p));
+  const out: string[] = [];
+  if (clean.length >= 3) {
+    out.push(clean.slice(-3).join(", "));
+  }
+  if (clean.length >= 2) {
+    out.push(clean.slice(-2).join(", "));
+  }
+  return [...new Set(out)];
 }
 
 // Prefers the business street address from SEC submissions; falls back to the
