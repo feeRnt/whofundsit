@@ -9,6 +9,8 @@ export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [focused, setFocused] = useState<Entity | null>(null);
+  // Bumped on every search pick so re-picking the same company re-flies.
+  const [focusTick, setFocusTick] = useState(0);
   const [showFlows, setShowFlows] = useState(true);
   const [showGrants, setShowGrants] = useState(false);
   const [showOwnership, setShowOwnership] = useState(false);
@@ -243,7 +245,13 @@ export default function App() {
               ? `API error: ${error} (is the backend running?)`
               : `${entities.length} entities · ${visibleFlows.length}/${flows.length} flows · SEC EDGAR CY2026Q2`}
         </p>
-        <SearchBox entities={entities} onSelect={setFocused} />
+        <SearchBox
+          entities={entities}
+          onSelect={(e) => {
+            setFocused(e);
+            setFocusTick((t) => t + 1);
+          }}
+        />
         {focusCompany && (
           <button
             type="button"
@@ -326,7 +334,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} />
+          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} />
         )}</main>
     </div>
   );

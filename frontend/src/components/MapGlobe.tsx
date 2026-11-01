@@ -10,7 +10,12 @@ import {
 import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { formatMoney, type Entity, type Flow } from "../api";
+import {
+  displayLocation,
+  formatMoney,
+  type Entity,
+  type Flow,
+} from "../api";
 import EntityPopup from "./EntityPopup";
 import ZoomHint from "./ZoomHint";
 
@@ -49,14 +54,15 @@ function tooltip({ object }: PickingInfo) {
     return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}`;
   }
   const entity = object as Entity;
+  const where = displayLocation(entity);
   if (!entity.conceptTag && entity.fundsVolume === 0) {
-    return `${entity.name} — listed company (${entity.rawAddressText})`;
+    return `${entity.name} — listed company (${where})`;
   }
   const val =
     entity.source === "openalex"
       ? `${entity.fundsVolume.toLocaleString("en-US")} funded works`
       : formatMoney(entity.fundsVolume, entity.currency);
-  return `${entity.name} — ${val} (${entity.rawAddressText})`;
+  return `${entity.name} — ${val} (${where})`;
 }
 
 // Great-circle interpolation in JS: deck interpolates ArcLayer in flat map
@@ -123,6 +129,7 @@ export default function MapGlobe({
   flows,
   projection,
   focused,
+  focusTick,
   flowEndpoints,
   companyFlowsHidden,
   onToggleCompanyFlows,
@@ -133,6 +140,7 @@ export default function MapGlobe({
   flows: Flow[];
   projection: "globe" | "mercator";
   focused: Entity | null;
+  focusTick: number;
   flowEndpoints: Set<string>;
   companyFlowsHidden: Set<string>;
   onToggleCompanyFlows: (id: string) => void;
@@ -148,7 +156,9 @@ export default function MapGlobe({
   const tileErrorsRef = useRef(0);
   const mapRef = useRef<MapRef>(null);
 
-  // Search selection: fly to the company and open its popup.
+  // Search selection: fly to the company and open its popup. focusTick
+  // re-fires the flight when the SAME company is picked twice in a row
+  // (React would otherwise bail out on the identical entity object).
   useEffect(() => {
     if (focused && mapRef.current) {
       // Fly only halfway toward the company view (zoom 4) instead of all
@@ -160,7 +170,7 @@ export default function MapGlobe({
       });
       setSelected(focused);
     }
-  }, [focused]);
+  }, [focused, focusTick]);
 
   // The map remounts on projection toggle; show the spinner until onLoad.
   useEffect(() => {

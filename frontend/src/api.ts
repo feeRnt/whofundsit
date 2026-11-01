@@ -10,6 +10,27 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   HKD: "HK$",
 };
 
+// Short location for tooltips: the stored tag (US-CT, LONDON EC2R…), or the
+// trailing city + postcode of the street address when the tag is unknown.
+export function displayLocation(entity: {
+  rawAddressText: string;
+  businessAddress: string | null;
+}): string {
+  if (entity.rawAddressText && entity.rawAddressText !== "—") {
+    return entity.rawAddressText;
+  }
+  if (entity.businessAddress) {
+    const parts = entity.businessAddress
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p && !/^[A-Z]\d$/.test(p));
+    if (parts.length > 0) {
+      return parts.slice(-2).join(", ");
+    }
+  }
+  return "—";
+}
+
 // Native-unit money display (regional facts are never silently USD).
 // Abbreviated past thousands: full digit strings ("$6,716,412,097") get
 // misread at a glance, so large values render as $6.72B / $423B / $1.20T.
