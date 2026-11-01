@@ -125,6 +125,12 @@ export async function geocodeLocal(text: string): Promise<Coords | null> {
   } catch (err) {
     const status = axios.isAxiosError(err) ? err.response?.status : undefined;
     if (!shouldSwallowGeoError(status)) {
+      if (status === 403) {
+        throw new Error(
+          "[coords] Nominatim denied access (HTTP 403) — IP blocked or over limit. " +
+            "Pause all runs and manual queries for an hour or two, then retry.",
+        );
+      }
       throw err;
     }
     console.warn(
