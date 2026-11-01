@@ -99,6 +99,15 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   means, so we use only `/v1/opendata/*` endpoints.
 - **Local copies (gitignored):** `backend/data/cache/regional/twse-*.json`.
 
+## Stooq (day-change quotes for popups)
+
+- **What we take:** one-row daily CSV per ticker
+  (`/q/l/?s={ticker}.us&f=sd2t2ohlcv&h&e=csv`), proxied through
+  `GET /api/quote` with a 15-minute cache — fetched only when a popup opens.
+- **Terms:** free CSV for personal/demo use, no key. Polite by design:
+  cached, per-popup, no bulk pulls.
+- **Local copies (gitignored):** `backend/data/cache/quotes/*.json`.
+
 ## Wikipedia (index snapshots)
 
 - **What we take:** S&P 500 + Nasdaq-100 constituent ticker lists, via

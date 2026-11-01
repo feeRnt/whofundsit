@@ -202,6 +202,16 @@ body {
   color: #c6cdd8;
 }
 
+.entity-popup .entity-value.quote-up {
+  color: #22ff88;
+  font-weight: 700;
+}
+
+.entity-popup .entity-value.quote-down {
+  color: #ff5555;
+  font-weight: 700;
+}
+
 .entity-popup dl {
   margin: 0.5rem 0 0;
   display: grid;

@@ -120,3 +120,22 @@ export async function fetchFlows(limit = 50000): Promise<Flow[]> {
   }
   return (await res.json()) as Flow[];
 }
+
+export interface Quote {
+  ticker: string;
+  changePct: number;
+  close: number;
+  date: string;
+}
+
+// Null on any failure (bad ticker, weekend, rate limit): the popup hides
+// the row instead of erroring.
+export async function fetchQuote(ticker: string): Promise<Quote | null> {
+  const res = await fetch(
+    `${API_BASE}/api/quote?ticker=${encodeURIComponent(ticker)}`,
+  );
+  if (!res.ok) {
+    return null;
+  }
+  return (await res.json()) as Quote;
+}

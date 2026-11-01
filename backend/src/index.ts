@@ -8,6 +8,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { allocateRegionQuotas } from "./services/regionQuotas.js";
+import { getQuote } from "./services/stockQuote.js";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -77,6 +78,23 @@ app.get("/api/flows", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load flows" });
+  }
+});
+
+// Day-change quote for the popup (Stooq CSV, 15-min cache). 404 means
+// "no quote" and the popup hides the row — never an error to the user.
+app.get("/api/quote", async (req, res) => {
+  try {
+    const ticker = String(req.query.ticker ?? "");
+    const quote = await getQuote(ticker);
+    if (!quote) {
+      res.status(404).json({ quote: null });
+      return;
+    }
+    res.json({ ticker: ticker.toUpperCase(), ...quote });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to load quote" });
   }
 });
 

@@ -1,4 +1,5 @@
-import { formatMoney, type Entity } from "../api";
+import { useEffect, useState } from "react";
+import { fetchQuote, formatMoney, type Entity, type Quote } from "../api";
 
 const CONCEPT_LABELS: Record<string, string> = {
   StockholdersEquity: "Stockholders' equity",
@@ -125,12 +126,37 @@ export default function EntityPopup({
       ? entity.fundsVolume.toLocaleString("en-US")
       : formatMoney(entity.fundsVolume, entity.currency);
   const noFinancials = !entity.conceptTag && entity.fundsVolume === 0;
+  const ticker = entity.tickers[0];
+  const [quote, setQuote] = useState<Quote | null>(null);
+  useEffect(() => {
+    setQuote(null);
+    if (!ticker) {
+      return;
+    }
+    let live = true;
+    fetchQuote(ticker).then((q) => {
+      if (live) {
+        setQuote(q);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [ticker]);
   return (
     <div className="entity-popup">
       <h2>{entity.name}</h2>
       <p className="entity-value">
         {noFinancials ? "Listed company — financials not yet loaded" : `${label}: ${valueText}`}
       </p>
+      {quote !== null && (
+        <p
+          className={`entity-value ${quote.changePct >= 0 ? "quote-up" : "quote-down"}`}
+        >
+          Today: {quote.changePct >= 0 ? "+" : ""}
+          {quote.changePct.toFixed(2)}%
+        </p>
+      )}
       {siblings.map((s) => (
         <p key={s.id} className="entity-value sibling">
           {CONCEPT_LABELS[s.conceptTag ?? ""] ?? s.conceptTag}:{" "}
