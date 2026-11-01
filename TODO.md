@@ -18,9 +18,9 @@
       OpenFIGI, then ticker → placed entity; normalized-name match stays as fallback.
       NOTE (2026-11-01 chain): 842+ placed rows; most remaining misses are
       ungeocoded targets or ETF holdings, fixed by coords reruns, not matching.)
-- [ ] **Demo rehearsal on a fresh database** (`npm run demo` from zero → globe with
-      listings, arcs, popups; packaging is code-reviewed only, never run end-to-end;
-      seed now refuses non-empty DBs without DEMO_WIPE_OK=1).
+- [ ] **Demo rehearsal in a real browser** (backend path verified 2026-11-01:
+      fresh DB → 21,514 entities / 9,362 flows, APIs + frontend / → 200;
+      still needs human eyes on the globe, arcs, popups).
 - [ ] **Geocode backfill, 2nd pass** (2026-11-01 chain placed 842+ rows; rerun
       13f/500 to convert city-fallback hits + stub the rest, then coords, then
       13f again to pick up placed stubs — resumable, cached).

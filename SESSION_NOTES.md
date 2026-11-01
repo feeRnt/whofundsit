@@ -34,10 +34,13 @@ Running log for picking work back up. Update when the picture changes.
   both regionals preflight on lei: rows (fail loud, run global:sync first),
   ESEF date guard + per-row update catch. Seed export/import round-trip
   verified field-complete (currency, mergedFrom, sleeves).
-- `npm run demo` never rehearsed on a fresh DB (do right after chain).
-  Demo-chain audit done: frontend is same-origin safe, seed round-trip
-  field-complete, and `db:seed` now refuses non-empty DBs without
-  DEMO_WIPE_OK=1 (fresh judge DBs unaffected).
+- `npm run demo` backend path REHEARSED LOCALLY 2026-11-01 (throwaway PG in
+  sandbox, zero network): db:push + db:seed → 21,514 entities / 9,362 flows,
+  /health ok, /api/entities → 856 placed (Vanguard/USD sample), /api/flows
+  → 1000 (cap), frontend / → 200. Wipe guard verified both paths live.
+  Still needs HUMAN eyes: actual globe render in a browser.
+- EYEBROW-RAISER for user: largest flow is $422,736,430,797 (7 sleeves).
+  Plausible (mega-cap stake) but worth one spot-check against the filing.
 - User's checkout vs agent worktree may differ (they once saw fce0a2a
   files as uncommitted) — reconcile before any push.
 
