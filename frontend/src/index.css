@@ -43,6 +43,8 @@ body {
   font-size: 0.75rem;
   color: #aeb6c2;
   flex-shrink: 0;
+  /* Fixed box: counts on line 1, flashcard below — never widens the bar. */
+  width: 15rem;
 }
 
 .map {
@@ -69,8 +71,10 @@ body {
   margin-left: 0;
 }
 
-/* Inline flashcard in the header stats: looks like text, clicks like a button. */
+/* Flashcard sits on its own line under the header stats: looks like text,
+   clicks like a button. */
 .flashcard {
+  display: block;
   font: inherit;
   color: inherit;
   background: none;
@@ -78,6 +82,7 @@ body {
   padding: 0;
   cursor: pointer;
   text-decoration: underline dotted;
+  white-space: nowrap;
 }
 
 .map-note {

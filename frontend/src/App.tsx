@@ -341,7 +341,7 @@ export default function App() {
             ? "Loading…"
             : error
               ? `API error: ${error} (is the backend running?)`
-              : `${shownEntities.length} entities · ${visibleFlows.length}/${flows.length} flows · `}
+              : `${shownEntities.length} entities · ${visibleFlows.length}/${flows.length} flows`}
           {!loading && !error && presentGroups.length > 0 && (
             <button
               type="button"
