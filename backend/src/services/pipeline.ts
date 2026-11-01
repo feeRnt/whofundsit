@@ -300,7 +300,7 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     const second =
       process.env.GEOCODE_BACKEND === "modal"
         ? await geocodeRemoteCached([...retry.keys()])
-        : await geocodeLocalEach([...retry.keys()]);
+        : await geocodeLocalEach([...retry.keys()], "retry");
     for (const [f, primaries] of retry) {
       for (const q of primaries) {
         if ((results.get(q) ?? null) === null) {
@@ -323,10 +323,20 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
 
 async function geocodeLocalEach(
   queries: string[],
+  tag = "query",
 ): Promise<Map<string, Coords | null>> {
   const out = new Map<string, Coords | null>();
+  let i = 0;
   for (const q of queries) {
     out.set(q, await geocodeLocal(q));
+    i += 1;
+    if (i % 25 === 0 || i === queries.length) {
+      // Paced at 1.1s/query, so remaining count converts directly to ETA.
+      const remain = Math.round(((queries.length - i) * 1100) / 1000);
+      console.log(
+        `[coords] ${tag} ${i}/${queries.length}, ~${formatDuration(remain)} left`,
+      );
+    }
   }
   return out;
 }
