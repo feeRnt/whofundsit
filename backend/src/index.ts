@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { allocateRegionQuotas } from "./services/regionQuotas.js";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -42,12 +43,12 @@ app.get("/api/entities", async (req, res) => {
     );
     // Skip 0,0 placeholders (ungeocoded rows pile up in the ocean off
     // Africa); the pipeline fills coordinates in fundsVolume order.
-    const entities = await prisma.entity.findMany({
-      take: limit,
-      orderBy: { fundsVolume: "desc" },
+    // Equal per-region floors (shortfall to Europe) so international rows
+    // survive the volume sort instead of being buried under SEC giants.
+    const placed = await prisma.entity.findMany({
       where: { lat: { not: 0 }, lng: { not: 0 } },
     });
-    res.json(entities);
+    res.json(allocateRegionQuotas(placed, limit));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load entities" });
