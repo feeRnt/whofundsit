@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { expandLocationText, formatDuration } from "./pipeline.js";
+import {
+  expandLocationText,
+  fallbackQueries,
+  formatDuration,
+} from "./pipeline.js";
 
 describe("formatDuration", () => {
   it("renders seconds, minutes, and hours", () => {
@@ -30,5 +34,26 @@ describe("expandLocationText", () => {
     assert.equal(expandLocationText("US"), "US");
     assert.equal(expandLocationText("US-XX"), "US-XX");
     assert.equal(expandLocationText("CA"), "CA");
+  });
+});
+
+describe("fallbackQueries", () => {
+  it("keeps the trailing city/state/zip off a PO-box street line", () => {
+    assert.deepEqual(
+      fallbackQueries("PO BOX 123, SPRINGFIELD, IL, 62701"),
+      ["SPRINGFIELD, IL, 62701"],
+    );
+  });
+
+  it("returns nothing when there is no street line to drop", () => {
+    assert.deepEqual(fallbackQueries("SPRINGFIELD, IL, 62701"), []);
+    assert.deepEqual(fallbackQueries("SPRINGFIELD, IL"), []);
+    assert.deepEqual(fallbackQueries("—"), []);
+  });
+
+  it("skips empty parts from doubled commas", () => {
+    assert.deepEqual(fallbackQueries("100 MAIN ST, , AUSTIN, TX, 78701"), [
+      "AUSTIN, TX, 78701",
+    ]);
   });
 });

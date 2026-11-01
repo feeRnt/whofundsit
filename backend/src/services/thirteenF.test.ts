@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildTickerIndex,
   discoverManagers,
+  fundGeocodeQueries,
   isStaleFiling,
   mapLimit,
   normalizeIssuerName,
@@ -174,5 +175,47 @@ describe("mapLimit", () => {
     assert.deepEqual(seen.sort((a, b) => a - b), [1, 2, 3, 4, 5, 6]);
     assert.ok(peak <= 2, `peak ${peak} exceeded cap 2`);
     assert.ok(peak >= 2, `peak ${peak} shows no parallelism`);
+  });
+});
+
+describe("fundGeocodeQueries", () => {
+  const bulk = (address: string | null) => ({
+    address,
+    name: "FOO LLC",
+    state: "IL",
+    tickers: [],
+    exchanges: [],
+    category: null,
+    formerNames: [],
+  });
+
+  it("orders full address, city fallback, then name query", () => {
+    assert.deepEqual(
+      fundGeocodeQueries(
+        "FOO LLC",
+        bulk("PO BOX 123, SPRINGFIELD, IL, 62701"),
+      ),
+      [
+        "PO BOX 123, SPRINGFIELD, IL, 62701",
+        "SPRINGFIELD, IL, 62701",
+        "FOO LLC headquarters",
+      ],
+    );
+  });
+
+  it("falls back to the name query when the bulk map has no address", () => {
+    assert.deepEqual(fundGeocodeQueries("FOO LLC", bulk(null)), [
+      "FOO LLC headquarters",
+    ]);
+    assert.deepEqual(fundGeocodeQueries("FOO LLC", undefined), [
+      "FOO LLC headquarters",
+    ]);
+  });
+
+  it("dedupes when the street line is already the whole query", () => {
+    assert.deepEqual(
+      fundGeocodeQueries("FOO LLC", bulk("SPRINGFIELD, IL, 62701")),
+      ["SPRINGFIELD, IL, 62701", "FOO LLC headquarters"],
+    );
   });
 });

@@ -16,9 +16,16 @@ Running log for picking work back up. Update when the picture changes.
 
 ## User's runs (their machine, their DB — I never touch it)
 
-- Overnight chain LAUNCHED ~20:35 GMT: global:sync → coords --all (~5h)
-  → 13f/500 → db:export → seed commit. Fix was `npx prisma db push`
-  (currency column P2022) — user confirmed fce0a2a present, chain green.
+- Overnight chain FINISHED ~00:55 GMT: coords +519 (842 placed rows),
+  13f/500 → 7,009 flows (tickers 257→609), global 305 cos → 2,554
+  entities/2,249 flows, export 21,514 entities / 9,362 flows. Seed commit
+  unconfirmed (user log cut off before git output).
+- 13F leak found in the log: mass "unplaceable" (Nominatim fails on PO-box
+  street lines; misses are sticky on disk by design). Fixed in code:
+  shared `fallbackQueries` (city/state/zip retry) in coords + 13F paths,
+  unplaceable funds now stubbed (0,0 + bulk address, API-invisible),
+  13F trusts DB-placed funds before re-geocoding → reruns self-heal.
+  User rerun recipe: `coords_populate` (no flag) then 13f/500 again.
 - `names:sync` result unknown (was running at last report).
 - Regionals committed but NEVER RUN LIVE (need chain to finish first).
 - `npm run demo` never rehearsed on a fresh DB (do right after chain).

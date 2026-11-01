@@ -12,7 +12,12 @@ import {
   readAddressMap,
   type BulkAddress,
 } from "./bulkLoad.js";
-import { createRateLimiter, geocodeLocal } from "./pipeline.js";
+import {
+  createRateLimiter,
+  expandLocationText,
+  fallbackQueries,
+  geocodeLocal,
+} from "./pipeline.js";
 
 // 13F-HR holdings -> dollar-denominated CapitalFlow arcs (fund -> portfolio
 // company). Full-filer scale-up: every 13F-HR filer in the local bulk archive
@@ -411,6 +416,21 @@ const MANAGER_COORDS: Record<string, { lat: number; lng: number }> = {
   "Berkshire Hathaway Inc": { lat: 41.26, lng: -95.93 },
 };
 
+// Ordered Nominatim queries for a fund: full street address, then the
+// trailing city/state/zip (street lines like PO boxes break geocoding),
+// then a bare name query. Pure for testing.
+export function fundGeocodeQueries(
+  name: string,
+  bulk: BulkAddress | undefined,
+): string[] {
+  const out: string[] = [];
+  if (bulk?.address) {
+    out.push(bulk.address, ...fallbackQueries(bulk.address));
+  }
+  out.push(`${name} headquarters`);
+  return [...new Set(out)];
+}
+
 async function geocodeFund(
   spec: ManagerSpec,
   cikNum: string,
@@ -420,14 +440,23 @@ async function geocodeFund(
   if (pin) {
     return pin;
   }
-  // Bulk address when the v2 map is cached, else a bare name query; both go
-  // through the shared throttled + cached local geocoder.
-  const query = addrCache?.[cikNum]?.address ?? `${spec.name} headquarters`;
-  try {
-    return await geocodeLocal(query);
-  } catch {
-    return null;
+  // First hit wins; every query goes through the shared throttled + cached
+  // local geocoder, expanded like the coords path (US-XX -> state).
+  for (const q of fundGeocodeQueries(spec.name, addrCache?.[cikNum])) {
+    const expanded = expandLocationText(q);
+    if (!expanded) {
+      continue;
+    }
+    try {
+      const at = await geocodeLocal(expanded);
+      if (at) {
+        return at;
+      }
+    } catch {
+      // Try the next fallback query.
+    }
   }
+  return null;
 }
 
 export interface DiscoveredManager {
@@ -652,10 +681,44 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
         });
         return;
       }
-      const at = await geocodeFund(spec, cikNum, addrCache);
+      // A previous run may have stubbed this fund and coords_populate may
+      // have placed it since: trust the DB before spending geocode calls.
+      const existing = await prisma.entity.findUnique({
+        where: { id: fundId },
+        select: { lat: true, lng: true },
+      });
+      const at =
+        existing && existing.lat !== 0 && existing.lng !== 0
+          ? { lat: existing.lat, lng: existing.lng }
+          : await geocodeFund(spec, cikNum, addrCache);
       if (!at) {
+        // Stub, don't drop: coords_populate retries the bulk address (with
+        // its own fallbacks) and the next 13f run converts via the lookup
+        // above. Stubs are invisible: the API filters lat/lng 0. The update
+        // branch never touches coords, so a placed row is never clobbered.
+        const bulkAddr = addrCache?.[cikNum]?.address ?? null;
+        await prisma.entity.upsert({
+          where: { id: fundId },
+          create: {
+            id: fundId,
+            name: spec.name,
+            type: "Fund",
+            lat: 0,
+            lng: 0,
+            fundsVolume: totalUsd,
+            rawAddressText: bulkAddr ?? "—",
+            businessAddress: bulkAddr,
+            tickers: [],
+            source: "13f",
+          },
+          update: {
+            name: spec.name,
+            fundsVolume: totalUsd,
+            source: "13f",
+          },
+        });
         console.log(
-          `[13f] ${spec.label}: unplaceable, skipping ${matched.length} matches`,
+          `[13f] ${spec.label}: unplaceable, stubbed (${matched.length} matches held for rerun)`,
         );
         managerStats.push({
           label: spec.label,

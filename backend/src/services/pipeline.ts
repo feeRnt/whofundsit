@@ -159,6 +159,19 @@ export function expandLocationText(text: string): string | null {
   return text;
 }
 
+// Nominatim chokes on street lines (PO boxes, suite numbers); the trailing
+// city/state/zip alone often resolves. Pure for testing.
+export function fallbackQueries(address: string): string[] {
+  const parts = address
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (parts.length <= 3) {
+    return [];
+  }
+  return [parts.slice(-3).join(", ")];
+}
+
 // Prefers the business street address from SEC submissions; falls back to the
 // raw Frames state code, expanded so its hits land on state centroids.
 async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>> {
@@ -182,6 +195,43 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     process.env.GEOCODE_BACKEND === "modal"
       ? await geocodeRemoteCached(queries)
       : await geocodeLocalEach(queries);
+  // Second phase: missed queries get one cheaper retry each (each
+  // fallback runs once, then fans out to every primary that needs it).
+  const retry = new Map<string, string[]>();
+  for (const q of queries) {
+    if ((results.get(q) ?? null) !== null) {
+      continue;
+    }
+    for (const f of fallbackQueries(q)) {
+      const known = results.get(f);
+      if (known) {
+        results.set(q, known); // another primary already resolved this
+        break;
+      }
+      if (known === undefined) {
+        const group = retry.get(f);
+        if (group) {
+          group.push(q);
+        } else {
+          retry.set(f, [q]);
+        }
+      }
+      // known === null: fetched and missed; nothing to gain.
+    }
+  }
+  if (retry.size > 0) {
+    const second =
+      process.env.GEOCODE_BACKEND === "modal"
+        ? await geocodeRemoteCached([...retry.keys()])
+        : await geocodeLocalEach([...retry.keys()]);
+    for (const [f, primaries] of retry) {
+      for (const q of primaries) {
+        if ((results.get(q) ?? null) === null) {
+          results.set(q, second.get(f) ?? null);
+        }
+      }
+    }
+  }
   for (const [q, originals] of byQuery) {
     const r = results.get(q) ?? null;
     for (const o of originals) {
