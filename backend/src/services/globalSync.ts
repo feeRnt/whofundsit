@@ -151,7 +151,7 @@ async function sparqlCompanies(limit: number): Promise<GlobalCompany[]> {
   return parseCompanyRows(doc);
 }
 
-async function gleifEntity(lei: string): Promise<{
+export async function gleifEntity(lei: string): Promise<{
   name: string;
   address: GleifAddress | null;
 } | null> {

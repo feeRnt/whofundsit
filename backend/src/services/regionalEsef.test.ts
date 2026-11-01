@@ -52,16 +52,29 @@ describe("extractEsefFacts", () => {
 });
 
 describe("pickLatestJsonUrl", () => {
-  it("picks the newest filing that has facts", () => {
+  it("picks max period_end and absolutizes the relative json_url", () => {
     assert.equal(
       pickLatestJsonUrl([
-        { id: "1", date: "2026-01-01" },
-        { id: "2", date: "2025-01-01", json_url: "https://x/old.json" },
-        { id: "3", date: "2026-06-01", json_url: "https://x/new.json" },
+        { period_end: "2026-12-31" },
+        { period_end: "2024-12-31", json_url: "/L/2024/f.json" },
+        { period_end: "2025-12-31", json_url: "/L/2025/f.json" },
+      ]),
+      "https://filings.xbrl.org/L/2025/f.json",
+    );
+    assert.equal(pickLatestJsonUrl([]), null);
+    assert.equal(
+      pickLatestJsonUrl([{ json_url: "/L/x.json" }]),
+      null,
+    );
+  });
+
+  it("passes absolute urls through", () => {
+    assert.equal(
+      pickLatestJsonUrl([
+        { period_end: "2025-12-31", json_url: "https://x/new.json" },
       ]),
       "https://x/new.json",
     );
-    assert.equal(pickLatestJsonUrl([]), null);
   });
 });
 

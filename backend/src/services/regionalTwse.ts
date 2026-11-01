@@ -2,13 +2,19 @@ import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { cachedJson, cacheKey } from "./httpCache.js";
+import { gleifEntity } from "./globalSync.js";
 
 // Taiwan financial facts from TWSE OpenAPI (gov open-data license: use the
 // official API only, attribute, keep data intact — see DATASETS.md). Balance
 // sheets per industry -> Assets onto lei: entities, joined TWSE-code -> LEI
-// through Wikidata (ticker + LEI + TWSE/TPEx listing). Values are NTD
-// thousands (verified by magnitude: TSMC row => ~NT$9.4T ~= US$300B).
+// through Wikidata (ticker + LEI + TWSE/TPEx listing). Ticker-joined LEIs
+// missing from the DB are created via GLEIF (legal name + HQ address, same
+// cache global:sync uses), so this loader is self-sufficient — it never
+// depends on global:sync's random company sample covering Taiwan. Values
+// are NTD thousands (verified by magnitude: TSMC row => ~NT$9.4T ~= US$300B).
 // Row ceiling: TWSE_LIMIT (default 2000).
+// NOTE: the endpoints serve the CURRENT quarter only; early in a quarter
+// (e.g. 46 rows on Nov 1) most companies haven't filed yet — rerun later.
 
 const TWSE = "https://openapi.twse.com.tw/v1/opendata";
 const SPARQL = "https://query.wikidata.org/sparql";
@@ -126,6 +132,48 @@ async function twseCodeToLei(): Promise<Map<string, string>> {
   return map;
 }
 
+// Ticker-joined LEIs are Wikidata-attested, so a DB miss is safe to create
+// (GLEIF legal name + HQ address; coords_populate places it later, exactly
+// like global:sync rows). GLEIF misses stay missing.
+async function ensureLeiEntity(
+  prisma: PrismaClient,
+  lei: string,
+  code: string,
+): Promise<"exists" | "created" | "missing"> {
+  const found = await prisma.entity.findUnique({
+    where: { id: `lei:${lei}` },
+    select: { id: true },
+  });
+  if (found) {
+    return "exists";
+  }
+  let g: Awaited<ReturnType<typeof gleifEntity>>;
+  try {
+    g = await gleifEntity(lei);
+  } catch {
+    return "missing";
+  }
+  if (!g?.name || !g.address) {
+    return "missing";
+  }
+  await prisma.entity.create({
+    data: {
+      id: `lei:${lei}`,
+      name: g.name,
+      type: "Company",
+      lat: 0,
+      lng: 0,
+      fundsVolume: 0,
+      rawAddressText: g.address.country ?? "—",
+      businessAddress: g.address.joined,
+      tickers: [code],
+      exchanges: [],
+      source: "twse",
+    },
+  });
+  return "created";
+}
+
 export async function runRegionalTwse(): Promise<{
   rows: number;
   updated: number;
@@ -133,6 +181,7 @@ export async function runRegionalTwse(): Promise<{
   viaName: number;
   unmatched: number;
   missing: number;
+  created: number;
 }> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -159,6 +208,7 @@ export async function runRegionalTwse(): Promise<{
     let viaName = 0;
     let unmatched = 0;
     let missing = 0;
+    let created = 0;
     for (const endpoint of BALANCE_ENDPOINTS) {
       const raw = await twseGet(endpoint);
       for (const r of raw) {
@@ -175,8 +225,19 @@ export async function runRegionalTwse(): Promise<{
         if (updated >= limit) {
           break;
         }
-        // Ticker joins can name LEIs global:sync never created; a zero-count
-        // write is a miss, not an update.
+        // Name joins always hit (built from DB rows); ticker joins may name
+        // LEIs global:sync never created — create those via GLEIF.
+        if (join.via === "ticker") {
+          const state = await ensureLeiEntity(prisma, join.lei, row.code);
+          if (state === "missing") {
+            missing += 1;
+            continue;
+          }
+          if (state === "created") {
+            created += 1;
+          }
+        }
+        // A zero-count write is still a miss, not an update (backstop).
         const res = await prisma.entity.updateMany({
           where: { id: `lei:${join.lei}` },
           data: {
@@ -202,7 +263,7 @@ export async function runRegionalTwse(): Promise<{
         break;
       }
     }
-    return { rows, updated, viaTicker, viaName, unmatched, missing };
+    return { rows, updated, viaTicker, viaName, unmatched, missing, created };
   } finally {
     await prisma.$disconnect();
   }

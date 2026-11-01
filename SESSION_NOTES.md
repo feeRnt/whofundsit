@@ -29,11 +29,17 @@ Running log for picking work back up. Update when the picture changes.
   `coords_populate`, then 13f/500 again (DB-first pickup of placed stubs).
   (Chain predates stubs, so the first rerun does the stubbing.)
 - `names:sync` result unknown (was running at last report).
-- Regionals committed but NEVER RUN LIVE. Trial-readiness audit done:
-  TWSE phantom-update counting fixed (+`missing` stat, outer limit break),
-  both regionals preflight on lei: rows (fail loud, run global:sync first),
-  ESEF date guard + per-row update catch. Seed export/import round-trip
-  verified field-complete (currency, mergedFrom, sleeves).
+- Regionals TRIALED 2026-11-01, both failed, both diagnosed live + fixed:
+  ESEF 0/500 — our `sort=-date` 400s (no such attr; `-period_end` verified
+  200), attrs shape wrong (fields under `attributes`, relative json_url),
+  now fixed + 404s count as "no ESEF filing"; xbrl-JSON facts shape
+  verified correct against a live doc. TWSE 46 rows unmatched — the Q3
+  endpoint genuinely serves 46 rows on Nov 1 (quarter just started; rerun
+  later), and global:sync's random-500 has ~zero TW coverage, so TWSE now
+  creates missing ticker-joined lei: rows via GLEIF itself (+`created`
+  stat). global:sync query is unfiltered LIMIT 500 (why AXA-fund noise).
+- Seed export/import round-trip verified field-complete (currency,
+  mergedFrom, sleeves).
 - `npm run demo` backend path REHEARSED LOCALLY 2026-11-01 (throwaway PG in
   sandbox, zero network): db:push + db:seed → 21,514 entities / 9,362 flows,
   /health ok, /api/entities → 856 placed (Vanguard/USD sample), /api/flows

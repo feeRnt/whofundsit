@@ -74,10 +74,11 @@ export function extractEsefFacts(doc: {
   return out;
 }
 
-interface EsefFiling {
-  id: string;
+const ESEF_ORIGIN = "https://filings.xbrl.org";
+
+export interface EsefFilingItem {
   json_url?: unknown;
-  date?: unknown;
+  period_end?: unknown;
 }
 
 // ESEF period strings are format-free ("2024", "2024-12-31", ...); unparsable
@@ -87,27 +88,44 @@ export function toFinancialDate(periodEnd: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function pickLatestJsonUrl(filings: EsefFiling[]): string | null {
-  const dated = filings
-    .filter(
-      (f): f is EsefFiling & { json_url: string; date: string } =>
-        typeof f.json_url === "string" &&
-        f.json_url.length > 0 &&
-        typeof f.date === "string",
-    )
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
-  return dated[0]?.json_url ?? null;
+// Latest filing's xBRL-JSON as an absolute URL. Items are JSON:API
+// attributes (verified live: relative json_url, period_end sort key).
+// Pure + unit-tested.
+export function pickLatestJsonUrl(filings: EsefFilingItem[]): string | null {
+  let best: { url: string; end: string } | null = null;
+  for (const f of filings) {
+    if (typeof f.json_url !== "string" || !f.json_url) {
+      continue;
+    }
+    const end = typeof f.period_end === "string" ? f.period_end : "";
+    if (!end) {
+      continue;
+    }
+    if (!best || end > best.end) {
+      best = { url: f.json_url, end };
+    }
+  }
+  if (!best) {
+    return null;
+  }
+  return best.url.startsWith("http")
+    ? best.url
+    : `${ESEF_ORIGIN}${best.url}`;
 }
 
 async function latestJsonUrl(lei: string): Promise<string | null> {
   const doc = await cachedJson<{
-    data?: { id?: unknown; json_url?: unknown; date?: unknown }[];
+    data?: { attributes?: EsefFilingItem }[];
   }>(`regional/esef-filings/${lei}.json`, async () => {
     await new Promise((r) => setTimeout(r, 250));
     return (
       await axios.get(`${ESEF}/entities/${lei}/filings`, {
-        params: { "page[size]": 10, sort: "-date" },
-        headers: { "User-Agent": UA },
+        // sort=-date 400s (no such attribute); -period_end verified live.
+        params: { "page[size]": 10, sort: "-period_end" },
+        headers: {
+          "User-Agent": UA,
+          Accept: "application/vnd.api+json",
+        },
         timeout: 60000,
       })
     ).data;
@@ -115,13 +133,7 @@ async function latestJsonUrl(lei: string): Promise<string | null> {
   if (!Array.isArray(doc.data)) {
     return null;
   }
-  return pickLatestJsonUrl(
-    doc.data.map((f) => ({
-      id: String(f.id ?? ""),
-      json_url: f.json_url,
-      date: f.date,
-    })),
-  );
+  return pickLatestJsonUrl(doc.data.map((f) => f.attributes ?? {}));
 }
 
 export async function runRegionalEsef(): Promise<{
@@ -152,8 +164,17 @@ export async function runRegionalEsef(): Promise<{
       let jsonUrl: string | null;
       try {
         jsonUrl = await latestJsonUrl(lei);
-      } catch {
-        skipped.push(`${row.name} (filings lookup failed)`);
+      } catch (err) {
+        // 404 = not an ESEF filer (US companies, funds); anything else
+        // carries its status so the next failure is diagnosable.
+        const status = axios.isAxiosError(err)
+          ? err.response?.status
+          : undefined;
+        skipped.push(
+          status === 404
+            ? `${row.name} (no ESEF filing)`
+            : `${row.name} (filings lookup failed${status ? ` HTTP ${status}` : ""})`,
+        );
         continue;
       }
       if (!jsonUrl) {
