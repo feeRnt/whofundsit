@@ -215,10 +215,16 @@ function StakesRing({
         )}
         <li
           className="stakes-public"
-          title="Retail, insiders and small funds never appear in 13F filings"
+          title={
+            trueMode
+              ? "10-K shares outstanding minus tracked 13F positions: retail, insiders, small funds"
+              : "Retail, insiders and small funds never appear in 13F filings"
+          }
         >
           <span className="swatch swatch-unknown">?</span>
-          <span className="stakes-name">Untracked funding</span>
+          <span className="stakes-name">
+            {trueMode ? "Untracked shares" : "Untracked funding"}
+          </span>
           {publicFrac > 0 && (
             <span className="stakes-pct">{(publicFrac * 100).toFixed(1)}%</span>
           )}
