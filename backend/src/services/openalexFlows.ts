@@ -13,7 +13,7 @@ import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
 const API = "https://api.openalex.org";
 const DEFAULT_FUNDER = "https://openalex.org/F4320307808"; // Colgate-Palmolive Company
 
-const MAX_FLOW_WORKS = 200; // first page only; cursor paging needs an API key
+const WORKS_PER_PAGE = 200; // OpenAlex max
 const MAX_FLOW_TARGETS = 100; // guardrail: top institutions per run
 const MIN_INTERVAL_MS = 150;
 
@@ -28,7 +28,12 @@ async function throttle(): Promise<void> {
 }
 
 function contact(): string {
-  return process.env.OPENALEX_CONTACT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+  // *_USER_AGENT matches the other services; OPENALEX_CONTACT is legacy.
+  return (
+    process.env.OPENALEX_USER_AGENT ??
+    process.env.OPENALEX_CONTACT ??
+    "WhoFundsIt/0.1 (contact: dev@example.com)"
+  );
 }
 
 // Canonical OpenAlex ids (https://openalex.org/F...) are human web pages,
@@ -87,6 +92,7 @@ export interface Funder {
 }
 
 interface WorkPage {
+  meta?: { next_cursor?: string | null; count?: number; cost_usd?: number };
   results: {
     id: string;
     authorships: {
@@ -194,23 +200,55 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
     const funderKey = shortId(funder.id);
     const funderRowId = `openalex:${funderKey}`;
 
-    const page = await cachedJson<WorkPage>(
-      `openalex/works-${shortId(funderId)}-p1.json`,
-      () =>
-        oaGet<WorkPage>(
-          apiUrl("/works", {
-            filter: `funders.id:${funderId}`,
-            "per-page": String(MAX_FLOW_WORKS),
-            select: "id,display_name,authorships",
-          }),
-        ),
-    );
+    // Cursor paging unlocks the full set with a key; keyless stays on the
+    // first page. OPENALEX_MAX_WORKS caps the pull (ground-rules guardrail
+    // 1); per-call cost_usd is summed so spend stays visible.
+    const hasKey = !!process.env.OPENALEX_API_KEY;
+    const maxWorks = hasKey
+      ? Math.max(WORKS_PER_PAGE, Number(process.env.OPENALEX_MAX_WORKS ?? 5000))
+      : WORKS_PER_PAGE;
+    const works: WorkPage["results"] = [];
+    let cursor: string | null = "*";
+    let pageIdx = 0;
+    let totalMatching: number | null = null;
+    let costUsd = 0;
+    while (cursor !== null && works.length < maxWorks) {
+      const c = cursor;
+      pageIdx += 1;
+      let page: WorkPage;
+      try {
+        page = await cachedJson<WorkPage>(
+          `openalex/works-${shortId(funderId)}-p${pageIdx}.json`,
+          () =>
+            oaGet<WorkPage>(
+              apiUrl("/works", {
+                filter: `funders.id:${funderId}`,
+                "per-page": String(WORKS_PER_PAGE),
+                select: "id,display_name,authorships",
+                cursor: c,
+              }),
+            ),
+        );
+      } catch (err) {
+        // Page 2+ can die on a stale cached cursor; keep what we have.
+        console.warn(
+          `[flows] works page ${pageIdx} failed, keeping ${works.length} works (${err})`,
+        );
+        break;
+      }
+      works.push(...page.results);
+      costUsd += page.meta?.cost_usd ?? 0;
+      if (totalMatching === null && typeof page.meta?.count === "number") {
+        totalMatching = page.meta.count;
+      }
+      cursor = hasKey ? (page.meta?.next_cursor ?? null) : null;
+    }
 
     const byInst = new Map<
       string,
       { name: string; country: string | null; type: string; works: number }
     >();
-    for (const work of page.results) {
+    for (const work of works) {
       const seen = new Set<string>();
       for (const authorship of work.authorships ?? []) {
         for (const inst of authorship.institutions ?? []) {
@@ -233,7 +271,7 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
       .sort((a, b) => b[1].works - a[1].works)
       .slice(0, MAX_FLOW_TARGETS);
     console.log(
-      `[flows] ${page.results.length} works -> ${byInst.size} institutions (top ${top.length})`,
+      `[flows] ${works.length} works${totalMatching !== null ? ` of ${totalMatching}` : ""} -> ${byInst.size} institutions (top ${top.length}, $${costUsd.toFixed(4)})`,
     );
 
     await prisma.entity.upsert({
@@ -244,7 +282,7 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
         type: "Funder",
         lat: funderAt.lat,
         lng: funderAt.lng,
-        fundsVolume: page.results.length,
+        fundsVolume: works.length,
         rawAddressText: funder.country_code ?? "—",
         tickers: [],
         source: "openalex",
@@ -253,7 +291,7 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
         name: funder.display_name,
         lat: funderAt.lat,
         lng: funderAt.lng,
-        fundsVolume: page.results.length,
+        fundsVolume: works.length,
         rawAddressText: funder.country_code ?? "—",
         source: "openalex",
       },
@@ -316,7 +354,7 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
 
     return {
       funder: funder.display_name,
-      works: page.results.length,
+      works: works.length,
       institutions: byInst.size,
       flows,
       skippedNoGeo,
