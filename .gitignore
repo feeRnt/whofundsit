@@ -12,7 +12,21 @@ dist/
 # Raw downloads & local data (SEC dumps, JSON caches). Rooted so the committed
 # ticker snapshots in backend/src/data/ stay tracked.
 /data/
-backend/data/
+backend/data/*
+!backend/data/cache/
+backend/data/cache/*
+!backend/data/cache/sec/
+backend/data/cache/sec/*
+!backend/data/cache/sec/company_tickers.json
+!backend/data/cache/sec/frames/
+!backend/data/cache/13f/
+backend/data/cache/13f/*
+!backend/data/cache/13f/managers.json
+!backend/data/cache/13f/submissions/
+!backend/data/cache/global/
+backend/data/cache/global/*
+!backend/data/cache/global/wikidata-*.json
+!backend/data/cache/openalex/
 downloads/
 *.json
 !package.json
@@ -30,3 +44,14 @@ __pycache__/
 
 # Curated demo seed (committed intentionally — NOT a raw download).
 !backend/prisma/seed-data/*.json
+# Committed cache keepers (small, license-clean, high rebuild value) +
+# the dead-lines seed. Everything else under backend/data stays ignored.
+# NOTE: no broad `cache/**/*.json` here — it would re-include CGS-licensed
+# (cusip-map) and ODbL (geo) files. One negation per keeper path.
+!backend/data/cache/sec/company_tickers.json
+!backend/data/cache/sec/frames/**/*.json
+!backend/data/cache/13f/managers.json
+!backend/data/cache/13f/submissions/**/*.json
+!backend/data/cache/global/wikidata-*.json
+!backend/data/cache/openalex/**/*.json
+!backend/src/data/*.json
