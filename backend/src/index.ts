@@ -2,6 +2,7 @@ import "dotenv/config";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { PrismaClient } from "@prisma/client";
@@ -92,9 +93,29 @@ if (fs.existsSync(path.join(frontendDist, "index.html"))) {
 }
 
 const port = Number(process.env.PORT ?? 4000);
-// LAN opt-in (vite-style `--host`): default is loopback-only, set
-// HOST=0.0.0.0 to serve the demo to the local network (firewall permitting).
-const host = process.env.HOST ?? "127.0.0.1";
+// LAN opt-in (vite-style `--host`): HOST=0.0.0.0 serves the local network,
+// otherwise the demo asks on a terminal, defaulting to loopback-only
+// (pipes and CI never block on the question).
+async function resolveHost(): Promise<string> {
+  if (process.env.HOST) {
+    return process.env.HOST;
+  }
+  if (!process.stdin.isTTY) {
+    return "127.0.0.1";
+  }
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  const answer = await new Promise<string>((resolve) => {
+    rl.question("Serve on LAN too (share with your network)? [y/N] ", resolve);
+  });
+  rl.close();
+  return answer.trim().toLowerCase().startsWith("y")
+    ? "0.0.0.0"
+    : "127.0.0.1";
+}
+const host = await resolveHost();
 
 function lanIpv4Addrs(): string[] {
   // Never throws: a lookup failure must not crash the server.
