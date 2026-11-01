@@ -5,6 +5,21 @@ import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
 import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
 
+// Entity-source groups for the flashcard cycler + per-database toggles.
+// ESEF enriches `global` rows in place, so it shares that group.
+const SOURCE_GROUPS = [
+  { key: "edgar", label: "SEC EDGAR", sources: ["frames-api", "bulk-zip"] },
+  { key: "global", label: "Wikidata + GLEIF (+ ESEF facts)", sources: ["global"] },
+  { key: "funds", label: "13F Funds", sources: ["13f"] },
+  { key: "grants", label: "OpenAlex Grants", sources: ["openalex"] },
+  { key: "twse", label: "TWSE", sources: ["twse"] },
+];
+
+function groupOf(source: string): { key: string; label: string } {
+  const g = SOURCE_GROUPS.find((g) => g.sources.includes(source));
+  return g ? { key: g.key, label: g.label } : { key: source, label: source };
+}
+
 export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
@@ -24,6 +39,47 @@ export default function App() {
     new Set(),
   );
   const [flowLimit, setFlowLimit] = useState(250);
+  // Per-database entity toggles (flashcard popup); empty = all shown.
+  const [disabledSources, setDisabledSources] = useState<Set<string>>(new Set());
+  // Flashcard tick: rotates the header through present source groups.
+  const [sourceTick, setSourceTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSourceTick((n) => n + 1), 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Present source groups with counts (flashcard + popup read this).
+  const presentGroups = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const e of entities) {
+      const g = groupOf(e.source);
+      const cur = counts.get(g.key) ?? { label: g.label, count: 0 };
+      cur.count += 1;
+      counts.set(g.key, cur);
+    }
+    return [...counts.entries()].map(([key, v]) => ({ key, ...v }));
+  }, [entities]);
+
+  const entityById = useMemo(() => new Map(entities.map((e) => [e.id, e])), [entities]);
+
+  const visibleEntities = useMemo(
+    () =>
+      disabledSources.size === 0
+        ? entities
+        : entities.filter((e) => !disabledSources.has(groupOf(e.source).key)),
+    [entities, disabledSources],
+  );
+
+  const toggleSource = (key: string) =>
+    setDisabledSources((s) => {
+      const next = new Set(s);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
 
   const flowEndpoints = useMemo(() => {
     const ids = new Set<string>();
@@ -111,6 +167,8 @@ export default function App() {
             effectiveFunders.has(f.sourceEntityId) &&
             !disabledCompanies.has(f.sourceEntityId) &&
             !disabledCompanies.has(f.targetEntityId) &&
+            !isEndpointHidden(f.sourceEntityId) &&
+            !isEndpointHidden(f.targetEntityId) &&
             (!focusCompany ||
               f.sourceEntityId === focusCompany ||
               f.targetEntityId === focusCompany),
@@ -124,9 +182,18 @@ export default function App() {
       showOwnership,
       effectiveFunders,
       disabledCompanies,
+      disabledSources,
+      entityById,
       focusCompany,
     ],
   );
+
+  // A flow hides only when its endpoint entity is loaded AND its source
+  // group is toggled off — unfetched endpoints never hide anything.
+  function isEndpointHidden(id: string): boolean {
+    const e = entityById.get(id);
+    return !!e && disabledSources.has(groupOf(e.source).key);
+  }
 
   const toggleFocusCompany = (id: string) => {
     if (focusCompany === id) {
@@ -173,7 +240,7 @@ export default function App() {
   }, [funders13f, fundersGrants, fundersOwnership]);
 
   // One dropdown open at a time (accordion); layers stay independent.
-  const [openMenu, setOpenMenu] = useState<"hedge" | "grants" | "ownership" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"hedge" | "grants" | "ownership" | "sources" | null>(null);
 
   const toggleFunder = (id: string) => {
     setFunderOverrides((prev) => {
@@ -243,10 +310,25 @@ export default function App() {
             ? "Loading…"
             : error
               ? `API error: ${error} (is the backend running?)`
-              : `${entities.length} entities · ${visibleFlows.length}/${flows.length} flows · SEC EDGAR CY2026Q2`}
+              : `${visibleEntities.length} entities · ${visibleFlows.length}/${flows.length} flows · `}
+          {!loading && !error && presentGroups.length > 0 && (
+            <button
+              type="button"
+              className="flashcard"
+              title="Data sources — click to toggle per database"
+              onClick={() =>
+                setOpenMenu((m) => (m === "sources" ? null : "sources"))
+              }
+            >
+              {(() => {
+                const g = presentGroups[sourceTick % presentGroups.length]!;
+                return `${g.label} (${g.count})`;
+              })()}
+            </button>
+          )}
         </p>
         <SearchBox
-          entities={entities}
+          entities={visibleEntities}
           onSelect={(e) => {
             setFocused(e);
             setFocusTick((t) => t + 1);
@@ -302,6 +384,34 @@ export default function App() {
           onToggleMaster={() => setShowOwnership((v) => !v)}
           onToggleFunder={toggleFunder}
         />
+        <details
+          className="flows-menu"
+          open={openMenu === "sources"}
+        >
+          <summary
+            className="toggle"
+            aria-label="Data source visibility options"
+            onClick={(e) => {
+              e.preventDefault();
+              setOpenMenu((m) => (m === "sources" ? null : "sources"));
+            }}
+          >
+            Sources
+          </summary>
+          <div className="flows-panel">
+            {presentGroups.map((g) => (
+              <label key={g.key} className="flows-row">
+                <input
+                  type="checkbox"
+                  checked={!disabledSources.has(g.key)}
+                  onChange={() => toggleSource(g.key)}
+                />
+                <span>{g.label}</span>
+                <span className="flows-count">{g.count}</span>
+              </label>
+            ))}
+          </div>
+        </details>
         <button
           type="button"
           className="toggle"
@@ -335,7 +445,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={entities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} />
+          <MapGlobe entities={visibleEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} />
         )}</main>
     </div>
   );
