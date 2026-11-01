@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, apiLog } from "./httpCache.js";
+import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
 
 // Grant flows from OpenAlex: funder -> funded works -> grantee institutions.
 // One funder per run (OPENALEX_FUNDER_ID, default Colgate-Palmolive, the parent
@@ -134,17 +134,23 @@ async function funderCoords(name: string): Promise<{ lat: number; lng: number }>
     return { lat: Number(lat), lng: Number(lng) };
   }
   for (const q of [`${name} headquarters`, name]) {
-    apiLog("GET", `https://nominatim.openstreetmap.org/search?q=${q}`);
-    const { data } = await axios.get<{ lat: string; lon: string }[]>(
-      "https://nominatim.openstreetmap.org/search",
-      {
-        params: { format: "jsonv2", limit: 1, q },
-        headers: {
-          "User-Agent":
-            process.env.NOMINATIM_USER_AGENT ??
-            "WhoFundsIt/0.1 (contact: dev@example.com)",
-          Accept: "application/json",
-        },
+    const data = await cachedJson<{ lat: string; lon: string }[]>(
+      `openalex/funder-coords-${cacheKey(q)}.json`,
+      async () => {
+        apiLog("GET", `https://nominatim.openstreetmap.org/search?q=${q}`);
+        const { data } = await axios.get<{ lat: string; lon: string }[]>(
+          "https://nominatim.openstreetmap.org/search",
+          {
+            params: { format: "jsonv2", limit: 1, q },
+            headers: {
+              "User-Agent":
+                process.env.NOMINATIM_USER_AGENT ??
+                "WhoFundsIt/0.1 (contact: dev@example.com)",
+              Accept: "application/json",
+            },
+          },
+        );
+        return data;
       },
     );
     if (data[0]) {
