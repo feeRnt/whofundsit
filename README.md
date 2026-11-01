@@ -42,6 +42,16 @@ cp backend/.env.example backend/.env   # set DATABASE_URL to whofundsit_fresh
 npm run demo                            # push + seed + serve, no network needed
 ```
 
+No sudo either? User-owned Postgres, no system install beyond the package:
+
+```bash
+initdb -D $HOME/pgdata -E UTF8 --auth=trust
+pg_ctl -D $HOME/pgdata -o "-p 5433 -k /tmp" -l $HOME/pgdata.log start
+createdb -h /tmp -p 5433 whofundsit_fresh
+# DATABASE_URL=postgresql://$USER@/whofundsit_fresh?host=/tmp&port=5433
+npm run demo
+```
+
 ### Maintainer data refresh
 
 ```bash
