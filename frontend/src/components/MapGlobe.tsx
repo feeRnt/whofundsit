@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
 import { Home, Minus, Plus } from "lucide-react";
 import * as maplibregl from "maplibre-gl";
@@ -12,6 +12,7 @@ import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { formatMoney, type Entity, type Flow } from "../api";
 import EntityPopup from "./EntityPopup";
+import ZoomHint from "./ZoomHint";
 
 // Vite dev does not serve MapLibre's auto-detected worker URL with a JS MIME
 // type, which silently kills all tile decoding. Point it at the bundled worker.
@@ -165,6 +166,18 @@ export default function MapGlobe({
   useEffect(() => {
     setMapReady(false);
   }, [projection]);
+
+  // Zoom hint shows exactly once per page load (first ready only), never
+  // again on projection toggles.
+  const [showHint, setShowHint] = useState(false);
+  const hideHint = useCallback(() => setShowHint(false), []);
+  const hintShownRef = useRef(false);
+  useEffect(() => {
+    if (mapReady && !mapError && !hintShownRef.current) {
+      hintShownRef.current = true;
+      setShowHint(true);
+    }
+  }, [mapReady, mapError]);
 
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
@@ -334,6 +347,7 @@ export default function MapGlobe({
         <div className="spinner" />
       </div>
     )}
+    {showHint && <ZoomHint onGone={hideHint} />}
     </>
   );
 }

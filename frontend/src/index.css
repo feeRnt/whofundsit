@@ -81,6 +81,36 @@ body {
   pointer-events: none;
 }
 
+.zoom-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 3.5rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  color: #e5e7eb;
+  background: #1a2030;
+  border: 1px solid #3a4358;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 0.9s ease;
+}
+
+.zoom-hint.fading {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zoom-hint {
+    transition: none;
+  }
+}
+
 .map-loading {
   position: absolute;
   inset: 0;
