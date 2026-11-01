@@ -150,7 +150,13 @@ export default function MapGlobe({
   // Search selection: fly to the company and open its popup.
   useEffect(() => {
     if (focused && mapRef.current) {
-      mapRef.current.flyTo({ center: [focused.lng, focused.lat], zoom: 4 });
+      // Fly only halfway toward the company view (zoom 4) instead of all
+      // the way out: zoomed-in users keep half their zoom.
+      const current = mapRef.current.getZoom();
+      mapRef.current.flyTo({
+        center: [focused.lng, focused.lat],
+        zoom: current + (4 - current) / 2,
+      });
       setSelected(focused);
     }
   }, [focused]);
