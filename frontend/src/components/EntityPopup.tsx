@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchQuote, formatMoney, type Entity, type Quote } from "../api";
+import { fetchQuote, formatMoney, type Entity, type Flow, type Quote } from "../api";
 
 const CONCEPT_LABELS: Record<string, string> = {
   StockholdersEquity: "Stockholders' equity",
@@ -96,9 +96,128 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
+const STAKE_COLORS = [
+  "#2dd4bf",
+  "#fbbf24",
+  "#38bdf8",
+  "#fb7185",
+  "#a3e635",
+  "#fb923c",
+];
+const OTHER_COLOR = "#64748b";
+
+// Ownership ring: each tracked 13F holder's $ stake as a share of all
+// tracked 13F $ in this company. Top 6 get slices; the rest merge into
+// gray "Other". No public-float slice: sizing it needs market cap, which
+// we don't have, so it stays an honest unsized "?" legend row.
+function StakesRing({
+  stakes,
+  entities,
+}: {
+  stakes: Flow[];
+  entities: Entity[];
+}) {
+  const total = stakes.reduce((a, f) => a + f.amount, 0);
+  if (stakes.length === 0 || total <= 0) {
+    return null;
+  }
+  const shown = stakes.slice(0, 6);
+  const rest = stakes.slice(6);
+  const restTotal = rest.reduce((a, f) => a + f.amount, 0);
+  const R = 40;
+  const C = 2 * Math.PI * R;
+  let acc = 0;
+  const arcs = shown.map((f, i) => {
+    const frac = f.amount / total;
+    const arc = {
+      key: f.id,
+      frac,
+      offset: acc,
+      color: STAKE_COLORS[i % STAKE_COLORS.length],
+    };
+    acc += frac;
+    return arc;
+  });
+  if (restTotal > 0) {
+    arcs.push({ key: "other", frac: restTotal / total, offset: acc, color: OTHER_COLOR });
+  }
+  const label = (f: Flow) =>
+    entities.find((e) => e.id === f.sourceEntityId)?.tickers[0] ??
+    f.sourceEntity.name;
+  return (
+    <div className="stakes">
+      <svg
+        viewBox="0 0 100 100"
+        className="stakes-ring"
+        role="img"
+        aria-label="Tracked institutional stakes"
+      >
+        <g transform="rotate(-90 50 50)">
+          {arcs.map((s) => (
+            <circle
+              key={s.key}
+              cx="50"
+              cy="50"
+              r={R}
+              fill="none"
+              stroke={s.color}
+              strokeWidth="14"
+              strokeDasharray={`${Math.max(s.frac * C - 2, 1)} ${C}`}
+              strokeDashoffset={-(s.offset * C)}
+            />
+          ))}
+        </g>
+        <text x="50" y="49" textAnchor="middle" className="stakes-total">
+          {formatMoney(total)}
+        </text>
+        <text x="50" y="61" textAnchor="middle" className="stakes-sub">
+          tracked 13F
+        </text>
+      </svg>
+      <ul className="stakes-legend">
+        {shown.map((f, i) => (
+          <li
+            key={f.id}
+            title={`${f.sourceEntity.name} — ${formatMoney(f.amount)}`}
+          >
+            <span
+              className="swatch"
+              style={{ background: STAKE_COLORS[i % STAKE_COLORS.length] }}
+            />
+            <span className="stakes-name">{label(f)}</span>
+            <span className="stakes-pct">
+              {((f.amount / total) * 100).toFixed(1)}%
+            </span>
+          </li>
+        ))}
+        {rest.length > 0 && (
+          <li title={`${rest.length} smaller holders — ${formatMoney(restTotal)}`}>
+            <span className="swatch" style={{ background: OTHER_COLOR }} />
+            <span className="stakes-name">Other ({rest.length})</span>
+            <span className="stakes-pct">
+              {((restTotal / total) * 100).toFixed(1)}%
+            </span>
+          </li>
+        )}
+        <li
+          className="stakes-public"
+          title="Retail, insiders and small funds never appear in 13F filings"
+        >
+          <span className="swatch swatch-unknown">?</span>
+          <span className="stakes-name">Public / untracked</span>
+        </li>
+      </ul>
+      <p className="stakes-note">
+        Split of tracked 13F $ — true % needs market cap.
+      </p>
+    </div>
+  );
+}
+
 export default function EntityPopup({
   entity,
   entities,
+  stakes,
   hasFlows,
   flowsOn,
   onToggleFlows,
@@ -107,6 +226,7 @@ export default function EntityPopup({
 }: {
   entity: Entity;
   entities: Entity[];
+  stakes: Flow[];
   hasFlows: boolean;
   flowsOn: boolean;
   onToggleFlows: () => void;
@@ -163,6 +283,7 @@ export default function EntityPopup({
           {formatMoney(s.fundsVolume, s.currency)}
         </p>
       ))}
+      <StakesRing stakes={stakes} entities={entities} />
       {hasFlows && (
         <button
           type="button"

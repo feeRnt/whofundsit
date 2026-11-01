@@ -304,7 +304,7 @@ async function checkEntity(e: VEntity): Promise<CheckResult> {
 
 // Ownership stakes come from GLEIF relationship records with no per-claim
 // live endpoint: structural check only (well-formed global id, finite
-// amount; 0 = stake undisclosed, legitimate).
+// amount; 0 = stake qty. n/a, legitimate).
 export function ownershipStructural(
   id: string,
   amount: number,

@@ -350,7 +350,7 @@ export async function runGlobalSync(): Promise<{
             id: `global:${c.lei}:${child.lei}`,
             sourceEntityId: id,
             targetEntityId: childId,
-            amount: 0, // stake undisclosed by GLEIF
+            amount: 0, // stake qty. n/a per GLEIF
             flowType: "ownership",
           },
           update: {

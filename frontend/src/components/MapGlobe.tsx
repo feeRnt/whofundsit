@@ -57,7 +57,7 @@ function tooltip({ object }: PickingInfo) {
       return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${formatMoney(flow.amount, "USD")}${lines}`;
     }
     if (flow.flowType === "ownership") {
-      return `${flow.sourceEntity.name} owns ${flow.targetEntity.name} (stake undisclosed)`;
+      return `${flow.sourceEntity.name} owns ${flow.targetEntity.name} (stake qty. n/a)`;
     }
     const units = flow.flowType === "grant" ? "funded works" : "units";
     return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}`;
@@ -136,6 +136,7 @@ function DeckGLOverlay(props: MapLibreOverlayProps) {
 export default function MapGlobe({
   entities,
   flows,
+  allFlows,
   projection,
   focused,
   focusTick,
@@ -151,6 +152,9 @@ export default function MapGlobe({
 }: {
   entities: Entity[];
   flows: Flow[];
+  // Full flow list (uncapped): the popup's ownership ring needs every
+  // stake, not just the slider-capped drawable subset.
+  allFlows: Flow[];
   projection: "globe" | "mercator";
   focused: Entity | null;
   focusTick: number;
@@ -216,6 +220,22 @@ export default function MapGlobe({
       setShowHint(true);
     }
   }, [mapReady, mapError]);
+
+  // 13F stakes targeting the selected company, biggest first, for the
+  // popup's ownership ring. Ownership flows carry no qty, so no ring slice.
+  const selectedStakes = useMemo(() => {
+    if (!selected) {
+      return [];
+    }
+    return allFlows
+      .filter(
+        (f) =>
+          f.flowType === "13f" &&
+          f.targetEntityId === selected.id &&
+          f.amount > 0,
+      )
+      .sort((a, b) => b.amount - a.amount);
+  }, [allFlows, selected]);
 
   // Arcs only where both ends have a dot: flows and entities come from
   // separate capped fetches, so an endpoint can fall outside the entity
@@ -375,6 +395,7 @@ export default function MapGlobe({
           <EntityPopup
             entity={selected}
             entities={entities}
+            stakes={selectedStakes}
             hasFlows={flowEndpoints.has(selected.id)}
             flowsOn={!companyFlowsHidden.has(selected.id)}
             onToggleFlows={() => onToggleCompanyFlows(selected.id)}

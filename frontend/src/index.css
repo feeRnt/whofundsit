@@ -198,6 +198,83 @@ body {
   font-size: 1rem;
 }
 
+.stakes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.stakes-ring {
+  width: 104px;
+  height: 104px;
+  flex: none;
+}
+
+.stakes-total {
+  fill: #f1f5f9;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stakes-sub {
+  fill: #94a3b8;
+  font-size: 9px;
+}
+
+.stakes-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.stakes-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  line-height: 1.5;
+}
+
+.stakes-legend .swatch {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 2px;
+  flex: none;
+}
+
+.stakes-legend .swatch-unknown {
+  background: #334155;
+  color: #94a3b8;
+  font-size: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.stakes-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.stakes-pct {
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.stakes-note {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin: 0;
+  flex-basis: 100%;
+}
+
 .entity-popup h3 {
   margin: 0.6rem 0 0.25rem;
   font-size: 0.75rem;

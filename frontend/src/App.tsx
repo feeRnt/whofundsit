@@ -557,7 +557,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={shownEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
+          <MapGlobe entities={shownEntities} flows={visibleFlows} allFlows={flows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
         )}</main>
     </div>
   );
