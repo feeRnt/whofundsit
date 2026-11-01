@@ -34,7 +34,7 @@ app.get("/api/entities", async (req, res) => {
     const requested = Number(req.query.limit ?? 200);
     const limit = Math.min(
       Math.max(Number.isFinite(requested) ? requested : 200, 1),
-      1000,
+      5000,
     );
     // Skip 0,0 placeholders (ungeocoded rows pile up in the ocean off
     // Africa); the pipeline fills coordinates in fundsVolume order.
