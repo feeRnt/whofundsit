@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
-import { cachedJson } from "./httpCache.js";
+import { cachedJson, apiLog } from "./httpCache.js";
 
 // SEC EDGAR Frames API: one funding-relevant concept per frame, Q2 2026
 // (last fully-filed quarter). Responses are file-cached under gitignored
@@ -141,6 +141,7 @@ async function secGet<T>(url: string): Promise<T> {
   for (;;) {
     await throttle();
     try {
+      apiLog("GET", url);
       const { data } = await axios.get<T>(url, {
         headers: {
           "User-Agent": userAgent(),

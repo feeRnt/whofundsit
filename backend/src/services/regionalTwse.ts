@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey } from "./httpCache.js";
+import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
 import { gleifEntity } from "./globalSync.js";
 
 // Taiwan financial facts from TWSE OpenAPI (gov open-data license: use the
@@ -96,6 +96,7 @@ async function twseGet(endpoint: string): Promise<Record<string, unknown>[]> {
     `regional/twse-${endpoint}.json`,
     async () => {
       await new Promise((r) => setTimeout(r, 500)); // polite, cached anyway
+      apiLog("GET", `${TWSE}/${endpoint}`);
       return (
         await axios.get(`${TWSE}/${endpoint}`, {
           headers: { "User-Agent": UA },
@@ -115,6 +116,7 @@ async function twseCodeToLei(): Promise<Map<string, string>> {
   const doc = await cachedJson<{
     results?: { bindings?: { ticker?: { value?: unknown }; lei?: { value?: unknown } }[] };
   }>(`regional/twse-wikidata-${cacheKey(query)}.json`, async () => {
+    apiLog("GET", SPARQL);
     return (
       await axios.get(SPARQL, {
         params: { format: "json", query },

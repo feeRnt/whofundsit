@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { XMLParser } from "fast-xml-parser";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, readCache, writeCache } from "./httpCache.js";
+import { cachedJson, apiLog, readCache, writeCache } from "./httpCache.js";
 import {
   jsonEntries,
   locationTag,
@@ -53,6 +53,7 @@ function secUA(): string {
 
 async function secGet<T>(url: string): Promise<T> {
   return secLimit(async () => {
+    apiLog("GET", url);
     const { data } = await axios.get<T>(url, {
       headers: {
         "User-Agent": secUA(),
@@ -193,6 +194,7 @@ export async function infoTableXml(
   }
   return cachedJson<string>(`13f/filings/${cikNum}/${stub}/${doc}`, () =>
     secLimit(async () => {
+      apiLog("GET", `${base}/${doc}`);
       const { data } = await axios.get<string>(`${base}/${doc}`, {
         headers: { "User-Agent": secUA(), Accept: "application/xml, text/xml" },
         responseType: "text",
@@ -346,6 +348,7 @@ async function resolveCusipTickers(
   const batchSize = key ? 100 : 10;
   for (let i = 0; i < missing.length; i += batchSize) {
     const batch = missing.slice(i, i + batchSize);
+    apiLog("POST", "https://api.openfigi.com/v3/mapping");
     const { data } = await openfigiLimit(() =>
       axios.post<
         {

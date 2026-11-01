@@ -16,6 +16,12 @@ export function cacheKey(text: string): string {
   return crypto.createHash("sha1").update(text).digest("hex");
 }
 
+// Audit trail for ToS conformity: one timestamped line per real outbound
+// call (cache hits stay silent by design). Call at every axios site.
+export function apiLog(method: string, url: string): void {
+  console.log(`[API] ${new Date().toISOString()} ${method} ${url}`);
+}
+
 export function readCache<T>(relPath: string): T | undefined {
   if (process.env.CACHE_REFRESH) {
     return undefined;

@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson } from "./httpCache.js";
+import { cachedJson, apiLog } from "./httpCache.js";
 
 // Grant flows from OpenAlex: funder -> funded works -> grantee institutions.
 // One funder per run (OPENALEX_FUNDER_ID, default Colgate-Palmolive, the parent
@@ -62,6 +62,7 @@ export function apiUrl(pathOrUrl: string, params: Record<string, string>): strin
 
 async function oaGet<T>(url: string): Promise<T> {
   await throttle();
+  apiLog("GET", url);
   const { data } = await axios.get<T>(url, {
     headers: { "User-Agent": contact(), Accept: "application/json" },
   });
@@ -133,6 +134,7 @@ async function funderCoords(name: string): Promise<{ lat: number; lng: number }>
     return { lat: Number(lat), lng: Number(lng) };
   }
   for (const q of [`${name} headquarters`, name]) {
+    apiLog("GET", `https://nominatim.openstreetmap.org/search?q=${q}`);
     const { data } = await axios.get<{ lat: string; lon: string }[]>(
       "https://nominatim.openstreetmap.org/search",
       {

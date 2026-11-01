@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey } from "./httpCache.js";
+import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
 import { infoTableXml, latest13F, parseInfoTable } from "./thirteenF.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
@@ -174,13 +174,14 @@ async function liveConceptValue(
   const doc = await cachedJson<{
     facts?: Record<string, Record<string, { units?: Record<string, CompanyFact[]> }>>;
   }>(`verify/companyfacts/CIK${cik10}.json`, () =>
-    sec(() =>
-      axios
+    sec(() => {
+      apiLog("GET", `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`);
+      return axios
         .get(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, {
           headers: { "User-Agent": secUA(), Accept: "application/json" },
         })
-        .then((r) => r.data),
-    ),
+        .then((r) => r.data);
+    }),
   );
   const facts = doc.facts ?? {};
   for (const concepts of Object.values(facts)) {
@@ -203,14 +204,18 @@ async function reverseCountry(lat: number, lng: number): Promise<string | null> 
   const doc = await cachedJson<{ address?: { country_code?: unknown } }>(
     `verify/reverse-${cacheKey(`${lat.toFixed(4)},${lng.toFixed(4)}`)}.json`,
     () =>
-      nominatim(() =>
-        axios
+      nominatim(() => {
+        apiLog(
+          "GET",
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}`,
+        );
+        return axios
           .get("https://nominatim.openstreetmap.org/reverse", {
             params: { format: "jsonv2", lat, lon: lng },
             headers: { "User-Agent": nominatimUA(), Accept: "application/json" },
           })
-          .then((r) => r.data),
-      ),
+          .then((r) => r.data);
+      }),
   );
   const cc = doc.address?.country_code;
   return typeof cc === "string" ? cc.toLowerCase() : null;

@@ -1,7 +1,13 @@
 import axios from "axios";
 import { PrismaClient, type Entity } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey, readCache, writeCache } from "./httpCache.js";
+import {
+  cachedJson,
+  cacheKey,
+  readCache,
+  writeCache,
+  apiLog,
+} from "./httpCache.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 
 // Background pipeline: give ingested SEC entities real coordinates, and route
@@ -83,6 +89,7 @@ export async function geocodeLocal(text: string): Promise<Coords | null> {
   try {
     result = await cachedJson<Coords | null>(geoPath(text), () =>
       nominatim(async () => {
+      apiLog("GET", `https://nominatim.openstreetmap.org/search?q=${text}`);
       const { data } = await axios.get<NominatimHit[]>(
         "https://nominatim.openstreetmap.org/search",
         {
@@ -119,6 +126,7 @@ async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null
     throw new Error("MODAL_GEOCODE_URL is not set (see backend/.env.example)");
   }
   const unique = [...new Set(texts)];
+  apiLog("POST", url);
   const { data } = await modal(() =>
     axios.post(
       url,
@@ -193,13 +201,41 @@ export function junkAddress(text: string): boolean {
 // Unresolved queries accumulate here per process; flushMissLog() persists
 // them next to the geocode cache for inspection (and the future LLM
 // miss-repair pass). Service-layer side effect, called by runPipeline.
+// The file also preloads once per process, so known-dead rows skip with
+// zero API calls. Pure-file read: very fast, one small JSON parse.
 const missLog = new Set<string>();
+let deadLinesLoaded = false;
+let deadHits = 0;
+
+function ensureDeadLines(): void {
+  if (deadLinesLoaded) {
+    return;
+  }
+  deadLinesLoaded = true;
+  if (process.env.CACHE_REFRESH) {
+    return; // explicit refresh retries everything, dead or not
+  }
+  const prev = readCache<string[]>("geo/dead-lines.json");
+  if (prev) {
+    for (const t of prev) {
+      missLog.add(t);
+    }
+  }
+}
 
 export function flushMissLog(): { file: string; lines: number } {
   const rel = "geo/dead-lines.json";
+  if (process.env.CACHE_REFRESH) {
+    missLog.clear();
+    return { file: rel, lines: 0 };
+  }
   const prev = readCache<string[]>(rel) ?? [];
+  const before = prev.length;
   const merged = [...new Set([...prev, ...missLog])].sort();
   writeCache(rel, merged);
+  console.log(
+    `[coords] dead-lines: +${merged.length - before} new, ${merged.length} total (${rel})`,
+  );
   missLog.clear();
   return { file: rel, lines: merged.length };
 }
@@ -249,7 +285,14 @@ export function fallbackQueries(address: string): string[] {
 async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>> {
   const out = new Map<string, Coords | null>();
   const byQuery = new Map<string, string[]>();
+  ensureDeadLines();
   for (const text of new Set(texts)) {
+    if (missLog.has(text)) {
+      // Known dead (preloaded file or earlier miss): zero calls, zero wait.
+      out.set(text, null);
+      deadHits += 1;
+      continue;
+    }
     if (junkAddress(text)) {
       out.set(text, null);
       missLog.add(text);
@@ -390,6 +433,7 @@ async function normalizeWithLlama(
       `ai/normalize-${cacheKey(input)}.json`,
       () =>
         modal(async () => {
+          apiLog("POST", url);
           const res = await axios.post(
             url,
             { text: input },
@@ -415,6 +459,7 @@ export interface PipelineSummary {
   geocoded: number; // rows updated with real lat/lng
   normalized: number; // rows renamed by the Llama worker
   skipped: number; // no coordinates and no rename (scanned = updated + skipped)
+  dead: number; // skipped via the dead-lines file, zero API calls
 }
 
 export function formatDuration(totalSeconds: number): string {
@@ -474,6 +519,7 @@ export async function runPipeline(
     let normalized = 0;
     let skipped = 0;
     let modalCalls = 0;
+    deadHits = 0;
 
     const coordsByText = await geocodeMany(
       entities.map((e) => e.businessAddress ?? e.rawAddressText),
@@ -516,7 +562,13 @@ export async function runPipeline(
     }
 
     flushMissLog(); // persist dead lines next to the geocode cache
-    return { scanned: entities.length, geocoded, normalized, skipped };
+    return {
+      scanned: entities.length,
+      geocoded,
+      normalized,
+      skipped,
+      dead: deadHits,
+    };
   } finally {
     await prisma.$disconnect();
   }

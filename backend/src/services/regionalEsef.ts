@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson } from "./httpCache.js";
+import { cachedJson, apiLog } from "./httpCache.js";
 
 // EU/UK financial facts from the ESEF repository (filings.xbrl.org): per-LEI
 // filing lookup, latest xBRL-JSON facts, Assets preferred, Revenue fallback.
@@ -125,6 +125,7 @@ async function esefGet<T>(
   for (let attempt = 0; ; attempt += 1) {
     await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
     try {
+      apiLog("GET", url);
       return (
         await axios.get<T>(url, {
           params,

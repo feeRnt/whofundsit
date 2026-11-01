@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey } from "./httpCache.js";
+import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
 
 // International backbone: Wikidata SPARQL lists listed companies worldwide
 // (ISIN + LEI + exchange + HQ, CC0, no key), then GLEIF resolves each LEI to
@@ -160,14 +160,16 @@ async function sparqlRegion(
 ): Promise<GlobalCompany[]> {
   const doc = await cachedJson<{ results?: { bindings?: SparqlBinding[] } }>(
     `global/wikidata-companies-${region}-${cacheKey(query)}.json`,
-    async () =>
-      (
+    async () => {
+      apiLog("GET", SPARQL);
+      return (
         await axios.get(SPARQL, {
           params: { format: "json", query },
           headers: { "User-Agent": UA },
           timeout: 120000,
         })
-      ).data,
+      ).data;
+    },
   );
   return parseCompanyRows(doc);
 }
@@ -205,6 +207,7 @@ export async function gleifEntity(lei: string): Promise<{
     };
   }>(`global/gleif/${lei}.json`, async () => {
     await new Promise((r) => setTimeout(r, 100)); // polite, cached anyway
+    apiLog("GET", `${GLEIF}/lei-records/${lei}`);
     return (
       await axios.get(`${GLEIF}/lei-records/${lei}`, {
         params: { "fields[lei-records]": "entity" },
@@ -239,6 +242,7 @@ async function gleifChildren(
       meta?: { pagination?: { lastPage?: number } };
     }>(`global/gleif-children/${lei}-p${page}.json`, async () => {
       await new Promise((r) => setTimeout(r, 100));
+      apiLog("GET", `${GLEIF}/lei-records/${lei}/direct-children`);
       return (
         await axios.get(`${GLEIF}/lei-records/${lei}/direct-children`, {
           params: {
