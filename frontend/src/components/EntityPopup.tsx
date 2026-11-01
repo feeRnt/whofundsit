@@ -183,7 +183,9 @@ function StakesRing({
           {formatMoney(total)}
         </text>
         <text x="50" y="61" textAnchor="middle" className="stakes-sub">
-          tracked 13F
+          {trueMode && marketCap !== null
+            ? `${((total / marketCap) * 100).toFixed(1)}% of mcap`
+            : "13F Funding"}
         </text>
       </svg>
       <ul className="stakes-legend">
@@ -216,7 +218,7 @@ function StakesRing({
           title="Retail, insiders and small funds never appear in 13F filings"
         >
           <span className="swatch swatch-unknown">?</span>
-          <span className="stakes-name">Public / untracked</span>
+          <span className="stakes-name">Untracked funding</span>
           {publicFrac > 0 && (
             <span className="stakes-pct">{(publicFrac * 100).toFixed(1)}%</span>
           )}
@@ -300,6 +302,13 @@ export default function EntityPopup({
     };
   }, [cik]);
   const marketCap = shares !== null && quote !== null ? shares * quote.close : null;
+  // Ring view switch: true market-cap % when the data supports it, else
+  // the tracked-relative 13F funding view. State defaults to real %;
+  // the toggle only renders when both views are actually available.
+  const trackedTotal = stakes.reduce((a, f) => a + f.amount, 0);
+  const canTrue =
+    marketCap !== null && marketCap > 0 && trackedTotal <= marketCap;
+  const [ringTrue, setRingTrue] = useState(true);
   return (
     <div className="entity-popup">
       <h2>{entity.name}</h2>
@@ -326,7 +335,29 @@ export default function EntityPopup({
           {formatMoney(s.fundsVolume, s.currency)}
         </p>
       ))}
-      <StakesRing stakes={stakes} entities={entities} marketCap={marketCap} />
+      {canTrue && (
+        <div className="ring-toggle" role="group" aria-label="Ownership ring mode">
+          <button
+            type="button"
+            className={ringTrue ? "" : "active"}
+            onClick={() => setRingTrue(false)}
+          >
+            13F funding
+          </button>
+          <button
+            type="button"
+            className={ringTrue ? "active" : ""}
+            onClick={() => setRingTrue(true)}
+          >
+            Real %
+          </button>
+        </div>
+      )}
+      <StakesRing
+        stakes={stakes}
+        entities={entities}
+        marketCap={ringTrue ? marketCap : null}
+      />
       {hasFlows && (
         <button
           type="button"

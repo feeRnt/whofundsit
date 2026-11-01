@@ -390,6 +390,9 @@ export default function MapGlobe({
           latitude={selected.lat}
           anchor="top"
           closeButton={true}
+          // react-map-gl defaults to 240px, which clips the ring + legend
+          // row (entity-popup allows 280). Give it the full width.
+          maxWidth="300px"
           onClose={() => setSelected(null)}
         >
           <EntityPopup
