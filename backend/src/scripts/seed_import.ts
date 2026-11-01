@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { wipeRefusal } from "../services/seedGuard.js";
+import { renderSeedProgress, wipeRefusal } from "../services/seedGuard.js";
 
 // Judge path: `npm run db:seed` wipes the demo tables and reloads them from the
 // committed seed files. Requires `npm run db:push` first (the `demo` script
@@ -35,6 +35,23 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((v): v is string => typeof v === "string")
     : [];
+}
+
+async function insertBatched<T>(
+  label: string,
+  rows: T[],
+  insert: (batch: T[]) => Promise<unknown>,
+  batchSize = 1000,
+): Promise<void> {
+  if (rows.length === 0) {
+    return;
+  }
+  for (let i = 0; i < rows.length; i += batchSize) {
+    await insert(rows.slice(i, i + batchSize));
+    const done = Math.min(i + batchSize, rows.length);
+    process.stdout.write(`\r${renderSeedProgress(label, done, rows.length)}`);
+  }
+  process.stdout.write("\n");
 }
 
 if (!process.env.DATABASE_URL) {
@@ -89,10 +106,10 @@ try {
     }),
   );
 
-  const [entityCount, flowCount] = await Promise.all([
-    prisma.entity.count(),
-    prisma.capitalFlow.count(),
-  ]);
+  // Sequential: concurrent queries on one pg client trip a deprecation
+  // warning (and break in pg 9).
+  const entityCount = await prisma.entity.count();
+  const flowCount = await prisma.capitalFlow.count();
   const refusal = wipeRefusal(
     entityCount,
     flowCount,
@@ -103,12 +120,14 @@ try {
   }
   await prisma.capitalFlow.deleteMany();
   await prisma.entity.deleteMany();
-  if (entities.length > 0) {
-    await prisma.entity.createMany({ data: entities });
-  }
-  if (flows.length > 0) {
-    await prisma.capitalFlow.createMany({ data: flows });
-  }
+  // Chunked inserts so the progress bar can advance (single-shot createMany
+  // sits silent for minutes on the full seed).
+  await insertBatched("entities", entities, (batch) =>
+    prisma.entity.createMany({ data: batch }),
+  );
+  await insertBatched("flows", flows, (batch) =>
+    prisma.capitalFlow.createMany({ data: batch }),
+  );
   console.log({ entities: entities.length, flows: flows.length });
 } finally {
   await prisma.$disconnect();

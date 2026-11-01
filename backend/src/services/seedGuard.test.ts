@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { wipeRefusal } from "./seedGuard.js";
+import { renderSeedProgress, wipeRefusal } from "./seedGuard.js";
 
 describe("wipeRefusal", () => {
   it("allows wiping an empty demo database", () => {
@@ -20,5 +20,25 @@ describe("wipeRefusal", () => {
   it("treats any other flag value as unset", () => {
     assert.ok(wipeRefusal(1, 0, "0")?.startsWith("refusing"));
     assert.ok(wipeRefusal(0, 1, "")?.startsWith("refusing"));
+  });
+});
+
+describe("renderSeedProgress", () => {
+  it("renders a 20-char bar with counts and percent", () => {
+    assert.equal(
+      renderSeedProgress("entities", 500, 1000),
+      "[entities] [##########----------] 500/1000 (50%)",
+    );
+    assert.equal(
+      renderSeedProgress("flows", 40030, 40030),
+      "[flows] [####################] 40030/40030 (100%)",
+    );
+  });
+
+  it("treats an empty load as complete without dividing by zero", () => {
+    assert.equal(
+      renderSeedProgress("entities", 0, 0),
+      "[entities] [####################] 0/0 (100%)",
+    );
   });
 });
