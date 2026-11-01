@@ -4,6 +4,7 @@ import {
   expandLocationText,
   fallbackQueries,
   formatDuration,
+  junkAddress,
 } from "./pipeline.js";
 
 describe("formatDuration", () => {
@@ -67,5 +68,17 @@ describe("fallbackQueries", () => {
       fallbackQueries("ONE FRANKLIN PARKWAY, LEGAL-FT SECRETARY, SAN MATEO, CA"),
       ["LEGAL-FT SECRETARY, SAN MATEO, CA", "SAN MATEO, CA"],
     );
+  });
+});
+
+describe("junkAddress", () => {
+  it("junks placeholders and bare registrant names, keeps localities", () => {
+    assert.equal(junkAddress(""), true);
+    assert.equal(junkAddress("—"), true);
+    assert.equal(junkAddress("NTT EUROPE GDC S.R.O."), true);
+    assert.equal(junkAddress("AXA IM SMART MATCHING SOLUTIONS NOMINAL 2060S FUND"), true);
+    assert.equal(junkAddress("Berlin"), false);
+    assert.equal(junkAddress("Austin, TX 78701"), false);
+    assert.equal(junkAddress("1 Apple Park Way, Cupertino, CA 95014"), false);
   });
 });

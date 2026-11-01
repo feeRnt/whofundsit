@@ -145,6 +145,46 @@ const US_STATES: Record<string, string> = {
   MP: "Northern Mariana Islands", AS: "American Samoa",
 };
 
+// Bare company/fund names with no locality are unresolvable by design —
+// Nominatim needs a place, not a registrant. Junking them here saves up
+// to 3 paced queries each (primary + 2 fallbacks ≈ 3.3s). Conservative:
+// single short tokens ("Berlin") still query; only obvious registrant
+// names (corporate suffix, or long and digit-free) are junked. Pure.
+export function junkAddress(text: string): boolean {
+  const t = text.trim();
+  if (!t || t === "—") {
+    return true;
+  }
+  const parts = t.split(",").map((p) => p.trim()).filter((p) => p.length > 0);
+  if (parts.length > 1) {
+    return false; // has locality structure; let Nominatim try
+  }
+  // Trailing lookahead, not \b: dotted suffixes ("S.R.O.") end in a
+  // non-word char, so \b never matches after them.
+  if (
+    /\b(INC|CORP|CORPORATION|LLC|LTD|LIMITED|PLC|GMBH|FUND|HOLDINGS|HOLDING|GROUP|B\.V\.|S\.A\.|S\.R\.O\.?|PTY|BV|NV|SA|AG|SE|SPA|LP|LLP|TRUST|BANCORP|FINANCIAL|SERVICES|MANAGEMENT|ADVISORS|CAPITAL|PARTNERS|INVESTMENT|ASSET)(?![A-Za-z])/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return t.length > 30 && !/\d/.test(t);
+}
+
+// Unresolved queries accumulate here per process; flushMissLog() persists
+// them next to the geocode cache for inspection (and the future LLM
+// miss-repair pass). Service-layer side effect, called by runPipeline.
+const missLog = new Set<string>();
+
+export function flushMissLog(): { file: string; lines: number } {
+  const rel = "geo/dead-lines.json";
+  const prev = readCache<string[]>(rel) ?? [];
+  const merged = [...new Set([...prev, ...missLog])].sort();
+  writeCache(rel, merged);
+  missLog.clear();
+  return { file: rel, lines: merged.length };
+}
+
 export function expandLocationText(text: string): string | null {
   if (!text || text === "—") {
     return null;
@@ -188,6 +228,11 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
   const out = new Map<string, Coords | null>();
   const byQuery = new Map<string, string[]>();
   for (const text of new Set(texts)) {
+    if (junkAddress(text)) {
+      out.set(text, null);
+      missLog.add(text);
+      continue;
+    }
     const q = expandLocationText(text);
     if (q === null) {
       out.set(text, null);
@@ -244,6 +289,9 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
   }
   for (const [q, originals] of byQuery) {
     const r = results.get(q) ?? null;
+    if (r === null) {
+      missLog.add(q);
+    }
     for (const o of originals) {
       out.set(o, r);
     }
@@ -435,6 +483,7 @@ export async function runPipeline(
       }
     }
 
+    flushMissLog(); // persist dead lines next to the geocode cache
     return { scanned: entities.length, geocoded, normalized, skipped };
   } finally {
     await prisma.$disconnect();
