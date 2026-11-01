@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import logoUrl from "./assets/logo.svg";
+import logoNwUrl from "./assets/logo-nw.svg";
 import MapGlobe from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
@@ -257,6 +258,21 @@ export default function App() {
   // One dropdown open at a time (accordion); layers stay independent.
   const [openMenu, setOpenMenu] = useState<"hedge" | "grants" | "ownership" | "sources" | null>(null);
 
+  // Any click outside the menus collapses the open dropdown (map, search,
+  // sliders, popups). Clicks inside a menu toggle normally.
+  useEffect(() => {
+    if (!openMenu) {
+      return;
+    }
+    const close = (e: PointerEvent) => {
+      if (!(e.target as HTMLElement).closest?.(".flows-menu, .flashcard")) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [openMenu]);
+
   const toggleFunder = (id: string) => {
     setFunderOverrides((prev) => {
       const next = new Map(prev ?? []);
@@ -335,7 +351,17 @@ export default function App() {
     <div className="app">
       <header className="bar">
         <h1>
-          <img src={logoUrl} alt="WhoFundsIt logo" height={22} /> WhoFundsIt
+          {/* TEMP A/B: NE tilt (left) vs NW tilt (right). Delete the loser. */}
+          <span className="brand-pick">
+            <span className="brand-lockup" title="NE tilt">
+              <img className="brand-globe" src={logoUrl} alt="WhoFundsIt logo" />
+              <span className="brand-word">WhoFundsIt</span>
+            </span>
+            <span className="brand-lockup" title="NW tilt">
+              <img className="brand-globe" src={logoNwUrl} alt="WhoFundsIt logo" />
+              <span className="brand-word">WhoFundsIt</span>
+            </span>
+          </span>
         </h1>
         <p>
           {loading
