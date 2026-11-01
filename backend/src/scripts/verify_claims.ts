@@ -3,7 +3,8 @@ import { runVerify } from "../services/claimsVerify.js";
 
 // Stochastic methodology audit: `npm run verify:claims` samples 25 rows
 // per source/region/index/flow cell (VERIFY_SAMPLE, VERIFY_SEED) against
-// live SEC + Nominatim and writes data/verification-report.json.
+// live SEC + Nominatim and writes data/verification-report.json plus the
+// committed prisma/seed-data/verification.json snapshot (trust badges).
 const { cells, overall, reportPath } = await runVerify();
 const fmt = (v: number | null) => (v === null ? "n/a" : `${v}%`);
 for (const c of cells) {

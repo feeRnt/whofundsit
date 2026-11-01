@@ -4,7 +4,7 @@ import logoUrl from "./assets/logo.svg";
 import MapGlobe, { type Basemap } from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
-import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
+import { fetchEntities, fetchFlows, fetchVerification, type Entity, type Flow, type VerificationReport } from "./api";
 
 // Entity-source groups for the flashcard cycler + per-database toggles.
 // ESEF enriches `global` rows in place, so it shares that group.
@@ -27,6 +27,7 @@ const LAG_WARN_AT = 15000;
 export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
+  const [verification, setVerification] = useState<VerificationReport | null>(null);
   const [focused, setFocused] = useState<Entity | null>(null);
   // Bumped on every search pick so re-picking the same company re-flies.
   const [focusTick, setFocusTick] = useState(0);
@@ -400,6 +401,8 @@ export default function App() {
         setError(err instanceof Error ? err.message : "load failed"),
       )
       .finally(() => setLoading(false));
+    // Non-fatal: badges simply hide when no audit snapshot is deployed.
+    fetchVerification().then(setVerification);
   }, []);
 
   return (
@@ -558,7 +561,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={shownEntities} flows={visibleFlows} allFlows={flows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
+          <MapGlobe entities={shownEntities} flows={visibleFlows} allFlows={flows} verification={verification} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
         )}</main>
     </div>
   );

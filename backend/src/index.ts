@@ -136,6 +136,28 @@ app.get("/api/shares", async (req, res) => {
   }
 });
 
+// Methodology-audit snapshot for trust badges: committed seed wins (judge
+// path), local verify output is the fallback. 404 means "no audit yet"
+// and the UI hides badges — never an error to the user.
+app.get("/api/verification", (_req, res) => {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const candidates = [
+      path.join(here, "..", "..", "prisma", "seed-data", "verification.json"),
+      path.join(here, "..", "..", "data", "verification-report.json"),
+    ];
+    const file = candidates.find((f) => fs.existsSync(f));
+    if (!file) {
+      res.status(404).json({ verification: null });
+      return;
+    }
+    res.json(JSON.parse(fs.readFileSync(file, "utf8")));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to load verification" });
+  }
+});
+
 // Same-origin deploy: serve the built frontend from this same port so every
 // visitor just opens one URL. Requires `npm --prefix ../frontend run build`;
 // skipped silently when no build exists (pure API dev mode).

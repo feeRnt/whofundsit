@@ -13,8 +13,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import {
   displayLocation,
   formatMoney,
+  verificationCell,
   type Entity,
   type Flow,
+  type VerificationReport,
 } from "../api";
 import EntityPopup from "./EntityPopup";
 import ZoomHint from "./ZoomHint";
@@ -41,12 +43,20 @@ const HOME = { longitude: -98, latitude: 39, zoom: 2.5 };
 // Flight tuning (one place): search picks and arc clicks dive to FOCUS_ZOOM.
 const FOCUS_ZOOM = 12;
 
-function tooltip({ object }: PickingInfo) {
+// Trust badge for tooltips: the audit cell's "% verified", or nothing when
+// no snapshot is deployed. Cells are methodology scores, not per-row facts.
+function verifySuffix(report: VerificationReport | null, name: string): string {
+  const cell = verificationCell(report, name);
+  return cell && cell.pctVerified !== null ? ` · ${cell.pctVerified}% verified` : "";
+}
+
+function tooltip({ object }: PickingInfo, verification: VerificationReport | null) {
   if (!object) {
     return null;
   }
   if ("flowType" in object) {
     const flow = object as unknown as Flow;
+    const badge = verifySuffix(verification, `flow=${flow.flowType}`);
     if (flow.flowType === "13f") {
       // One filing reports the same stock on several rows (per-manager
       // breakdowns); the amount sums them. "Filing lines", not jargon.
@@ -54,24 +64,25 @@ function tooltip({ object }: PickingInfo) {
         flow.sleeves && flow.sleeves > 1
           ? ` · ${flow.sleeves} filing lines`
           : "";
-      return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${formatMoney(flow.amount, "USD")}${lines}`;
+      return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${formatMoney(flow.amount, "USD")}${lines}${badge}`;
     }
     if (flow.flowType === "ownership") {
-      return `${flow.sourceEntity.name} owns ${flow.targetEntity.name} (stake qty. n/a)`;
+      return `${flow.sourceEntity.name} owns ${flow.targetEntity.name} (stake qty. n/a)${badge}`;
     }
     const units = flow.flowType === "grant" ? "funded works" : "units";
-    return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}`;
+    return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${flow.amount.toLocaleString("en-US")} ${units}${badge}`;
   }
   const entity = object as Entity;
   const where = displayLocation(entity);
+  const badge = verifySuffix(verification, `source=${entity.source}`);
   if (!entity.conceptTag && entity.fundsVolume === 0) {
-    return `${entity.name} — listed company (${where})`;
+    return `${entity.name} — listed company (${where})${badge}`;
   }
   const val =
     entity.source === "openalex"
       ? `${entity.fundsVolume.toLocaleString("en-US")} funded works`
       : formatMoney(entity.fundsVolume, entity.currency);
-  return `${entity.name} — ${val} (${where})`;
+  return `${entity.name} — ${val} (${where})${badge}`;
 }
 
 // Great-circle interpolation in JS: deck interpolates ArcLayer in flat map
@@ -137,6 +148,7 @@ export default function MapGlobe({
   entities,
   flows,
   allFlows,
+  verification,
   projection,
   focused,
   focusTick,
@@ -155,6 +167,7 @@ export default function MapGlobe({
   // Full flow list (uncapped): the popup's ownership ring needs every
   // stake, not just the slider-capped drawable subset.
   allFlows: Flow[];
+  verification: VerificationReport | null;
   projection: "globe" | "mercator";
   focused: Entity | null;
   focusTick: number;
@@ -203,7 +216,7 @@ export default function MapGlobe({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, focusTick]);
 
-  // The map remounts on projection/basemap toggle; show a loading note until onLoad.
+  // The map remounts on projection/basemap toggle; show the spinner until onLoad.
   useEffect(() => {
     setMapReady(false);
     setContextLost(false);
@@ -381,7 +394,7 @@ export default function MapGlobe({
         <DeckGLOverlay
           key={`${projection}-${basemap}`}
           layers={layers}
-          getTooltip={tooltip}
+          getTooltip={(info) => tooltip(info, verification)}
           onClick={handleClick}
         />
       )}
@@ -399,6 +412,7 @@ export default function MapGlobe({
           <EntityPopup
             entity={selected}
             entities={entities}
+            verification={verification}
             stakes={selectedStakes}
             hasFlows={flowEndpoints.has(selected.id)}
             flowsOn={!companyFlowsHidden.has(selected.id)}
@@ -503,7 +517,9 @@ export default function MapGlobe({
       </div>
     </Map>
     {!mapReady && !mapError && (
-      <div className="map-note">Loading map…</div>
+      <div className="map-loading" aria-label="Loading map">
+        <div className="spinner" />
+      </div>
     )}
     {showHint && <ZoomHint onGone={hideHint} />}
     </>

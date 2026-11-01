@@ -152,3 +152,47 @@ export async function fetchQuote(ticker: string): Promise<Quote | null> {
   }
   return (await res.json()) as Quote;
 }
+
+// Methodology-audit snapshot (verify:claims): cell-level "% verified"
+// scores. Null when no audit snapshot is deployed: badges hide instead
+// of erroring.
+export interface VerificationCell {
+  cell: string;
+  n: number;
+  tested: number;
+  passed: number;
+  pctVerified: number | null;
+  mean: number | null;
+}
+
+export interface VerificationReport {
+  generatedAt: string;
+  cells: VerificationCell[];
+  overall: VerificationCell;
+}
+
+export async function fetchVerification(): Promise<VerificationReport | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/verification`);
+    if (!res.ok) {
+      return null;
+    }
+    const body = (await res.json()) as Partial<VerificationReport>;
+    if (!body || !Array.isArray(body.cells) || !body.overall) {
+      return null;
+    }
+    return body as VerificationReport;
+  } catch {
+    return null;
+  }
+}
+
+export function verificationCell(
+  report: VerificationReport | null | undefined,
+  name: string,
+): VerificationCell | null {
+  if (!report) {
+    return null;
+  }
+  return report.cells.find((c) => c.cell === name) ?? null;
+}

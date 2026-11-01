@@ -573,8 +573,12 @@ export async function runVerify(): Promise<{
     };
     const here = path.dirname(fileURLToPath(import.meta.url));
     const reportPath = path.join(here, "..", "..", "data", "verification-report.json");
+    const seedPath = path.join(here, "..", "..", "prisma", "seed-data", "verification.json");
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    // Committed snapshot for trust badges: judges get it via db:seed.
+    fs.mkdirSync(path.dirname(seedPath), { recursive: true });
+    fs.writeFileSync(seedPath, JSON.stringify(report, null, 2));
     return { cells, overall, reportPath };
   } finally {
     await prisma.$disconnect();
