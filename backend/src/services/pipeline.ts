@@ -360,6 +360,7 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     if ((results.get(q) ?? null) !== null) {
       continue;
     }
+    console.log(`[coords] pass-miss: ${q}`);
     for (const f of fallbackQueries(q)) {
       const known = results.get(f);
       if (known) {
@@ -394,6 +395,7 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     const r = results.get(q) ?? null;
     if (r === null) {
       missLog.add(q);
+      console.log(`[coords] retry-miss: ${q}`);
       // Transience is tracked per-query but judged per-original: if any
       // query behind this original errored, the original stays pending.
       const flaky =
@@ -618,6 +620,9 @@ export async function runPipeline(
         continue;
       }
 
+      if (status === "failed") {
+        console.log(`[coords] llm-queue: ${entity.id} (${entity.name})`);
+      }
       await prisma.entity.update({
         where: { id: entity.id },
         data: {
