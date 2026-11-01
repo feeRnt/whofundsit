@@ -25,6 +25,14 @@ const FRAMES: FrameSpec[] = [
   // Duration concepts use quarterly (non-instantaneous) frames.
   { taxonomy: "us-gaap", tag: "Revenues", uom: "USD", ccp: "CY2026Q2" },
   { taxonomy: "us-gaap", tag: "NetIncomeLoss", uom: "USD", ccp: "CY2026Q2" },
+  // Share counts (10-K cover, dei taxonomy): true-% ownership denominator.
+  // Never mapped — see the /api/entities + pipeline exclusions.
+  {
+    taxonomy: "dei",
+    tag: "EntityCommonStockSharesOutstanding",
+    uom: "shares",
+    ccp: "CY2026Q2I",
+  },
 ];
 
 // Hard ceiling per frame: never ingest more than this many rows per frame

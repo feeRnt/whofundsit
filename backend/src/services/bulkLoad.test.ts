@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { extractSic, jsonEntries, locationTag } from "./bulkLoad.js";
+import { TAGS, extractSic, jsonEntries, locationTag } from "./bulkLoad.js";
 
 // Fixture lives next to this file (committed); runners against dist must
 // copy __fixtures__ alongside the compiled test.
@@ -67,5 +67,29 @@ describe("extractSic", () => {
     assert.equal(extractSic({ sic: "1000" }), "1000");
     assert.equal(extractSic({}), null);
     assert.equal(extractSic({ sicDescription: "" }), null);
+  });
+});
+
+describe("TAGS", () => {
+  it("covers the five USD concepts plus dei share counts in shares", () => {
+    const tags = TAGS.map((s) => s.tag);
+    assert.deepEqual(tags, [
+      "StockholdersEquity",
+      "LongTermDebt",
+      "Assets",
+      "Revenues",
+      "NetIncomeLoss",
+      "EntityCommonStockSharesOutstanding",
+    ]);
+    const shares = TAGS.find(
+      (s) => s.tag === "EntityCommonStockSharesOutstanding",
+    );
+    assert.equal(shares?.taxonomy, "dei");
+    assert.equal(shares?.uom, "shares");
+    assert.ok(
+      TAGS.filter((s) => s.tag !== "EntityCommonStockSharesOutstanding").every(
+        (s) => s.taxonomy === "us-gaap" && s.uom === "USD",
+      ),
+    );
   });
 });

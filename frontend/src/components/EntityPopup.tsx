@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchQuote, formatMoney, type Entity, type Flow, type Quote } from "../api";
+import { fetchQuote, fetchShares, formatMoney, type Entity, type Flow, type Quote } from "../api";
 
 const CONCEPT_LABELS: Record<string, string> = {
   StockholdersEquity: "Stockholders' equity",
@@ -106,21 +106,28 @@ const STAKE_COLORS = [
 ];
 const OTHER_COLOR = "#64748b";
 
-// Ownership ring: each tracked 13F holder's $ stake as a share of all
-// tracked 13F $ in this company. Top 6 get slices; the rest merge into
-// gray "Other". No public-float slice: sizing it needs market cap, which
-// we don't have, so it stays an honest unsized "?" legend row.
+// Ownership ring: top 6 tracked 13F holders get slices, the rest merge
+// into gray "Other". With a market cap (shares × live price) every slice
+// is a true % and the public float gets a sized dark slice; without one
+// the ring falls back to tracked-relative and Public stays an unsized "?" row.
 function StakesRing({
   stakes,
   entities,
+  marketCap,
 }: {
   stakes: Flow[];
   entities: Entity[];
+  marketCap: number | null;
 }) {
   const total = stakes.reduce((a, f) => a + f.amount, 0);
   if (stakes.length === 0 || total <= 0) {
     return null;
   }
+  // True-% mode sizes every slice against market cap (shares × live price).
+  // Tracked must not exceed it — a stale count falls back to
+  // tracked-relative instead of drawing a negative public slice.
+  const trueMode = marketCap !== null && marketCap > 0 && total <= marketCap;
+  const base = trueMode && marketCap !== null ? marketCap : total;
   const shown = stakes.slice(0, 6);
   const rest = stakes.slice(6);
   const restTotal = rest.reduce((a, f) => a + f.amount, 0);
@@ -128,7 +135,7 @@ function StakesRing({
   const C = 2 * Math.PI * R;
   let acc = 0;
   const arcs = shown.map((f, i) => {
-    const frac = f.amount / total;
+    const frac = f.amount / base;
     const arc = {
       key: f.id,
       frac,
@@ -139,7 +146,12 @@ function StakesRing({
     return arc;
   });
   if (restTotal > 0) {
-    arcs.push({ key: "other", frac: restTotal / total, offset: acc, color: OTHER_COLOR });
+    arcs.push({ key: "other", frac: restTotal / base, offset: acc, color: OTHER_COLOR });
+    acc += restTotal / base;
+  }
+  const publicFrac = trueMode && marketCap !== null ? 1 - total / marketCap : 0;
+  if (publicFrac > 0) {
+    arcs.push({ key: "public", frac: publicFrac, offset: acc, color: "#334155" });
   }
   const label = (f: Flow) =>
     entities.find((e) => e.id === f.sourceEntityId)?.tickers[0] ??
@@ -186,7 +198,7 @@ function StakesRing({
             />
             <span className="stakes-name">{label(f)}</span>
             <span className="stakes-pct">
-              {((f.amount / total) * 100).toFixed(1)}%
+              {((f.amount / base) * 100).toFixed(1)}%
             </span>
           </li>
         ))}
@@ -195,7 +207,7 @@ function StakesRing({
             <span className="swatch" style={{ background: OTHER_COLOR }} />
             <span className="stakes-name">Other ({rest.length})</span>
             <span className="stakes-pct">
-              {((restTotal / total) * 100).toFixed(1)}%
+              {((restTotal / base) * 100).toFixed(1)}%
             </span>
           </li>
         )}
@@ -205,10 +217,15 @@ function StakesRing({
         >
           <span className="swatch swatch-unknown">?</span>
           <span className="stakes-name">Public / untracked</span>
+          {publicFrac > 0 && (
+            <span className="stakes-pct">{(publicFrac * 100).toFixed(1)}%</span>
+          )}
         </li>
       </ul>
       <p className="stakes-note">
-        Split of tracked 13F $ — true % needs market cap.
+        {trueMode && marketCap !== null
+          ? `True % of ~${formatMoney(marketCap)} market cap.`
+          : "Split of tracked 13F $ — true % needs market cap."}
       </p>
     </div>
   );
@@ -247,7 +264,11 @@ export default function EntityPopup({
       : formatMoney(entity.fundsVolume, entity.currency);
   const noFinancials = !entity.conceptTag && entity.fundsVolume === 0;
   const ticker = entity.tickers[0];
+  // Numeric-prefix ids ({CIK}:{tag}) are SEC company rows; 13f:/lei:/
+  // openalex: rows have no 10-K share count.
+  const cik = /^\d+$/.test(entity.id.split(":")[0] ?? "") ? (entity.id.split(":")[0] as string) : null;
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [shares, setShares] = useState<number | null>(null);
   useEffect(() => {
     setQuote(null);
     if (!ticker) {
@@ -263,6 +284,22 @@ export default function EntityPopup({
       live = false;
     };
   }, [ticker]);
+  useEffect(() => {
+    setShares(null);
+    if (!cik) {
+      return;
+    }
+    let live = true;
+    fetchShares(cik).then((s) => {
+      if (live) {
+        setShares(s);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [cik]);
+  const marketCap = shares !== null && quote !== null ? shares * quote.close : null;
   return (
     <div className="entity-popup">
       <h2>{entity.name}</h2>
@@ -277,13 +314,19 @@ export default function EntityPopup({
           {quote.changePct.toFixed(2)}%
         </p>
       )}
+      {shares !== null && (
+        <p className="entity-value">
+          Outstanding shares:{" "}
+          {new Intl.NumberFormat("en-US", { notation: "compact" }).format(shares)}
+        </p>
+      )}
       {siblings.map((s) => (
         <p key={s.id} className="entity-value sibling">
           {CONCEPT_LABELS[s.conceptTag ?? ""] ?? s.conceptTag}:{" "}
           {formatMoney(s.fundsVolume, s.currency)}
         </p>
       ))}
-      <StakesRing stakes={stakes} entities={entities} />
+      <StakesRing stakes={stakes} entities={entities} marketCap={marketCap} />
       {hasFlows && (
         <button
           type="button"

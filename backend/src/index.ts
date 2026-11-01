@@ -44,10 +44,21 @@ app.get("/api/entities", async (req, res) => {
     );
     // Skip 0,0 placeholders (ungeocoded rows pile up in the ocean off
     // Africa); the pipeline fills coordinates in fundsVolume order.
+    // Share-count rows stay out: count units would top every volume sort
+    // and quota floor. The popup fetches them lazily via /api/shares.
     // Equal per-region floors (shortfall to Europe) so international rows
     // survive the volume sort instead of being buried under SEC giants.
     const placed = await prisma.entity.findMany({
-      where: { lat: { not: 0 }, lng: { not: 0 } },
+      where: {
+        lat: { not: 0 },
+        lng: { not: 0 },
+        // OR keeps NULL-concept rows (global/openalex/13f): plain `not`
+        // would drop them via three-valued logic.
+        OR: [
+          { conceptTag: null },
+          { conceptTag: { not: "EntityCommonStockSharesOutstanding" } },
+        ],
+      },
     });
     res.json(allocateRegionQuotas(placed, limit));
   } catch (err) {
@@ -95,6 +106,33 @@ app.get("/api/quote", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load quote" });
+  }
+});
+
+// Outstanding shares for one CIK (10-K cover row): the popup's true-%
+// ownership denominator (market cap = shares × Yahoo price). 404 means
+// "no count" and the ring falls back to tracked-relative mode.
+app.get("/api/shares", async (req, res) => {
+  try {
+    const raw = String(req.query.cik ?? "");
+    if (!/^\d+$/.test(raw)) {
+      res.status(404).json({ shares: null });
+      return;
+    }
+    const row = await prisma.entity.findFirst({
+      where: {
+        id: `${Number(raw)}:EntityCommonStockSharesOutstanding`,
+      },
+      select: { fundsVolume: true, financialDate: true },
+    });
+    if (!row || !Number.isFinite(row.fundsVolume) || row.fundsVolume <= 0) {
+      res.status(404).json({ shares: null });
+      return;
+    }
+    res.json({ cik: Number(raw), shares: row.fundsVolume, date: row.financialDate });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to load shares" });
   }
 });
 

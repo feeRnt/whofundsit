@@ -26,12 +26,20 @@ const COMPANYFACTS_ZIP_URL =
 const BULK_YEARS = 2;
 
 // Concepts mirror the frames-API ingest so rows stay comparable.
-const TAGS = [
-  "StockholdersEquity",
-  "LongTermDebt",
-  "Assets",
-  "Revenues",
-  "NetIncomeLoss",
+export const TAGS = [
+  { taxonomy: "us-gaap", tag: "StockholdersEquity", uom: "USD" },
+  { taxonomy: "us-gaap", tag: "LongTermDebt", uom: "USD" },
+  { taxonomy: "us-gaap", tag: "Assets", uom: "USD" },
+  { taxonomy: "us-gaap", tag: "Revenues", uom: "USD" },
+  { taxonomy: "us-gaap", tag: "NetIncomeLoss", uom: "USD" },
+  // Share counts (10-K cover): powers true-% ownership (stakes ÷ market
+  // cap). Never mapped: excluded from /api/entities + geocoding, since
+  // count units would pollute every fundsVolume sort.
+  {
+    taxonomy: "dei",
+    tag: "EntityCommonStockSharesOutstanding",
+    uom: "shares",
+  },
 ] as const;
 
 // Hard ceiling per bulk run (ground-rules guardrail 1).
@@ -398,12 +406,12 @@ async function loadFacts(
       skipped += 1;
       continue;
     }
-    const gaap = doc.facts?.["us-gaap"];
-    if (!gaap) {
+    const facts = doc.facts;
+    if (!facts) {
       continue;
     }
-    for (const tag of TAGS) {
-      const points = gaap[tag]?.units?.["USD"] ?? [];
+    for (const spec of TAGS) {
+      const points = facts[spec.taxonomy]?.[spec.tag]?.units?.[spec.uom] ?? [];
       const inWindow = points.filter(
         (p) =>
           typeof p.end === "string" &&
@@ -421,7 +429,7 @@ async function loadFacts(
 
       const info = addresses.get(doc.cik);
       const state = info?.state ?? null;
-      const id = `${doc.cik}:${tag}`;
+      const id = `${doc.cik}:${spec.tag}`;
       const form = typeof fact.form === "string" ? fact.form : null;
       const filed =
         typeof fact.filed === "string" ? new Date(fact.filed) : null;
@@ -439,7 +447,7 @@ async function loadFacts(
               fundsVolume: fact.val as number,
               rawAddressText: locationTag(state, info?.address),
               businessAddress: info?.address ?? null,
-              conceptTag: tag,
+              conceptTag: spec.tag,
               tickers: info?.tickers ?? [],
               secFilingNumber: typeof fact.accn === "string" ? fact.accn : null,
               sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",
@@ -456,7 +464,7 @@ async function loadFacts(
               fundsVolume: fact.val as number,
               rawAddressText: locationTag(state, info?.address),
               businessAddress: info?.address ?? null,
-              conceptTag: tag,
+              conceptTag: spec.tag,
               tickers: info?.tickers ?? [],
               secFilingNumber: typeof fact.accn === "string" ? fact.accn : null,
               sourceTimeFrame: typeof fact.frame === "string" ? fact.frame : "BULK",

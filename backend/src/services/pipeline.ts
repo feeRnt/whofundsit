@@ -630,6 +630,14 @@ export async function runPipeline(
       where: {
         lat: 0,
         lng: 0,
+        // Share-count rows are never mapped: their huge count volumes would
+        // sort first and burn Nominatim calls for zero map benefit. The OR
+        // keeps NULL-concept rows (global/openalex/13f): plain `not` would
+        // drop them via three-valued logic.
+        OR: [
+          { conceptTag: null },
+          { conceptTag: { not: "EntityCommonStockSharesOutstanding" } },
+        ],
         // Failed rows stay out of future reruns (the LLM pass owns them);
         // --retry-failed opts back in after methodology improvements.
         ...(opts.retryFailed ? {} : { geoStatus: { not: "failed" } }),

@@ -128,6 +128,19 @@ export interface Quote {
   date: string;
 }
 
+// Null on any failure (no count row yet): the popup falls back to
+// tracked-relative mode instead of erroring.
+export async function fetchShares(cik: string): Promise<number | null> {
+  const res = await fetch(`${API_BASE}/api/shares?cik=${encodeURIComponent(cik)}`);
+  if (!res.ok) {
+    return null;
+  }
+  const body = (await res.json()) as { shares: unknown };
+  return typeof body.shares === "number" && Number.isFinite(body.shares) && body.shares > 0
+    ? body.shares
+    : null;
+}
+
 // Null on any failure (bad ticker, weekend, rate limit): the popup hides
 // the row instead of erroring.
 export async function fetchQuote(ticker: string): Promise<Quote | null> {
