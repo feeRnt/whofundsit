@@ -9,7 +9,7 @@ import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
 // ESEF enriches `global` rows in place, so it shares that group.
 const SOURCE_GROUPS = [
   { key: "edgar", label: "SEC EDGAR", sources: ["frames-api", "bulk-zip"] },
-  { key: "global", label: "Wikidata + GLEIF (+ ESEF facts)", sources: ["global"] },
+  { key: "global", label: "Wikidata + GLEIF", sources: ["global"] },
   { key: "funds", label: "13F Funds", sources: ["13f"] },
   { key: "grants", label: "OpenAlex Grants", sources: ["openalex"] },
   { key: "twse", label: "TWSE", sources: ["twse"] },
@@ -264,16 +264,22 @@ export default function App() {
     });
   };
 
-  // "Select all" menu buttons: tick every funder of that kind at once.
+  // "Select all" menu buttons: tick every funder of that kind at once,
+  // or untick them all when they're already all on.
   const selectAll = (list: FunderInfo[]) => () => {
+    const allOn = list.every((f) => effectiveFunders.has(f.id));
     setFunderOverrides((prev) => {
       const next = new Map(prev ?? []);
       for (const f of list) {
-        next.set(f.id, true);
+        next.set(f.id, !allOn);
       }
       return next;
     });
   };
+  const selectAllLabel = (list: FunderInfo[]) =>
+    list.every((f) => effectiveFunders.has(f.id))
+      ? "Deselect all"
+      : "Select all";
 
   // Popup button shares state with the dropdown checkboxes: funder ids
   // route to the funder toggle, plain companies to the per-company set.
@@ -383,6 +389,7 @@ export default function App() {
           onToggleMaster={() => setShowFlows((v) => !v)}
           onToggleFunder={toggleFunder}
           onSelectAll={selectAll(funders13f)}
+          selectAllLabel={selectAllLabel(funders13f)}
         />
         <FlowsDropdown
           title="University Funds"
@@ -410,6 +417,7 @@ export default function App() {
           onToggleMaster={() => setShowOwnership((v) => !v)}
           onToggleFunder={toggleFunder}
           onSelectAll={selectAll(fundersOwnership)}
+          selectAllLabel={selectAllLabel(fundersOwnership)}
         />
         <details
           className="flows-menu"

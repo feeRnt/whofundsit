@@ -18,6 +18,7 @@ export default function FlowsDropdown({
   onToggleMaster,
   onToggleFunder,
   onSelectAll,
+  selectAllLabel,
 }: {
   title: string;
   masterLabel: string;
@@ -29,6 +30,7 @@ export default function FlowsDropdown({
   onToggleMaster: () => void;
   onToggleFunder: (id: string) => void;
   onSelectAll?: () => void;
+  selectAllLabel?: string;
 }) {
   return (
     <details className="flows-menu" open={open}>
@@ -59,7 +61,7 @@ export default function FlowsDropdown({
             disabled={!showFlows}
             onClick={onSelectAll}
           >
-            Select all
+            {selectAllLabel ?? "Select all"}
           </button>
         )}
         {funders.map((f) => (
