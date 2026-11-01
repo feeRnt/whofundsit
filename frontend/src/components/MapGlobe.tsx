@@ -266,7 +266,7 @@ export default function MapGlobe({
         d.flowType === "13f"
           ? Math.max(1, Math.min(5, Math.log10(d.amount) - 4))
           : d.flowType === "ownership"
-            ? 1
+            ? 2.5
             : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2)),
       widthUnits: "pixels",
       widthMinPixels: 1,
