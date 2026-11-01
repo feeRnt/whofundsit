@@ -25,7 +25,9 @@ Running log for picking work back up. Update when the picture changes.
   shared `fallbackQueries` (city/state/zip retry) in coords + 13F paths,
   unplaceable funds now stubbed (0,0 + bulk address, API-invisible),
   13F trusts DB-placed funds before re-geocoding → reruns self-heal.
-  User rerun recipe: `coords_populate` (no flag) then 13f/500 again.
+  User rerun recipe: 13f/500 (fresh fallback attempts + stubs), then
+  `coords_populate`, then 13f/500 again (DB-first pickup of placed stubs).
+  (Chain predates stubs, so the first rerun does the stubbing.)
 - `names:sync` result unknown (was running at last report).
 - Regionals committed but NEVER RUN LIVE (need chain to finish first).
 - `npm run demo` never rehearsed on a fresh DB (do right after chain).

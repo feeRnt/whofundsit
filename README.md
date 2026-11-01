@@ -71,11 +71,11 @@ From `whofundsit/backend/` (pipeline order):
 |---|---|
 | `bulk` | SEC nightly ZIPs → base entity layer (long first run, then cached) |
 | `ingest` | XBRL frames top-up for the current quarter |
-| `coords_populate` | Nominatim geocoding, 1 req/s, biggest first |
+| `coords_populate` | Nominatim geocoding, 1 req/s, biggest first (city/state fallback retry on misses) |
 | `ingest:all` | `ingest` + `coords_populate` in one go |
 | `pipeline` | Geocode pending entities (≤100/run) + Modal cleanup when configured |
 | `flows:openalex` | Grant arcs from OpenAlex (cached) |
-| `flows:13f` | Fund arcs from every 13F-HR filer (8 workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it) |
+| `flows:13f` | Fund arcs from every 13F-HR filer (core-scaled workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it, `THIRTEENF_SKIP_STALE=1` drops dead filers; unplaceable funds stub for coords retry) |
 | `global:sync` | International companies (Wikidata → GLEIF) + ownership arcs (`GLOBAL_LIMIT`, `GLOBAL_MAX_CHILDREN`) |
 | `regional:esef` | EU/UK financial facts onto `lei:` rows, native currency (`ESEF_LIMIT`) |
 | `regional:twse` | Taiwan balance-sheet facts onto `lei:` rows in TWD (`TWSE_LIMIT`) |

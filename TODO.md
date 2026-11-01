@@ -16,12 +16,13 @@
       every 25 managers. Tune with `THIRTEENF_CONCURRENCY`.)
 - [x] **CUSIP/ticker-based 13F matching.** (Holdings resolve CUSIP → ticker via
       OpenFIGI, then ticker → placed entity; normalized-name match stays as fallback.
-      NOTE: only 294/18,925 entities are placed — most misses are ungeocoded targets,
-      fixed by `coords_populate --all`, not by matching.)
+      NOTE (2026-11-01 chain): 842+ placed rows; most remaining misses are
+      ungeocoded targets or ETF holdings, fixed by coords reruns, not matching.)
 - [ ] **Demo rehearsal on a fresh database** (`npm run demo` from zero → globe with
       listings, arcs, popups; packaging is code-reviewed only, never run end-to-end).
-- [ ] **Geocode backfill** (`coords_populate --all`: only 294/18,925 entities placed;
-      ~5h at 1 req/s, resumable, cached — unlocks most 13F matches).
+- [ ] **Geocode backfill, 2nd pass** (2026-11-01 chain placed 842+ rows; rerun
+      13f/500 to convert city-fallback hits + stub the rest, then coords, then
+      13f again to pick up placed stubs — resumable, cached).
 - [ ] **Free API keys before scale-up runs** (OpenAlex for cursor-paging past 200 works;
       EDINET + Open DART keys for Japan/Korea loaders).
 
