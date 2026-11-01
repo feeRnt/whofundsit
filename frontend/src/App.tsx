@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Globe as GlobeIcon, X } from "lucide-react";
+import { X } from "lucide-react";
+import logoUrl from "./assets/logo.svg";
 import MapGlobe from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
@@ -334,7 +335,7 @@ export default function App() {
     <div className="app">
       <header className="bar">
         <h1>
-          <GlobeIcon size={20} /> WhoFundsIt
+          <img src={logoUrl} alt="WhoFundsIt logo" height={22} /> WhoFundsIt
         </h1>
         <p>
           {loading
