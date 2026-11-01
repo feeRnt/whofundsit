@@ -42,6 +42,11 @@ body {
   margin: 0;
   font-size: 0.85rem;
   color: #aeb6c2;
+  /* Single line always: long flashcard text clips instead of growing the bar. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .map {
@@ -387,6 +392,20 @@ button.maplibregl-popup-close-button {
   margin-left: auto;
   color: #aeb6c2;
   font-size: 0.72rem;
+}
+
+button.flows-row.flows-select-all {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #5eead4;
+  font: inherit;
+  text-align: left;
+}
+
+button.flows-row.flows-select-all:disabled {
+  color: #5b6472;
+  cursor: default;
 }
 
 .entity-popup .merged-note {

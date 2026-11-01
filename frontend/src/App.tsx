@@ -20,6 +20,9 @@ function groupOf(source: string): { key: string; label: string } {
   return g ? { key: g.key, label: g.label } : { key: source, label: source };
 }
 
+// Past this many dots/arcs the map may chug on weak GPUs — warn in the label.
+const LAG_WARN_AT = 15000;
+
 export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
@@ -40,7 +43,7 @@ export default function App() {
   );
   const [flowLimit, setFlowLimit] = useState(250);
   // Max dots shown, biggest fundsVolume first; null = all (rightmost).
-  const [dotLimit, setDotLimit] = useState<number | null>(null);
+  const [dotLimit, setDotLimit] = useState<number | null>(14000);
   // Per-database entity toggles (flashcard popup); empty = all shown.
   const [disabledSources, setDisabledSources] = useState<Set<string>>(new Set());
   // Flashcard tick: rotates the header through present source groups.
@@ -261,6 +264,17 @@ export default function App() {
     });
   };
 
+  // "Select all" menu buttons: tick every funder of that kind at once.
+  const selectAll = (list: FunderInfo[]) => () => {
+    setFunderOverrides((prev) => {
+      const next = new Map(prev ?? []);
+      for (const f of list) {
+        next.set(f.id, true);
+      }
+      return next;
+    });
+  };
+
   // Popup button shares state with the dropdown checkboxes: funder ids
   // route to the funder toggle, plain companies to the per-company set.
   const toggleCompanyFlows = (id: string) => {
@@ -299,7 +313,7 @@ export default function App() {
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
 
   useEffect(() => {
-    Promise.all([fetchEntities(), fetchFlows(1000)])
+    Promise.all([fetchEntities(), fetchFlows()])
       .then(([fetchedEntities, fetchedFlows]) => {
         setEntities(fetchedEntities);
         setFlows(fetchedFlows);
@@ -368,6 +382,7 @@ export default function App() {
           }
           onToggleMaster={() => setShowFlows((v) => !v)}
           onToggleFunder={toggleFunder}
+          onSelectAll={selectAll(funders13f)}
         />
         <FlowsDropdown
           title="University Funds"
@@ -394,6 +409,7 @@ export default function App() {
           }
           onToggleMaster={() => setShowOwnership((v) => !v)}
           onToggleFunder={toggleFunder}
+          onSelectAll={selectAll(fundersOwnership)}
         />
         <details
           className="flows-menu"
@@ -443,13 +459,14 @@ export default function App() {
           className="arcs-control"
           title="Max arcs shown, biggest first"
         >
-          Arcs {showFlows ? flowLimit : 0}
+          Arcs {showFlows ? Math.min(flowLimit, flows.length) : 0}
+          {showFlows && flowLimit > LAG_WARN_AT ? " — may lag" : ""}
           <input
             type="range"
             min={0}
-            max={1000}
-            step={50}
-            value={flowLimit}
+            max={flows.length}
+            step={500}
+            value={Math.min(flowLimit, flows.length)}
             disabled={!showFlows}
             onChange={(ev) => setFlowLimit(Number(ev.target.value))}
           />
@@ -459,12 +476,13 @@ export default function App() {
           title="Max company dots shown, biggest assets first"
         >
           Dots {shownEntities.length}
+          {shownEntities.length > LAG_WARN_AT ? " — may lag" : ""}
           <input
             type="range"
             min={0}
             max={visibleEntities.length}
-            step={50}
-            value={dotLimit ?? visibleEntities.length}
+            step={500}
+            value={Math.min(dotLimit ?? visibleEntities.length, visibleEntities.length)}
             onChange={(ev) => {
               const v = Number(ev.target.value);
               setDotLimit(v >= visibleEntities.length ? null : v);
