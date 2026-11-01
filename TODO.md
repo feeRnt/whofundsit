@@ -14,17 +14,20 @@
       Vanguard→NVIDIA $422.74B vs $423B and BlackRock→NXP $6,716,412,097 vs
       $6,716,412,000 both verified by hand on 2026-11-01.)
 - [x] **Regional financial loaders, phase 1.** (`regional:esef` + `regional:twse`
-      shipped with tests; native currencies. NOT yet run live — needs `db:push`
-      for the currency column, then a trial + `db:export`.)
+      shipped with tests; native currencies. Trialed 2026-11-01: ESEF sort/shape
+      fixed to verified JSON:API, TWSE made self-sufficient via GLEIF creation;
+      post-fix rerun in the current chain, then `db:export`.)
 - [ ] **Regional financial loaders, phase 2** (EDINET/Japan + Open DART/Korea:
       needs free keys (ToS accepted at signup) AND a join key to LEI rows —
       EDINET secCode / DART corp_code don't map to LEI yet. Options: Wikidata
       ticker map per exchange (as TWSE does), or filer-name matching.)
 - [x] **Multi-currency support** (`Entity.currency`, default USD; formatMoney
-      display in popups/tooltips. Needs `db:push`; old seeds imply USD.)
-- [x] **13F concurrency.** (8-worker pool via `mapLimit`; SEC ≤10/s, Nominatim 1/s
-      and OpenFIGI limits all hold via chained limiters; shared CUSIP map flushed
-      every 25 managers. Tune with `THIRTEENF_CONCURRENCY`.)
+      display in popups/tooltips, abbreviated $6.72B-style since 2026-11-01.
+      Live in DB since the user's `db:push`; old seeds imply USD.)
+- [x] **13F concurrency.** (Core-scaled worker pool via `mapLimit`, 2×cores
+      clamped 4–16; SEC ≤10/s, Nominatim 1/s and OpenFIGI limits all hold via
+      chained limiters; shared CUSIP map flushed every 25 managers. Tune with
+      `THIRTEENF_CONCURRENCY`; `THIRTEENF_SKIP_STALE=1` drops dead filers.)
 - [x] **CUSIP/ticker-based 13F matching.** (Holdings resolve CUSIP → ticker via
       OpenFIGI, then ticker → placed entity; normalized-name match stays as fallback.
       NOTE (2026-11-01 chain): 842+ placed rows; most remaining misses are
@@ -32,9 +35,9 @@
 - [ ] **Demo rehearsal in a real browser** (backend path verified 2026-11-01:
       fresh DB → 21,514 entities / 9,362 flows, APIs + frontend / → 200;
       still needs human eyes on the globe, arcs, popups).
-- [ ] **Geocode backfill, 2nd pass** (2026-11-01 chain placed 842+ rows; rerun
-      13f/500 to convert city-fallback hits + stub the rest, then coords, then
-      13f again to pick up placed stubs — resumable, cached).
+- [ ] **Geocode backfill, 2nd pass** (IN PROGRESS 2026-11-01: `--all` pager now
+      pages past all-miss batches to cover all ~20k; chain is 13f → coords →
+      13f → export — resumable, cached).
 - [ ] **Free API keys before scale-up runs** (OpenAlex for cursor-paging past 200 works;
       EDINET + Open DART keys for Japan/Korea loaders).
 
@@ -54,16 +57,15 @@
       "Aircraft & Parts"; falls back to `"Company"` only when absent. Backfills existing rows on next ingest.)
 - [x] **Business address + real coordinates.** (Done: ingest fetches submissions addresses into `businessAddress`;
       `npm run pipeline` geocodes them via Nominatim. `rawAddressText` keeps `loc`.)
-- [ ] **Run live ingestion once `DATABASE_URL` is configured** (`backend/.env`), then verify row counts
-      (`fetched` capped at 500, `upserted` + `skipped` = `fetched`) and spot-check a filing by `secFilingNumber` on EDGAR.
+- [x] **Run live ingestion once `DATABASE_URL` is configured.** (Done many times over:
+      bulk base 11,771 rows + frames top-ups; BlackRock→Exxon $45.77B verified against the 23-sleeve filing.)
 
 ## Frontend globe follow-ups (`frontend/src/components/MapGlobe.tsx`)
 
-- [ ] **Verify the globe renders clean in the browser.**
-      Globe projection now ships via `MapLibreOverlay` from `@deck.gl/maplibre` (the docs-blessed MapLibre v6
-      path) in `frontend/src/components/MapGlobe.tsx` with the OpenFreeMap Liberty style. If distortion returns,
-      that file is the first place to look. Note: the worker import must stay in `?url` form —
-      `?worker&url` reintroduced the MIME error in the browser.
+- [x] **Verify the globe renders clean in the browser.** (Verified by daily use:
+      globe/2D toggle, nodes + arcs retained across switches, fresh `Map` per projection. If distortion
+      returns, `MapGlobe.tsx` is the first place to look. Note: the worker import must stay in `?url` form —
+      `?worker&url` reintroduced the MIME error in the browser.)
 
 ## ✅ DONE — index membership (S&P 500 / Nasdaq-100)
 
@@ -78,29 +80,29 @@
 - [x] **Base loaded** (991,164 address entries scanned; 11,771 rows upserted, 11,763 with addresses).
 - [x] **Loader optimized after the slow first run** (sequential streaming parse, address map cached to
       disk, 8-way concurrent upserts).
-- [ ] **Enrichment batch needs `db push` + re-run** (`bulk`, then `ingest`) to backfill the new `form`,
-      `filed`, `exchanges`, `category`, `formerNames` columns and the Revenues/NetIncomeLoss rows.
+- [x] **Enrichment batch needs `db push` + re-run.** (Done: user pushed + re-ran `bulk` and
+      `ingest:all`; `form`/`filed`/`exchanges`/`category`/`formerNames` live in seeds and round-trip.)
 
 ## Grant arcs follow-up (OpenAlex → CapitalFlow)
 
-- [ ] **Verify grant arcs in the browser.** (Run `npm run flows:openalex`, reload the globe: arcs should fan
-      from the funder to grantee institutions; hover shows funder → university + works count.)
+- [x] **Verify grant arcs in the browser.** (Live: greenish arcs behind the "University Funds"
+      dropdown; hover shows funder → university + funded-works count.)
 
 ## Hill's / OpenAlex caveats (found live, 2026-10-29)
 
 - [ ] **Frame the story as Colgate-Palmolive (parent of Hill's Pet Nutrition) → vet schools.** ("Hill's" has
       no standalone OpenAlex funder ID; funder search returns keyword matches plus a generic "Hills" entry
       with 1 work. All reliable Hill's grant data sits under the parent `F4320307808`.)
-- [ ] **Label arc amounts as funded-works counts, never dollars.** (OpenAlex exposes no reliable grant
-      amounts; keep the "funded works" tooltip wording and say so on the demo slide.)
+- [x] **Label arc amounts as funded-works counts, never dollars.** (In-app wording shipped
+      in tooltips/popups; OpenAlex exposes no reliable grant amounts. Demo-slide wording still yours.)
 - [ ] **Get a free OpenAlex API key before the demo.** (Keyless shares a $0.10/day IP pool — observed 0
       requests remaining during probing; cursor-paging past 200 works needs a key anyway.)
 
 ## OpenAlex scale-up (after the demo works)
 
 - [ ] **Cursor-page all funder works** (currently first 200/page; Colgate has 1417) once an API key exists.
-- [ ] **Consider merging institution duplicates** (e.g. "College of Veterinary Medicine" vs parent university
-      appear as separate arc targets).
+- [x] **Consider merging institution duplicates.** (Tooling shipped: read-only `dedupe:report`
+      finds candidates, `merge -- keep drop` folds with `mergedFrom` provenance; individual merges are user ops.)
 
 ## 13F holdings follow-up (fund → stock arcs)
 
@@ -108,8 +110,9 @@
       Also verified: BLK → 2012383, BRK-A/BRK-B → 1067983; info-table XML shape; values are whole
       dollars (not thousands); table doc is the largest non-primary .xml.
 - [x] **Full-filer discovery** (local bulk scan → all 13F-HR filers, curated 3 first, lazy geocoding).
-- [ ] **Verify 13F arcs in the browser.** (Run `npm run flows:13f`, reload: dollar arcs from the funds;
-      hover shows fund → company + $ amount. Check the match log for miss rate.)
+- [x] **Verify 13F arcs in the browser.** (Live: reddish arcs with abbreviated $ amounts +
+      filing-line counts in hover; 7,009 flows from the 500-manager run. Top values spot-verified:
+      Vanguard→NVIDIA $422.74B, BlackRock→NXP $6.72B.)
 
 ## Last-last: dark mode
 
@@ -117,10 +120,10 @@
 
 ## Legal follow-ups
 
-- [ ] **Ship OSM attribution with any standalone address cache.** (Cached Nominatim coordinates are fine to
-      host, but keep "© OpenStreetMap contributors" credit wherever the cache or its results appear.)
+- [x] **Ship OSM attribution with any standalone address cache.** (LICENSE.txt in the geo cache dir
+      + automatic MapLibre attribution on the map. Full dataset terms in DATASETS.md.)
 
 ## Later: international (IFRS) coverage
 
-- [ ] **Add `ifrs-full` frames/bulk tags** (Samsung, Toyota, Nestlé… barely appear in us-gaap). Needs tag
-      mapping + testing; demo story stays US-centric until the core loop is judge-ready.
+- [x] **Add `ifrs-full` frames/bulk tags** (SUPERSEDED: international coverage goes through
+      Wikidata+GLEIF backbone + regional loaders — ESEF/TWSE phase 1 shipped — instead of us-gaap-style frames.)
