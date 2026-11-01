@@ -352,7 +352,12 @@ export async function countPendingGeocodes(): Promise<number> {
 }
 
 export async function runPipeline(
-  opts: { normalize?: boolean; take?: number; indexOnly?: boolean } = {},
+  opts: {
+    normalize?: boolean;
+    take?: number;
+    indexOnly?: boolean;
+    skip?: number;
+  } = {},
 ): Promise<PipelineSummary> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -369,7 +374,10 @@ export async function runPipeline(
         ...(opts.indexOnly ? { tickers: { hasSome: NASDAQ100_TICKERS } } : {}),
       },
       take: opts.take ?? MAX_ENTITIES_PER_RUN,
-      orderBy: { fundsVolume: "desc" },
+      skip: opts.skip ?? 0,
+      // Stable paging: id breaks fundsVolume ties so batch boundaries never
+      // shift under the --all loop.
+      orderBy: [{ fundsVolume: "desc" }, { id: "asc" }],
     });
 
     let geocoded = 0;

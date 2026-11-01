@@ -39,8 +39,12 @@ Running log for picking work back up. Update when the picture changes.
   /health ok, /api/entities → 856 placed (Vanguard/USD sample), /api/flows
   → 1000 (cap), frontend / → 200. Wipe guard verified both paths live.
   Still needs HUMAN eyes: actual globe render in a browser.
-- EYEBROW-RAISER for user: largest flow is $422,736,430,797 (7 sleeves).
-  Plausible (mega-cap stake) but worth one spot-check against the filing.
+- $422B flow VERIFIED (2026-11-01, two aggregators): Vanguard → NVIDIA $423B
+  per Q4-2025 13F (filed 2026-01-29); DB holds $422.74B. Legit.
+- Seed audit: 856/21,514 placed; ONLY bug-class finding was coords --all
+  quitting behind the first all-miss batch (~16k never attempted). Fixed:
+  --all now pages past sticky batches (skip + stable order). Ownership
+  $0 amounts render as "stake undisclosed" already — no change needed.
 - User's checkout vs agent worktree may differ (they once saw fce0a2a
   files as uncommitted) — reconcile before any push.
 

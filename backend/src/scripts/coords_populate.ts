@@ -53,15 +53,26 @@ if (scope === "top") {
   });
   console.log(summary);
 } else {
-  // Loop 500/run until a run places nothing new (skips are cached misses,
-  // so re-scans are cheap); the run cap is a backstop, not a target.
+  // Loop 500/run to the end of the queue. A fruitless FULL batch means its
+  // rows are all sticky cached misses, so page past them (skip) instead of
+  // quitting — quitting here once stranded ~16k entities behind 500 misses.
+  // Progress reshuffles the queue, so restart from the top after any hit.
   let runs = 0;
+  let skip = 0;
   for (;;) {
-    const summary = await runPipeline({ normalize: false, take: 500 });
+    const summary = await runPipeline({ normalize: false, take: 500, skip });
     runs += 1;
     console.log(`[coords] run ${runs}:`, summary);
-    if (summary.geocoded === 0 || summary.scanned === 0 || runs >= 500) {
+    if (summary.scanned === 0 || runs >= 500) {
       break;
+    }
+    if (summary.geocoded === 0) {
+      if (summary.scanned < 500) {
+        break; // tail batch exhausted: nothing left to try
+      }
+      skip += summary.scanned;
+    } else {
+      skip = 0;
     }
   }
 }
