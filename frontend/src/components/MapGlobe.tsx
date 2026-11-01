@@ -38,6 +38,14 @@ const TILE_ERROR_BUDGET = 25;
 // Opening view and reset target: US-centered.
 const HOME = { longitude: -98, latitude: 39, zoom: 2.5 };
 
+// Flight tuning (one place): search picks dive straight to FOCUS_ZOOM;
+// arc clicks first pull back to SWEEP_OUT_ZOOM over SWEEP_OUT_MS, then
+// dive to FOCUS_ZOOM. Delete the zoomTo + moveend chain in sweepToPoint
+// to drop the pull-back entirely.
+const FOCUS_ZOOM = 12;
+const SWEEP_OUT_ZOOM = 2;
+const SWEEP_OUT_MS = 450;
+
 function tooltip({ object }: PickingInfo) {
   if (!object) {
     return null;
@@ -173,24 +181,15 @@ export default function MapGlobe({
   const tileErrorsRef = useRef(0);
   const mapRef = useRef<MapRef>(null);
 
-  // Shared flight: zoom-out scales with flight distance (nearby targets
-  // keep your zoom, far flights ease toward the overview at zoom 4).
-  // k = max(dLat, dLng)/180° × 50%. Used by search picks and arc clicks.
+  // Search flight: dive to the company, keeping your zoom if you are
+  // already deeper. Far picks get flyTo's natural out-then-in curve.
   function flyToPoint(lat: number, lng: number) {
     if (!mapRef.current) {
       return;
     }
-    const current = mapRef.current.getZoom();
-    const center = mapRef.current.getCenter();
-    const dLat = Math.abs(lat - center.lat);
-    let dLng = Math.abs(lng - center.lng) % 360;
-    if (dLng > 180) {
-      dLng = 360 - dLng;
-    }
-    const k = Math.min(0.5, (Math.max(dLat, dLng) / 180) * 0.5);
     mapRef.current.flyTo({
       center: [lng, lat],
-      zoom: current + (4 - current) * k,
+      zoom: Math.max(mapRef.current.getZoom(), FOCUS_ZOOM),
     });
   }
 
@@ -311,23 +310,23 @@ export default function MapGlobe({
   const sweepToken = useRef(0);
 
   // Arc clicks always sweep out-then-in: unlike search picks, arc endpoints
-  // are already on screen, so distance-scaled easing would collapse to a
-  // plain pan. Pull back to the world view, then dive to the endpoint.
+  // are already on screen, so a plain flight would collapse to a pan.
+  // Pull back to the world view, then dive to the endpoint.
   function sweepToPoint(lat: number, lng: number) {
     const map = mapRef.current;
     if (!map) {
       return;
     }
-    if (map.getZoom() <= 2) {
+    if (map.getZoom() <= SWEEP_OUT_ZOOM) {
       // Already wide: zoomTo would no-op and fire no moveend to chain from.
-      map.flyTo({ center: [lng, lat], zoom: 4 });
+      map.flyTo({ center: [lng, lat], zoom: FOCUS_ZOOM });
       return;
     }
     const token = ++sweepToken.current;
-    map.zoomTo(2, { duration: 450 });
+    map.zoomTo(SWEEP_OUT_ZOOM, { duration: SWEEP_OUT_MS });
     map.once("moveend", () => {
       if (token === sweepToken.current) {
-        mapRef.current?.flyTo({ center: [lng, lat], zoom: 4 });
+        mapRef.current?.flyTo({ center: [lng, lat], zoom: FOCUS_ZOOM });
       }
     });
   }

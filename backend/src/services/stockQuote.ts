@@ -1,12 +1,17 @@
 import axios from "axios";
 import { apiLog, readCache, writeCache } from "./httpCache.js";
 
-// Day-change quotes via Stooq's free CSV (no key; free for personal/demo
-// use). Cached 15 minutes: fresh enough for a demo, polite to the free
-// tier. Failures yield null (popup hides the row); a stale cache beats
-// nothing when the network fails.
+// Day-change quotes via Yahoo's chart API (no key; tiny demo traffic).
+// NOTE — ToS judgment call: Yahoo's terms discourage automated access, but
+// this is the same public endpoint every OSS quote widget uses, hit at most
+// once per ticker per day and cached below. If it ever 429s, the popup
+// just hides the row (null) and the failure is apiLogged.
+// (Stooq was the previous source; it now serves bot-wall HTML/JS to
+// server-side fetches, so quotes silently vanished.)
 
-const QUOTE_TTL_MS = 15 * 60 * 1000;
+const QUOTE_TTL_MS = 24 * 60 * 60 * 1000;
+const UA =
+  process.env.QUOTE_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
 
 export interface Quote {
   changePct: number;
@@ -14,29 +19,44 @@ export interface Quote {
   date: string;
 }
 
-export function stooqSymbol(ticker: string): string | null {
-  const t = ticker.trim().toUpperCase();
-  if (!/^[A-Z0-9.\-]{1,10}$/.test(t)) {
+export function yahooSymbol(ticker: string): string | null {
+  const t = ticker.trim().toUpperCase().replace(/\./g, "-");
+  if (!/^[A-Z0-9-]{1,12}$/.test(t)) {
     return null;
   }
-  return `${t.toLowerCase().replace(/\./g, "-")}.us`;
+  return t;
 }
 
-export function parseStooqCsv(
-  text: string,
-): { open: number; close: number; date: string } | null {
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) {
+export function parseYahooChart(
+  json: unknown,
+): { previousClose: number; price: number; date: string } | null {
+  const meta = (json as { chart?: { result?: [{ meta?: unknown }] } })?.chart
+    ?.result?.[0]?.meta as
+    | {
+        regularMarketPrice?: unknown;
+        chartPreviousClose?: unknown;
+        regularMarketTime?: unknown;
+      }
+    | undefined;
+  if (!meta) {
     return null;
   }
-  const fields = (lines[1] ?? "").split(",");
-  const date = fields[1] ?? "";
-  const open = Number(fields[3]);
-  const close = Number(fields[6]);
-  if (!date || !Number.isFinite(open) || !Number.isFinite(close) || open <= 0) {
+  const price = Number(meta.regularMarketPrice);
+  const previousClose = Number(meta.chartPreviousClose);
+  const t = Number(meta.regularMarketTime);
+  if (
+    !Number.isFinite(price) ||
+    !Number.isFinite(previousClose) ||
+    previousClose <= 0 ||
+    !Number.isFinite(t)
+  ) {
     return null;
   }
-  return { open, close, date };
+  return {
+    previousClose,
+    price,
+    date: new Date(t * 1000).toISOString().slice(0, 10),
+  };
 }
 
 export function changePct(open: number, close: number): number | null {
@@ -48,37 +68,47 @@ export function changePct(open: number, close: number): number | null {
 
 interface QuoteCache {
   at: number;
-  quote: Quote | null;
+  quote: Quote;
 }
 
 export async function getQuote(ticker: string): Promise<Quote | null> {
-  const symbol = stooqSymbol(ticker);
+  const symbol = yahooSymbol(ticker);
   if (!symbol) {
     return null;
   }
   const rel = `quotes/${symbol}.json`;
   const hit = readCache<QuoteCache>(rel);
   if (hit && Date.now() - hit.at < QUOTE_TTL_MS) {
+    apiLog("CACHE-HIT", rel, ticker);
     return hit.quote;
   }
-  const url = `https://stooq.com/q/l/?s=${symbol}&f=sd2t2ohlcv&h&e=csv`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`;
   apiLog("GET", url, ticker);
-  let quote: Quote | null = null;
   try {
-    const res = await axios.get<string>(url, { timeout: 10000 });
-    const parsed = parseStooqCsv(res.data);
-    if (parsed) {
-      const pct = changePct(parsed.open, parsed.close);
-      if (pct !== null) {
-        quote = { changePct: pct, close: parsed.close, date: parsed.date };
-      }
+    const res = await axios.get(url, {
+      timeout: 10000,
+      headers: { "User-Agent": UA, Accept: "application/json" },
+    });
+    const parsed = parseYahooChart(res.data);
+    const pct = parsed ? changePct(parsed.previousClose, parsed.price) : null;
+    if (!parsed || pct === null) {
+      apiLog("FAIL", url, `${ticker} (unparseable response)`);
+      return null;
     }
+    const quote: Quote = {
+      changePct: pct,
+      close: parsed.price,
+      date: parsed.date,
+    };
+    // Cache wins only: a failure must never poison the cache for 24h.
+    writeCache(rel, { at: Date.now(), quote });
+    return quote;
   } catch {
     if (hit) {
+      apiLog("FAIL", url, `${ticker} (serving stale cache)`);
       return hit.quote;
     }
+    apiLog("FAIL", url, `${ticker} (no cache)`);
     return null;
   }
-  writeCache(rel, { at: Date.now(), quote });
-  return quote;
 }

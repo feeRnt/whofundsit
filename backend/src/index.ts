@@ -81,7 +81,7 @@ app.get("/api/flows", async (req, res) => {
   }
 });
 
-// Day-change quote for the popup (Stooq CSV, 15-min cache). 404 means
+// Day-change quote for the popup (Yahoo chart, 24h cache). 404 means
 // "no quote" and the popup hides the row — never an error to the user.
 app.get("/api/quote", async (req, res) => {
   try {
