@@ -73,9 +73,10 @@ describe("isMajorIndex", () => {
     assert.equal(full.untestable, 1);
   });
 
-  it("takes ~10% per cell with a cap, census of tiny cells", () => {
+  it("takes ~10% per cell with a cap, census of singletons", () => {
     assert.equal(cellTake(0), 0);
-    assert.equal(cellTake(5), 5);
+    assert.equal(cellTake(1), 1);
+    assert.equal(cellTake(5), 1);
     assert.equal(cellTake(500), 30);
     assert.ok(cellTake(100) <= 30 && cellTake(100) >= 1);
   });
