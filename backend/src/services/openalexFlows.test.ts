@@ -4,6 +4,7 @@ import {
   apiUrl,
   assertValidFunder,
   resolveFunderId,
+  resolveFunderIds,
   type Funder,
 } from "./openalexFlows.js";
 
@@ -23,6 +24,20 @@ describe("resolveFunderId", () => {
       resolveFunderId("  https://openalex.org/F123  "),
       "https://openalex.org/F123",
     );
+  });
+});
+
+describe("resolveFunderIds", () => {
+  it("splits comma lists, drops empties", () => {
+    assert.deepEqual(
+      resolveFunderIds("https://openalex.org/F1, F2 ,,"),
+      ["https://openalex.org/F1", "F2"],
+    );
+  });
+
+  it("falls back to the single default when unset or blank", () => {
+    assert.deepEqual(resolveFunderIds(undefined), [DEFAULT_FUNDER]);
+    assert.deepEqual(resolveFunderIds("  , "), [DEFAULT_FUNDER]);
   });
 });
 

@@ -54,3 +54,18 @@ export async function cachedJson<T>(
   writeCache(relPath, data);
   return data;
 }
+
+// Day-scoped cache for SEC ingest responses (frames, submissions,
+// companyfacts): keys are namespaced by UTC date, so every calendar day
+// re-fetches fresh while intraday reruns stay free. Old day-dirs linger on
+// disk (gitignored; wipe by hand when stale). Everything else stays on
+// plain cachedJson: nothing is ever pruned automatically.
+export async function cachedJsonDaily<T>(
+  relPath: string,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  return cachedJson<T>(
+    `daily/${new Date().toISOString().slice(0, 10)}/${relPath}`,
+    fetcher,
+  );
+}

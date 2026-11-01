@@ -84,6 +84,18 @@ export function resolveFunderId(
   return env?.trim() || DEFAULT_FUNDER;
 }
 
+// Large ingestions: comma-separated OPENALEX_FUNDER_IDS (full F-URLs or bare
+// F... ids); falls back to the single-funder var, then the default.
+export function resolveFunderIds(
+  env: string | undefined = process.env.OPENALEX_FUNDER_IDS,
+): string[] {
+  const list = (env ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return list.length > 0 ? list : [resolveFunderId()];
+}
+
 export interface Funder {
   id: string;
   display_name: string;
@@ -175,14 +187,16 @@ export interface FlowSummary {
   institutions: number;
   flows: number;
   skippedNoGeo: number;
+  costUsd: number;
 }
 
-export async function runOpenAlexFlows(): Promise<FlowSummary> {
+export async function runOpenAlexFlows(
+  funderId: string = resolveFunderId(),
+): Promise<FlowSummary> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
   }
 
-  const funderId = resolveFunderId();
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   const prisma = new PrismaClient({ adapter });
 
@@ -358,6 +372,7 @@ export async function runOpenAlexFlows(): Promise<FlowSummary> {
       institutions: byInst.size,
       flows,
       skippedNoGeo,
+      costUsd,
     };
   } finally {
     await prisma.$disconnect();

@@ -126,7 +126,7 @@ From `whofundsit/backend/` (pipeline order):
 | `geo:snapshot` | Export address→coords mapping into the committed ODbL seed for fresh clones |
 | `ingest:all` | `ingest` + `coords_populate` in one go |
 | `pipeline` | Geocode pending entities (≤100/run) + Modal cleanup when configured |
-| `flows:openalex` | Grant arcs from OpenAlex (cached) |
+| `flows:openalex` | Grant arcs from OpenAlex funders (`OPENALEX_FUNDER_IDS` list, cursor-paged with key, cached) |
 | `flows:13f` | Fund arcs from every 13F-HR filer (core-scaled workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it, `THIRTEENF_SKIP_STALE=1` drops dead filers; unplaceable funds stub for coords retry) |
 | `global:sync` | International companies (Wikidata → GLEIF) + ownership arcs (`GLOBAL_LIMIT`, `GLOBAL_MAX_CHILDREN`) |
 | `tickers:global` | Backfill primary tickers on `lei:` rows via ISIN→OpenFIGI (same `GLOBAL_LIMIT` as the sync) |
@@ -278,7 +278,7 @@ From `whofundsit/backend/` (pipeline order):
 | `geo:snapshot` | Export address→coords mapping into the committed ODbL seed for fresh clones |
 | `ingest:all` | `ingest` + `coords_populate` in one go |
 | `pipeline` | Geocode pending entities (≤100/run) + Modal cleanup when configured |
-| `flows:openalex` | Grant arcs from OpenAlex (cached) |
+| `flows:openalex` | Grant arcs from OpenAlex funders (`OPENALEX_FUNDER_IDS` list, cursor-paged with key, cached) |
 | `flows:13f` | Fund arcs from every 13F-HR filer (core-scaled workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it, `THIRTEENF_SKIP_STALE=1` drops dead filers; unplaceable funds stub for coords retry) |
 | `global:sync` | International companies (Wikidata → GLEIF) + ownership arcs (`GLOBAL_LIMIT`, `GLOBAL_MAX_CHILDREN`) |
 | `tickers:global` | Backfill primary tickers on `lei:` rows via ISIN→OpenFIGI (same `GLOBAL_LIMIT` as the sync) |

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
+import { cachedJson, cachedJsonDaily, cacheKey, apiLog } from "./httpCache.js";
 import { infoTableXml, latest13F, parseInfoTable } from "./thirteenF.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
@@ -171,7 +171,7 @@ async function liveConceptValue(
   currency: string,
 ): Promise<number | null> {
   const cik10 = cik.padStart(10, "0");
-  const doc = await cachedJson<{
+  const doc = await cachedJsonDaily<{
     facts?: Record<string, Record<string, { units?: Record<string, CompanyFact[]> }>>;
   }>(`verify/companyfacts/CIK${cik10}.json`, () =>
     sec(() => {
