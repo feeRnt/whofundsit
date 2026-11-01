@@ -13,7 +13,21 @@ This webapp is an interactive global corporate financing map that showcasess the
 
 ### Demo quickstart (~2 minutes)
 
-1. Start Postgres, e.g.:
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/feeRnt/whofundsit && cd whofundsit
+   cp backend/.env.example backend/.env
+
+   npm install
+   # If `npm install` warns that install scripts were blocked (esbuild,
+   # prisma), allow them and re-run before the demo:
+   #`npm install-scripts approve esbuild @prisma/engines prisma && npm install`.
+   npm run demo
+   ```
+   This pushes the schema, loads the committed seed dataset, builds, and
+   serves on one port.
+
+2. Start Postgres, e.g.:
 ### Docker:
    `docker run --name whofundsit-pg -e POSTGRES_PASSWORD=YOUR_PASSWORD -e POSTGRES_DB=whofundsit -p 5432:5432 -d postgres:16`
 ### No-Docker Postgres
@@ -28,40 +42,18 @@ This webapp is an interactive global corporate financing map that showcasess the
    initdb -D $HOME/whofundsit -E UTF8 --auth=trust
    pg_ctl -D $HOME/whofundsit -o "-p 5433 -k /tmp" -l $HOME/whofundsit.log start
    createdb -h /tmp -p 5433 whofundsit
-   export DATABASE_URL="postgresql://$USER@localhost:5433/whofundsit"
-```
+   echo "DATABASE_URL="postgresql://$USER@localhost:5433/whofundsit"" >> backend/.env
 
-- With sudo:
-```bash
-   sudo -iu postgres initdb -D /var/lib/postgres/data
-   sudo systemctl start postgresql
-   sudo -iu postgres createuser -s $USER && createdb whofundsit
-```
-
-2. For repo:
-   ```bash
-   git clone https://github.com/feeRnt/whofundsit && cd whofundsit
-   cp backend/.env.example backend/.env   # works as-is with the docker command above
-   npm install
-   npm run demo
-   ```
-   This pushes the schema, loads the committed seed dataset, builds, and
-   serves on one port.
-
-   If `npm install` warns that install scripts were blocked (esbuild,
-   prisma), allow them and re-run before the demo:
-   `npm install-scripts approve esbuild @prisma/engines prisma && npm install`.
-
-   Usermode postgres (step 1, no docker)? The `.env` default points at 5432,
-   so export the step-1 URL first (port 5433) in the same shell, and make
-   sure the server is started (`pg_ctl -D $HOME/whofundsit -l
-   $HOME/whofundsit.log start`). Otherwise you'll get `P1001: Can't reach
-   database server at localhost:5432`. If port 5433 is already taken
-   (`ss -ltn | grep 5433`), stop the stale server first:
-   `pg_ctl -D $HOME/whofundsit stop`, then start again.
+   # Make sure the server is started (`pg_ctl -D $HOME/whofundsit -l
+   # $HOME/whofundsit.log start`). Otherwise you'll get `P1001: Can't reach
+   # database server at localhost:5432`. If port 5433 is already taken
+   # (`ss -ltn | grep 5433`), stop the stale server first:
+   # `pg_ctl -D $HOME/whofundsit stop`, then start again.
 
 3. Open `http://localhost:4000` in a browser: globe/flat-map toggle, click any
    dot for value, address, and EDGAR evidence links.
+   On another device on your LAN? Run step 2 with `HOST=0.0.0.0` prefixed and
+   open the `on your LAN:` URL from the startup log instead.
 
 No SEC calls, no API keys, and no ingest wait: the demo dataset ships in the repo.
 

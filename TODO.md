@@ -40,6 +40,11 @@
       13f → export — resumable, cached).
 - [ ] **Free API keys before scale-up runs** (OpenAlex for cursor-paging past 200 works;
       EDINET + Open DART keys for Japan/Korea loaders).
+- [ ] **Euro/Asia rows missing from served data** (observed 2026-11-01: the map
+      shows EDGAR + 13F only, no `global`/`twse`/ESEF rows. Suspects: ungeocoded
+      (lat/lng 0 filtered?), `/api/entities` order/limit burying them, or the
+      export predating `global:sync`. Check DB source counts, then the endpoint's
+      filter/order, then re-export.)
 
 ## Beneficial ownership (top individual owners)
 
