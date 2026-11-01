@@ -225,6 +225,9 @@ const missLog = new Set<string>();
 let deadLinesLoaded = false;
 let deadHits = 0;
 let junkHits = 0;
+// Running totals across runPipeline batches in this process (coords --all
+// calls it repeatedly), so every progress line shows the run so far.
+const runTotals = { geocoded: 0, failed: 0, skipped: 0 };
 
 function ensureDeadLines(): void {
   if (deadLinesLoaded) {
@@ -435,7 +438,8 @@ async function geocodeLocalEach(
       // Paced at 1.1s/query, so remaining count converts directly to ETA.
       const remain = Math.round(((queries.length - i) * 1100) / 1000);
       console.log(
-        `[coords] ${tag} ${i}/${queries.length}, ~${formatDuration(remain)} left`,
+        `[coords] ${tag} ${i}/${queries.length}, ~${formatDuration(remain)} left ` +
+          `| run: ${runTotals.geocoded} placed, ${runTotals.failed} failed, ${runTotals.skipped} skipped`,
       );
     }
   }
@@ -584,6 +588,7 @@ export async function runPipeline(
     let geocoded = 0;
     let normalized = 0;
     let skipped = 0;
+    let failed = 0;
     let modalCalls = 0;
     deadHits = 0;
     junkHits = 0;
@@ -622,6 +627,7 @@ export async function runPipeline(
 
       if (status === "failed") {
         console.log(`[coords] llm-queue: ${entity.id} (${entity.name})`);
+        failed += 1;
       }
       await prisma.entity.update({
         where: { id: entity.id },
@@ -642,6 +648,9 @@ export async function runPipeline(
     }
 
     flushMissLog(); // persist dead lines next to the geocode cache
+    runTotals.geocoded += geocoded;
+    runTotals.failed += failed;
+    runTotals.skipped += skipped;
     console.log(
       `[coords] batch: ${entities.length} scanned in ${formatDuration((Date.now() - t0) / 1000)}`,
     );
