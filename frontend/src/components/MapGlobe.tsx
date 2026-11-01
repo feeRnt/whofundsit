@@ -203,7 +203,7 @@ export default function MapGlobe({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, focusTick]);
 
-  // The map remounts on projection/basemap toggle; show the spinner until onLoad.
+  // The map remounts on projection/basemap toggle; show a loading note until onLoad.
   useEffect(() => {
     setMapReady(false);
     setContextLost(false);
@@ -290,21 +290,22 @@ export default function MapGlobe({
       pickable: true,
       wrapLongitude: true,
       getPath: (d) => d.path,
-      // KDE-blue grants, red ownership, reddish-orange 13F money arcs.
-      // 13F arcs run faint + thin: hundreds overlap at funder hubs, so low
-      // single-arc alpha lets dense bundles read as glow, not a solid blob.
+      // KDE-blue grants, thin transparent red ownership, reddish-orange
+      // 13F money arcs. 13F arcs run faint + thin: hundreds overlap at
+      // funder hubs, so low single-arc alpha lets dense bundles read as
+      // glow, not a solid blob.
       getColor: (d) =>
         d.flowType === "grant"
           ? [61, 174, 233, 150]
           : d.flowType === "ownership"
-            ? [239, 68, 68, 150]
+            ? [239, 68, 68, 90]
             : [251, 146, 60, 55],
       // Per-type widths (works-counts vs dollars need different scales).
       getWidth: (d) =>
         d.flowType === "13f"
           ? Math.max(1, Math.min(3, Math.log10(d.amount) - 4))
           : d.flowType === "ownership"
-            ? 2.5
+            ? 1.5
             : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2)),
       widthUnits: "pixels",
       widthMinPixels: 1,
@@ -502,9 +503,7 @@ export default function MapGlobe({
       </div>
     </Map>
     {!mapReady && !mapError && (
-      <div className="map-loading" aria-label="Loading map">
-        <div className="spinner" />
-      </div>
+      <div className="map-note">Loading map…</div>
     )}
     {showHint && <ZoomHint onGone={hideHint} />}
     </>

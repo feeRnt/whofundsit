@@ -109,15 +109,19 @@ const OTHER_COLOR = "#64748b";
 // Ownership ring: top 6 tracked 13F holders get slices, the rest merge
 // into gray "Other". With a market cap (shares × live price) every slice
 // is a true % and the public float gets a sized dark slice; without one
-// the ring falls back to tracked-relative and Public stays an unsized "?" row.
+// the ring falls back to tracked-relative and Public shows — with the
+// missing input named (no ticker / no CIK / fetch failed). Tracked $
+// over market cap (overlapping filings) reads as ≈0%, not missing.
 function StakesRing({
   stakes,
   entities,
   marketCap,
+  capNote,
 }: {
   stakes: Flow[];
   entities: Entity[];
   marketCap: number | null;
+  capNote: string | null;
 }) {
   const total = stakes.reduce((a, f) => a + f.amount, 0);
   if (stakes.length === 0 || total <= 0) {
@@ -150,6 +154,10 @@ function StakesRing({
     acc += restTotal / base;
   }
   const publicFrac = trueMode && marketCap !== null ? 1 - total / marketCap : 0;
+  // Tracked 13F $ can exceed market cap (parents + sub-advisors file
+  // overlapping positions): untracked is then ~0, not missing.
+  const exceeds =
+    !trueMode && marketCap !== null && marketCap > 0 && total > marketCap;
   if (publicFrac > 0) {
     arcs.push({ key: "public", frac: publicFrac, offset: acc, color: "#334155" });
   }
@@ -218,22 +226,34 @@ function StakesRing({
           title={
             trueMode
               ? "10-K shares outstanding minus tracked 13F positions: retail, insiders, small funds"
-              : "Retail, insiders and small funds never appear in 13F filings"
+              : exceeds
+                ? "Tracked 13F reports cover ~100%+ — overlapping filings (parents + sub-advisors)"
+                : (capNote ??
+                  "Retail, insiders and small funds never appear in 13F filings")
           }
         >
           <span className="swatch swatch-unknown">?</span>
           <span className="stakes-name">
-            {trueMode ? "Untracked shares" : "Untracked funding"}
+            {marketCap !== null ? "Untracked shares" : "Untracked funding"}
           </span>
-          {publicFrac > 0 && (
-            <span className="stakes-pct">{(publicFrac * 100).toFixed(1)}%</span>
+          {trueMode ? (
+            publicFrac > 0 && (
+              <span className="stakes-pct">{(publicFrac * 100).toFixed(1)}%</span>
+            )
+          ) : exceeds ? (
+            <span className="stakes-pct">≈0%</span>
+          ) : (
+            <span className="stakes-pct">—</span>
           )}
         </li>
       </ul>
       <p className="stakes-note">
         {trueMode && marketCap !== null
           ? `True % of ~${formatMoney(marketCap)} market cap.`
-          : "Split of tracked 13F $ — true % needs market cap."}
+          : exceeds
+            ? "Tracked 13F $ ≥ market cap — overlapping filings."
+            : (capNote ??
+              "Split of tracked 13F $ — true % needs market cap.")}
       </p>
     </div>
   );
@@ -308,6 +328,15 @@ export default function EntityPopup({
     };
   }, [cik]);
   const marketCap = shares !== null && quote !== null ? shares * quote.close : null;
+  // Fallback diagnosis: name the exact missing market-cap input per row.
+  const capNote =
+    marketCap !== null
+      ? null
+      : !ticker
+        ? "True % needs a live price — no ticker on this row."
+        : !cik
+          ? "True % needs a 10-K share count — no SEC CIK."
+          : "True % needs shares + price — fetch failed.";
   // Ring view switch: true market-cap % when the data supports it, else
   // the tracked-relative 13F funding view. State defaults to real %;
   // the toggle only renders when both views are actually available.
@@ -363,6 +392,7 @@ export default function EntityPopup({
         stakes={stakes}
         entities={entities}
         marketCap={ringTrue ? marketCap : null}
+        capNote={ringTrue ? capNote : null}
       />
       {hasFlows && (
         <button
