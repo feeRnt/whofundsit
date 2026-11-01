@@ -61,6 +61,13 @@ function nominatimUserAgent(): string {
   );
 }
 
+// A 5xx or network blip must never kill a multi-hour coords run: it is a
+// miss for THIS run (never cached, retried next time). 4xx still throws —
+// a 403 means our usage is the problem and must be heard. Pure.
+export function shouldSwallowGeoError(status: number | undefined): boolean {
+  return status === undefined || status >= 500;
+}
+
 // Direct Nominatim calls from this machine: memory, then file cache, then
 // one rate-limited call (misses cache too, so they never re-query).
 function geoPath(text: string): string {
@@ -72,8 +79,10 @@ export async function geocodeLocal(text: string): Promise<Coords | null> {
   if (cached !== undefined) {
     return cached;
   }
-  const result = await cachedJson<Coords | null>(geoPath(text), () =>
-    nominatim(async () => {
+  let result: Coords | null;
+  try {
+    result = await cachedJson<Coords | null>(geoPath(text), () =>
+      nominatim(async () => {
       const { data } = await axios.get<NominatimHit[]>(
         "https://nominatim.openstreetmap.org/search",
         {
@@ -88,7 +97,17 @@ export async function geocodeLocal(text: string): Promise<Coords | null> {
       const hit = data[0];
       return hit ? { lat: Number(hit.lat), lng: Number(hit.lon) } : null;
     }),
-  );
+    );
+  } catch (err) {
+    const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+    if (!shouldSwallowGeoError(status)) {
+      throw err;
+    }
+    console.warn(
+      `[coords] Nominatim ${status ?? "network"} error for ${JSON.stringify(text)} — skipping this run`,
+    );
+    return null;
+  }
   geocodeCache.set(text, result);
   return result;
 }
@@ -217,6 +236,9 @@ export function fallbackQueries(address: string): string[] {
     out.push(clean.slice(-3).join(", "));
   }
   if (clean.length >= 2) {
+    // State+zip pairs ("IL, 62701") are intentional: Nominatim usually
+    // misses them fast, and when it 503s the caller swallows it per-query
+    // (see shouldSwallowGeoError) instead of dying.
     out.push(clean.slice(-2).join(", "));
   }
   return [...new Set(out)];

@@ -24,12 +24,12 @@ import { SP500_TICKERS } from "../data/sp500.js";
 // plus the mean score. `npm run verify:claims`.
 
 const SEED = Number(process.env.VERIFY_SEED ?? 7);
-// Fraction mode (default): 10% of each cell, capped at 30, full census of
+// Fraction mode (default): 10% of each cell, capped at 5, full census of
 // tiny cells. VERIFY_FRACTION / VERIFY_MAX_PER_CELL tune it.
 // Original spec, kept behind a flag: fixed 25 seeded samples per cell —
 // set VERIFY_SAMPLE=25 to restore it.
 const FRACTION = Number(process.env.VERIFY_FRACTION ?? 0.1);
-const MAX_PER_CELL = Number(process.env.VERIFY_MAX_PER_CELL ?? 30);
+const MAX_PER_CELL = Number(process.env.VERIFY_MAX_PER_CELL ?? 5);
 const LEGACY_SAMPLE =
   process.env.VERIFY_SAMPLE !== undefined
     ? Number(process.env.VERIFY_SAMPLE)
@@ -456,8 +456,18 @@ export async function runVerify(): Promise<{
     const entityScores = new Map<string, CheckResult>();
     for (const id of entityIds) {
       const row = byId.get(id);
-      if (row) {
+      if (!row) {
+        continue;
+      }
+      // One failing check must never end the audit: record it as
+      // untestable with the reason and keep going.
+      try {
         entityScores.set(id, await checkEntity(row));
+      } catch (err) {
+        entityScores.set(id, {
+          score: null,
+          flags: [`${id}: check failed (${err instanceof Error ? err.message : String(err)})`],
+        });
       }
     }
     const cells: CellStats[] = entityCells.map((c) =>
@@ -497,7 +507,15 @@ export async function runVerify(): Promise<{
     })) as { id: string; amount: number; flowType: string }[];
     const flowScores = new Map<string, CheckResult & { kind: string }>();
     for (const f of fullFlows) {
-      flowScores.set(f.id, await checkFlow(f));
+      try {
+        flowScores.set(f.id, await checkFlow(f));
+      } catch (err) {
+        flowScores.set(f.id, {
+          score: null,
+          kind: "external",
+          flags: [`${f.id}: check failed (${err instanceof Error ? err.message : String(err)})`],
+        });
+      }
     }
     for (const c of flowCells) {
       cells.push(

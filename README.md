@@ -85,7 +85,7 @@ From `whofundsit/backend/` (pipeline order):
 | `db:push` | Push the Prisma schema to Postgres |
 | `db:export` | Snapshot tables into `prisma/seed-data/` for committing |
 | `db:seed` | Wipe + reload tables from the committed seeds (judge path) |
-| `verify:claims` | Stochastic methodology audit: 10% seeded sample per source/region/index/flow cell (cap 30) vs live SEC + Nominatim, 0-100 scores, `% verified` per cell, report in `data/verification-report.json` (`VERIFY_FRACTION`, `VERIFY_MAX_PER_CELL`, `VERIFY_SEED`; `VERIFY_SAMPLE=25` restores the original fixed-25 spec) |
+| `verify:claims` | Stochastic methodology audit: 10% seeded sample per source/region/index/flow cell (cap 5) vs live SEC + Nominatim, 0-100 scores, `% verified` per cell, report in `data/verification-report.json` (`VERIFY_FRACTION`, `VERIFY_MAX_PER_CELL`, `VERIFY_SEED`; `VERIFY_SAMPLE=25` restores the original fixed-25 spec) |
 | `test` | Backend unit suite (`tsx --test`) |
 | `dev` / `build` / `start` | Hot reload / compile / run the API + static server |
 

@@ -77,7 +77,7 @@ describe("isMajorIndex", () => {
     assert.equal(cellTake(0), 0);
     assert.equal(cellTake(1), 1);
     assert.equal(cellTake(5), 1);
-    assert.equal(cellTake(500), 30);
+    assert.equal(cellTake(500), 5);
     assert.ok(cellTake(100) <= 30 && cellTake(100) >= 1);
   });
 

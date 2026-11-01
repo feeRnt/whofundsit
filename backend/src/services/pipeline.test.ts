@@ -5,6 +5,7 @@ import {
   fallbackQueries,
   formatDuration,
   junkAddress,
+  shouldSwallowGeoError,
 } from "./pipeline.js";
 
 describe("formatDuration", () => {
@@ -72,6 +73,21 @@ describe("fallbackQueries", () => {
 });
 
 describe("junkAddress", () => {
+  it("keeps state+zip pairs; the 503 they can draw is swallowed per-query", () => {
+    assert.deepEqual(fallbackQueries("1 MAIN ST, SPRINGFIELD, IL, 62701"), [
+      "SPRINGFIELD, IL, 62701",
+      "IL, 62701",
+    ]);
+  });
+
+  it("swallows 5xx/network geo errors, rethrows 4xx", () => {
+    assert.equal(shouldSwallowGeoError(503), true);
+    assert.equal(shouldSwallowGeoError(500), true);
+    assert.equal(shouldSwallowGeoError(undefined), true);
+    assert.equal(shouldSwallowGeoError(403), false);
+    assert.equal(shouldSwallowGeoError(404), false);
+  });
+
   it("junks placeholders and bare registrant names, keeps localities", () => {
     assert.equal(junkAddress(""), true);
     assert.equal(junkAddress("—"), true);
