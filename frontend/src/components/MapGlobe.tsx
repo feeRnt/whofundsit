@@ -38,13 +38,8 @@ const TILE_ERROR_BUDGET = 25;
 // Opening view and reset target: US-centered.
 const HOME = { longitude: -98, latitude: 39, zoom: 2.5 };
 
-// Flight tuning (one place): search picks dive straight to FOCUS_ZOOM;
-// arc clicks first pull back to SWEEP_OUT_ZOOM over SWEEP_OUT_MS, then
-// dive to FOCUS_ZOOM. Delete the zoomTo + moveend chain in sweepToPoint
-// to drop the pull-back entirely.
+// Flight tuning (one place): search picks and arc clicks dive to FOCUS_ZOOM.
 const FOCUS_ZOOM = 12;
-const SWEEP_OUT_ZOOM = 2;
-const SWEEP_OUT_MS = 450;
 
 function tooltip({ object }: PickingInfo) {
   if (!object) {
@@ -305,32 +300,6 @@ export default function MapGlobe({
     id: "",
     toFunder: false,
   });
-  // Sweep generation: rapid arc clicks supersede in-flight sweeps instead
-  // of chaining stale dives.
-  const sweepToken = useRef(0);
-
-  // Arc clicks always sweep out-then-in: unlike search picks, arc endpoints
-  // are already on screen, so a plain flight would collapse to a pan.
-  // Pull back to the world view, then dive to the endpoint.
-  function sweepToPoint(lat: number, lng: number) {
-    const map = mapRef.current;
-    if (!map) {
-      return;
-    }
-    if (map.getZoom() <= SWEEP_OUT_ZOOM) {
-      // Already wide: zoomTo would no-op and fire no moveend to chain from.
-      map.flyTo({ center: [lng, lat], zoom: FOCUS_ZOOM });
-      return;
-    }
-    const token = ++sweepToken.current;
-    map.zoomTo(SWEEP_OUT_ZOOM, { duration: SWEEP_OUT_MS });
-    map.once("moveend", () => {
-      if (token === sweepToken.current) {
-        mapRef.current?.flyTo({ center: [lng, lat], zoom: FOCUS_ZOOM });
-      }
-    });
-  }
-
   function handleClick(info: PickingInfo) {
     const object = info.object as Record<string, unknown> | undefined;
     if (object && !("flowType" in object)) {
@@ -349,7 +318,7 @@ export default function MapGlobe({
       const dest = arcPingPong.current.toFunder
         ? flow.sourceEntity
         : flow.targetEntity;
-      sweepToPoint(dest.lat, dest.lng);
+      flyToPoint(dest.lat, dest.lng);
     }
     setSelected(null);
   }

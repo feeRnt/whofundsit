@@ -76,13 +76,33 @@ export default function App() {
     [entities, disabledSources],
   );
 
-  // Dots slider: top-N by assets so sliding left keeps the giants.
+  // Dots slider: moneyed/money-less round-robin, biggest-first per bucket.
   // Arcs follow automatically — MapGlobe only draws arcs whose ends are shown.
   const shownEntities = useMemo(() => {
-    const sorted = [...visibleEntities].sort(
-      (a, b) => b.fundsVolume - a.fundsVolume,
-    );
-    return dotLimit == null ? sorted : sorted.slice(0, dotLimit);
+    // Round-robin moneyed/money-less so zero-volume rows (global sync,
+    // universities) show up instead of sinking under the asset sort.
+    // Each bucket stays biggest-first; filter() copies, so sort() is safe.
+    const moneyed = visibleEntities.filter((e) => e.fundsVolume > 0);
+    const broke = visibleEntities.filter((e) => !(e.fundsVolume > 0));
+    moneyed.sort((a, b) => b.fundsVolume - a.fundsVolume);
+    broke.sort((a, b) => b.fundsVolume - a.fundsVolume);
+    if (dotLimit == null) {
+      return [...moneyed, ...broke];
+    }
+    const out: typeof moneyed = [];
+    for (
+      let i = 0;
+      out.length < dotLimit && (i < moneyed.length || i < broke.length);
+      i++
+    ) {
+      if (i < moneyed.length && out.length < dotLimit) {
+        out.push(moneyed[i]);
+      }
+      if (i < broke.length && out.length < dotLimit) {
+        out.push(broke[i]);
+      }
+    }
+    return out;
   }, [visibleEntities, dotLimit]);
 
   const toggleSource = (key: string) =>
