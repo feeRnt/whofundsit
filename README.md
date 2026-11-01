@@ -54,7 +54,7 @@ From `whofundsit/` (workspace shortcuts):
 | `dev:backend` | Express with hot reload |
 | `build` | Production builds, frontend then backend |
 | `serve` | Build + serve both on `:4000` (same-origin demo) |
-| `demo` | `db:push` + `db:seed` + `serve` — the judge path |
+| `demo` | `db:push` + `db:seed` + `serve` — the judge path (seed refuses non-empty DBs unless `DEMO_WIPE_OK=1`) |
 
 From `whofundsit/frontend/`:
 

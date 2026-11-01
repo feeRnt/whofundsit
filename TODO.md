@@ -19,7 +19,8 @@
       NOTE (2026-11-01 chain): 842+ placed rows; most remaining misses are
       ungeocoded targets or ETF holdings, fixed by coords reruns, not matching.)
 - [ ] **Demo rehearsal on a fresh database** (`npm run demo` from zero → globe with
-      listings, arcs, popups; packaging is code-reviewed only, never run end-to-end).
+      listings, arcs, popups; packaging is code-reviewed only, never run end-to-end;
+      seed now refuses non-empty DBs without DEMO_WIPE_OK=1).
 - [ ] **Geocode backfill, 2nd pass** (2026-11-01 chain placed 842+ rows; rerun
       13f/500 to convert city-fallback hits + stub the rest, then coords, then
       13f again to pick up placed stubs — resumable, cached).

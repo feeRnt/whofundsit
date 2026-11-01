@@ -35,6 +35,9 @@ Running log for picking work back up. Update when the picture changes.
   ESEF date guard + per-row update catch. Seed export/import round-trip
   verified field-complete (currency, mergedFrom, sleeves).
 - `npm run demo` never rehearsed on a fresh DB (do right after chain).
+  Demo-chain audit done: frontend is same-origin safe, seed round-trip
+  field-complete, and `db:seed` now refuses non-empty DBs without
+  DEMO_WIPE_OK=1 (fresh judge DBs unaffected).
 - User's checkout vs agent worktree may differ (they once saw fce0a2a
   files as uncommitted) — reconcile before any push.
 

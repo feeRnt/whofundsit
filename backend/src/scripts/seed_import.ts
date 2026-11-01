@@ -4,10 +4,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { wipeRefusal } from "../services/seedGuard.js";
 
 // Judge path: `npm run db:seed` wipes the demo tables and reloads them from the
 // committed seed files. Requires `npm run db:push` first (the `demo` script
-// chains all three). Fails loudly when the seed files are absent.
+// chains all three). Fails loudly when the seed files are absent, and refuses
+// a non-empty database without DEMO_WIPE_OK=1 (see seedGuard).
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = path.join(here, "..", "..", "prisma", "seed-data");
 
@@ -80,6 +82,18 @@ try {
     }),
   );
 
+  const [entityCount, flowCount] = await Promise.all([
+    prisma.entity.count(),
+    prisma.capitalFlow.count(),
+  ]);
+  const refusal = wipeRefusal(
+    entityCount,
+    flowCount,
+    process.env.DEMO_WIPE_OK,
+  );
+  if (refusal) {
+    throw new Error(refusal);
+  }
   await prisma.capitalFlow.deleteMany();
   await prisma.entity.deleteMany();
   if (entities.length > 0) {
