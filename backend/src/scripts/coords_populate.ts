@@ -46,6 +46,7 @@ if (args.includes("--all")) {
 }
 
 const retryFailed = args.includes("--retry-failed");
+console.log(`[coords] pending: ${pending} addresses`);
 if (scope === "top") {
   const summary = await runPipeline({
     normalize: false,
