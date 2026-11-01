@@ -290,12 +290,12 @@ export default function MapGlobe({
       pickable: true,
       wrapLongitude: true,
       getPath: (d) => d.path,
-      // Greenish grants, red ownership, reddish-orange 13F money arcs.
+      // KDE-blue grants, red ownership, reddish-orange 13F money arcs.
       // 13F arcs run faint + thin: hundreds overlap at funder hubs, so low
       // single-arc alpha lets dense bundles read as glow, not a solid blob.
       getColor: (d) =>
         d.flowType === "grant"
-          ? [52, 211, 153, 140]
+          ? [61, 174, 233, 150]
           : d.flowType === "ownership"
             ? [239, 68, 68, 150]
             : [251, 146, 60, 55],
@@ -496,7 +496,7 @@ export default function MapGlobe({
           Ownership
         </span>
         <span className="legend-item">
-          <span className="legend-line" style={{ background: "#34d399" }} />
+          <span className="legend-line" style={{ background: "#3daee9" }} />
           Grant
         </span>
       </div>
