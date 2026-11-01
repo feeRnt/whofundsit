@@ -13,9 +13,9 @@ import { SP500_TICKERS } from "../data/sp500.js";
 //
 // User's note, kept verbatim in spirit: run 20-25 random/stochastic tests
 // per country/index/source and assign an x% verification score to that
-// index. We are not testing our data (it comes from primary sources and
-// should be correct) — we are testing our own implementation and
-// methodology for edge cases, bugs, and unhandled errors.
+// index. Ideally we are not testing our data (it comes from primary sources and
+// should be correct) , rather we are testing our own implementation and
+// methodology for edge cases, bugs, or other errors that were unhandled.
 //
 // Strata: entity SOURCE cells + REGION cells (us/non-us/unknown) + INDEX
 // cells (major/long-tail), and one cell per flow type. Every cell samples
@@ -331,24 +331,19 @@ interface CellStats {
   tested: number;
   untestable: number;
   passed: number;
-  pctVerified: number;
-  mean: number;
+  // null when nothing was testable: "n/a", never 0% (0% means all failed).
+  pctVerified: number | null;
+  mean: number | null;
   flags: string[];
 }
 
-function summarize(
+export function summarize(
   cell: string,
   kind: string,
   results: CheckResult[],
 ): CellStats {
   const tested = results.filter((r) => r.score !== null);
   const passed = tested.filter((r) => (r.score ?? 0) >= 90).length;
-  const mean =
-    tested.length === 0
-      ? 0
-      : Math.round(
-          tested.reduce((a, r) => a + (r.score ?? 0), 0) / tested.length,
-        );
   return {
     cell,
     kind,
@@ -357,8 +352,13 @@ function summarize(
     untestable: results.length - tested.length,
     passed,
     pctVerified:
-      tested.length === 0 ? 0 : Math.round((passed / tested.length) * 100),
-    mean,
+      tested.length === 0 ? null : Math.round((passed / tested.length) * 100),
+    mean:
+      tested.length === 0
+        ? null
+        : Math.round(
+            tested.reduce((a, r) => a + (r.score ?? 0), 0) / tested.length,
+          ),
     flags: results.flatMap((r) => r.flags).slice(0, 10),
   };
 }

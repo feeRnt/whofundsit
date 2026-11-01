@@ -8,6 +8,7 @@ import {
   parseFlowRef,
   regionBucket,
   sampleIndices,
+  summarize,
 } from "./claimsVerify.js";
 
 describe("mulberry32 + sampleIndices", () => {
@@ -58,6 +59,19 @@ describe("regionBucket", () => {
 });
 
 describe("isMajorIndex", () => {
+  it("reports n/a, not 0%, for cells with nothing testable", () => {
+    const empty = summarize("region=xx", "entity", []);
+    assert.equal(empty.pctVerified, null);
+    assert.equal(empty.mean, null);
+    const full = summarize("region=us", "entity", [
+      { score: 100, flags: [] },
+      { score: null, flags: ["no live series"] },
+    ]);
+    assert.equal(full.pctVerified, 100);
+    assert.equal(full.tested, 1);
+    assert.equal(full.untestable, 1);
+  });
+
   it("spots S&P/Nasdaq members by ticker", () => {
     assert.equal(isMajorIndex(["AAPL", "ZZZ"]), true);
     assert.equal(isMajorIndex(["ZZZNOTREAL"]), false);
