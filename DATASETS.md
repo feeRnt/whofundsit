@@ -79,7 +79,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   restrictions). CUSIP *input* identifiers belong to CUSIP Global Services, so we
   use them only as ephemeral lookup keys: the CUSIP→ticker map lives in the
   gitignored cache and CUSIPs are never committed anywhere new.
-- **Local copies (gitignored):** `backend/data/cache/13f/cusip-map.json`.
+- **Local copies (gitignored):** `backend/data/cache/13f/cusip-map.json`,
+  `backend/data/cache/openfigi/isin-map.json` (ISIN→primary listing for
+  `tickers:global`; ISINs get the same ephemeral treatment since US ISINs
+  embed a CUSIP).
 
 ## ESEF repository (EU/UK financial facts)
 

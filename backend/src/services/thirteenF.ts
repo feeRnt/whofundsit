@@ -13,6 +13,8 @@ import {
   readAddressMap,
   type BulkAddress,
 } from "./bulkLoad.js";
+// Shared OpenFIGI limiter (one per process: the cap is per-IP).
+import { openfigiLimit } from "./openfigi.js";
 import {
   createRateLimiter,
   expandLocationText,
@@ -43,9 +45,6 @@ const SEC_MIN_INTERVAL_MS = 150;
 
 // Chained limiters hold under the worker pool (plain timestamps would not).
 const secLimit = createRateLimiter(SEC_MIN_INTERVAL_MS);
-const openfigiLimit = createRateLimiter(
-  process.env.OPENFIGI_API_KEY ? 300 : 2500,
-);
 
 function secUA(): string {
   return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";

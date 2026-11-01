@@ -174,12 +174,20 @@ async function sparqlRegion(
   return parseCompanyRows(doc);
 }
 
-async function sparqlCompanies(limit: number): Promise<GlobalCompany[]> {
+export async function sparqlCompanies(limit: number): Promise<GlobalCompany[]> {
   const out: GlobalCompany[] = [];
   const seen = new Set<string>();
   for (const r of GLOBAL_REGIONS) {
     const quota = Math.max(5, Math.round(limit * r.share));
-    const batch = await sparqlRegion(r.name, buildCompanyQuery(quota, r.qid));
+    // Big quotas (5000+ total) can time out a region inside Wikidata's 60s
+    // cap: skip it with a warning instead of losing the whole run.
+    let batch: GlobalCompany[];
+    try {
+      batch = await sparqlRegion(r.name, buildCompanyQuery(quota, r.qid));
+    } catch (err) {
+      console.warn(`[global] region ${r.name}: query failed, skipping (${err})`);
+      continue;
+    }
     let fresh = 0;
     for (const c of batch) {
       if (seen.has(c.lei)) {
