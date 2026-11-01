@@ -9,6 +9,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { cachedJson, readCache, writeCache } from "./httpCache.js";
 import {
   jsonEntries,
+  locationTag,
   readAddressMap,
   type BulkAddress,
 } from "./bulkLoad.js";
@@ -728,6 +729,9 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
         });
         return;
       }
+      // locationTag also backfills the "—"/"US-X0" labels older runs wrote.
+      const fundLabel = locationTag(state, addrCache?.[cikNum]?.address);
+      const fundAddr = addrCache?.[cikNum]?.address ?? null;
       await prisma.entity.upsert({
         where: { id: fundId },
         create: {
@@ -737,8 +741,8 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
           lat: at.lat,
           lng: at.lng,
           fundsVolume: totalUsd,
-          rawAddressText:
-            state && state.length === 2 ? `US-${state}` : (state ?? "—"),
+          rawAddressText: fundLabel,
+          businessAddress: fundAddr,
           tickers: [],
           source: "13f",
         },
@@ -747,6 +751,8 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
           lat: at.lat,
           lng: at.lng,
           fundsVolume: totalUsd,
+          rawAddressText: fundLabel,
+          businessAddress: fundAddr,
           source: "13f",
         },
       });

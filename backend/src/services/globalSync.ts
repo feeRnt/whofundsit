@@ -6,9 +6,12 @@ import { cachedJson, cacheKey } from "./httpCache.js";
 // International backbone: Wikidata SPARQL lists listed companies worldwide
 // (ISIN + LEI + exchange + HQ, CC0, no key), then GLEIF resolves each LEI to
 // a legal HQ address (CC0, no key) and direct children (full records with
-// addresses — ownership arcs need no per-country filings).
-// Row ceilings: GLOBAL_LIMIT companies (default 500), GLOBAL_MAX_CHILDREN
-// direct children per parent (default 200). Everything file-cached.
+// addresses — ownership arcs need no per-country filings). Companies come in
+// per-region quotas (a single LIMIT 500 came back US-heavy and near-empty
+// for Asia); the US is excluded everywhere because SEC data already covers
+// it. Within each region, sitelink count surfaces the biggest companies.
+// Row ceilings: GLOBAL_LIMIT companies total (default 500, split by quota),
+// GLOBAL_MAX_CHILDREN direct children per parent (default 200). Cached.
 
 const GLEIF = "https://api.gleif.org/api/v1";
 const SPARQL = "https://query.wikidata.org/sparql";
@@ -23,12 +26,28 @@ export interface GlobalCompany {
   hq: string | null;
 }
 
-export function buildCompanyQuery(limit: number): string {
-  return `SELECT ?companyLabel ?isin ?lei ?exchangeLabel ?hqLabel WHERE {
+// Wikidata continent QIDs (Europe/Asia/North+South America/Africa/Oceania).
+// A wrong QID yields zero rows, never wrong rows (nothing matches), and
+// cross-region dupes (transcontinental countries) dedupe by LEI downstream.
+export const GLOBAL_REGIONS: { name: string; qid: string; share: number }[] = [
+  { name: "europe", qid: "Q46", share: 0.36 },
+  { name: "asia", qid: "Q48", share: 0.36 },
+  { name: "north-america", qid: "Q49", share: 0.1 },
+  { name: "south-america", qid: "Q18", share: 0.08 },
+  { name: "africa", qid: "Q15", share: 0.06 },
+  { name: "oceania", qid: "Q55643", share: 0.04 },
+];
+
+export function buildCompanyQuery(limit: number, continentQid?: string): string {
+  const region = continentQid
+    ? `  ?company wdt:P17 ?country.\n  ?country wdt:P30 wd:${continentQid}.\n  FILTER(?country != wd:Q30).\n`
+    : "";
+  return `SELECT ?companyLabel ?isin ?lei ?exchangeLabel ?hqLabel (COUNT(?sl) AS ?links) WHERE {
   ?company wdt:P946 ?isin; wdt:P1278 ?lei; wdt:P414 ?exchange.
+${region}  ?sl schema:about ?company.
   OPTIONAL { ?company wdt:P159 ?hq. }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-} LIMIT ${limit}`;
+} GROUP BY ?companyLabel ?isin ?lei ?exchangeLabel ?hqLabel ORDER BY DESC(?links) LIMIT ${limit}`;
 }
 
 interface SparqlBinding {
@@ -135,10 +154,12 @@ export function parseGleifChildren(doc: {
   return out;
 }
 
-async function sparqlCompanies(limit: number): Promise<GlobalCompany[]> {
-  const query = buildCompanyQuery(limit);
+async function sparqlRegion(
+  region: string,
+  query: string,
+): Promise<GlobalCompany[]> {
   const doc = await cachedJson<{ results?: { bindings?: SparqlBinding[] } }>(
-    `global/wikidata-companies-${cacheKey(query)}.json`,
+    `global/wikidata-companies-${region}-${cacheKey(query)}.json`,
     async () =>
       (
         await axios.get(SPARQL, {
@@ -149,6 +170,26 @@ async function sparqlCompanies(limit: number): Promise<GlobalCompany[]> {
       ).data,
   );
   return parseCompanyRows(doc);
+}
+
+async function sparqlCompanies(limit: number): Promise<GlobalCompany[]> {
+  const out: GlobalCompany[] = [];
+  const seen = new Set<string>();
+  for (const r of GLOBAL_REGIONS) {
+    const quota = Math.max(5, Math.round(limit * r.share));
+    const batch = await sparqlRegion(r.name, buildCompanyQuery(quota, r.qid));
+    let fresh = 0;
+    for (const c of batch) {
+      if (seen.has(c.lei)) {
+        continue;
+      }
+      seen.add(c.lei);
+      out.push(c);
+      fresh += 1;
+    }
+    console.log(`[global] region ${r.name}: ${fresh} companies`);
+  }
+  return out;
 }
 
 export async function gleifEntity(lei: string): Promise<{

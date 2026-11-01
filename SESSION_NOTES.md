@@ -47,6 +47,17 @@ Running log for picking work back up. Update when the picture changes.
   Still needs HUMAN eyes: actual globe render in a browser.
 - $422B flow VERIFIED (2026-11-01, two aggregators): Vanguard → NVIDIA $423B
   per Q4-2025 13F (filed 2026-01-29); DB holds $422.74B. Legit.
+- Day chain (2026-11-01): ESEF 9 updated + mass HTTP 429 (retry+1s pacing
+  added; rerun retries uncached failures); TWSE 46/46 unmatched (thin Q3,
+  expected); 13f/500 → 17,784 flows (fallbacks converted old unplaceables);
+  coords pager placing 380-460/run. FRANKLIN TEMPLETON + L&G still stubbed:
+  junk street2 ("LEGAL-FT SECRETARY") + X0 code — fallbacks now try the
+  trailing pair and strip letter-digit codes (57k addresses affected).
+- Search re-pick fixed (focusTick refires flight). Global coverage reworked:
+  per-region quotas (EU/ASIA 36% each etc.), USA excluded (SEC covers it),
+  sitelink-ordered. Location labels fixed: locationTag (no more US-X0 /
+  "—" with address) + displayLocation frontend fallback. 13f reruns
+  backfill fund labels; bulk rows need a re-bulk for new tags.
 - NXP "6.7T" scare = MISREAD, data was right: 8 online sources confirm
   BlackRock → NXP $6,716,412,000, DB holds 6,716,412,097. Fixed the real
   UX bug instead: formatMoney now abbreviates ($6.72B), flow tooltip uses

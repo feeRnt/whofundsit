@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { jsonEntries } from "./bulkLoad.js";
+import { jsonEntries, locationTag } from "./bulkLoad.js";
 
 // Fixture lives next to this file (committed); runners against dist must
 // copy __fixtures__ alongside the compiled test.
@@ -32,5 +32,28 @@ describe("jsonEntries", () => {
       break;
     }
     assert.equal(n, 1);
+  });
+});
+
+describe("locationTag", () => {
+  it("tags real US states, never SEC country codes", () => {
+    assert.equal(locationTag("CT", "100 MAIN ST, GREENWICH, CT, 06830"), "US-CT");
+    assert.equal(
+      locationTag("X0", "ONE COLEMAN STREET, LONDON, X0, EC2R 5AA"),
+      "LONDON, EC2R 5AA",
+    );
+  });
+
+  it("falls back to the trailing city + postcode without a state", () => {
+    assert.equal(
+      locationTag(null, "AERCAP HOUSE, 65 ST. STEPHEN'S GREEN, DUBLIN, D02 YX20"),
+      "DUBLIN, D02 YX20",
+    );
+  });
+
+  it("em-dashes only when there is no address at all", () => {
+    assert.equal(locationTag(null, null), "—");
+    assert.equal(locationTag(null, undefined), "—");
+    assert.equal(locationTag("X0", null), "—");
   });
 });

@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  GLOBAL_REGIONS,
+  buildCompanyQuery,
   parseCompanyRows,
   parseGleifAddress,
   parseGleifChildren,
@@ -109,5 +111,20 @@ describe("parseGleifChildren", () => {
       kids[0].address?.joined,
       "25 Sheppard Avenue West, M2N 6S8 North York, CA",
     );
+  });
+});
+
+describe("buildCompanyQuery", () => {
+  it("scopes to a continent, excludes the USA, orders by sitelinks", () => {
+    const q = buildCompanyQuery(200, "Q48");
+    assert.ok(q.includes("wdt:P30 wd:Q48"));
+    assert.ok(q.includes("FILTER(?country != wd:Q30)"));
+    assert.ok(q.includes("ORDER BY DESC(?links)"));
+    assert.ok(q.includes("LIMIT 200"));
+  });
+
+  it("region quotas sum to a full GLOBAL_LIMIT", () => {
+    const total = GLOBAL_REGIONS.reduce((n, r) => n + r.share, 0);
+    assert.ok(Math.abs(total - 1) < 1e-9, `shares sum to ${total}`);
   });
 });

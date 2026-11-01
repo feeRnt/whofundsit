@@ -232,6 +232,29 @@ function joinAddress(addr: {
 export const ADDRESS_MAP_CACHE = "sec/address-map-v3.json";
 const ADDRESS_MAP_CACHE_LEGACY = "sec/address-map-v2.json";
 
+// Short map label for an SEC address: US-ST for real two-letter states;
+// the trailing city + postcode for foreign filers (their stateOrCountry is
+// a letter-digit code like X0, never a US state). "—" only when there is no
+// address at all. Pure + unit-tested.
+export function locationTag(
+  state: string | null,
+  address: string | null | undefined,
+): string {
+  if (state && /^[A-Z]{2}$/.test(state)) {
+    return `US-${state}`;
+  }
+  if (address) {
+    const parts = address
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p && !/^[A-Z]\d$/.test(p));
+    if (parts.length > 0) {
+      return parts.slice(-2).join(", ");
+    }
+  }
+  return "—";
+}
+
 // v3 adds filer names; v2 entries still serve addresses until rebuilt.
 export function readAddressMap(): Record<string, BulkAddress> | undefined {
   return (
@@ -398,8 +421,7 @@ async function loadFacts(
               lat: 0,
               lng: 0,
               fundsVolume: fact.val as number,
-              rawAddressText:
-                state && state.length === 2 ? `US-${state}` : (state ?? "—"),
+              rawAddressText: locationTag(state, info?.address),
               businessAddress: info?.address ?? null,
               conceptTag: tag,
               tickers: info?.tickers ?? [],
@@ -416,8 +438,7 @@ async function loadFacts(
             update: {
               name: info?.name ?? doc.entityName,
               fundsVolume: fact.val as number,
-              rawAddressText:
-                state && state.length === 2 ? `US-${state}` : (state ?? "—"),
+              rawAddressText: locationTag(state, info?.address),
               businessAddress: info?.address ?? null,
               conceptTag: tag,
               tickers: info?.tickers ?? [],
