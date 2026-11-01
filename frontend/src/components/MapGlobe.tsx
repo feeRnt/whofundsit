@@ -215,6 +215,7 @@ export default function MapGlobe({
     }),
     // projection is a dep on purpose: the overlay remounts on toggle, and a
     // fresh overlay needs fresh layer instances (reused ones render garbage).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [entities, flows, flowEndpoints, selected, projection]);
 
   function handleClick(info: PickingInfo) {

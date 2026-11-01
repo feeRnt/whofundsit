@@ -1,22 +1,29 @@
-# Session notes (2026-10-31, pre-restart)
+# Session notes (2026-10-31 night — agent signed off, user asleep)
 
 Running log for picking work back up. Update when the picture changes.
 
 ## Where things stand
 
 - App healthy: globe/2D toggle, dark popups, accordion menus, focus mode,
-  ownership layer, green grant arcs all shipped. Frontend builds green.
-- Backend 35/35 tests green. Tree clean; all commits `cf408c9` and older.
-- My commits go out as `Muse Code <muse-code@users.local>` via
-  `git -c user.name=... -c user.email=... commit` (standing rule, in memory).
+  ownership layer, green grant arcs all shipped. Frontend builds green,
+  lint 0 errors (5 pre-existing dev-only warnings; the 1 new one silenced
+  with an explained eslint-disable).
+- Backend 44/44 tests green. Tree clean through regional phase 1 +
+  docs; all commits as Muse Code.
+- Standing rules: my commits as `Muse Code <muse-code@users.local>` via
+  `git -c user.name=... -c user.email=... commit`; NEVER push without
+  the user saying so (they asked "should i push", never confirmed).
 
 ## User's runs (their machine, their DB — I never touch it)
 
-- `names:sync` finished (?): renames entities to legal filer names.
-- Full `flows:13f` RUNNING or QUEUED: 16,208 filers discovered (~19h at old
-  single-threaded pace — see perf note below).
-- Still to run: `npm run global:sync`, `coords_populate --all`,
-  `npm run db:export` (+ commit seeds).
+- Overnight chain LAUNCHED ~20:35 GMT: global:sync → coords --all (~5h)
+  → 13f/500 → db:export → seed commit. Fix was `npx prisma db push`
+  (currency column P2022) — user confirmed fce0a2a present, chain green.
+- `names:sync` result unknown (was running at last report).
+- Regionals committed but NEVER RUN LIVE (need chain to finish first).
+- `npm run demo` never rehearsed on a fresh DB (do right after chain).
+- User's checkout vs agent worktree may differ (they once saw fce0a2a
+  files as uncommitted) — reconcile before any push.
 
 ## Key facts learned
 
@@ -35,11 +42,12 @@ Running log for picking work back up. Update when the picture changes.
 
 ## Next steps (ordered)
 
-1. User morning: check overnight chain (global:sync → coords --all → 13f/500 →
-   db:export → seed commit). If green, run `npx prisma db push` (currency col).
+1. User morning: check overnight chain completed (expect coords ~5h the
+   long pole; 13f/500 + global + export after). Verify seed commit landed.
 2. User: trial regionals (`regional:esef`, `regional:twse`), then `db:export`.
 3. User: fresh-DB `npm run demo` rehearsal (non-negotiable before new features).
-4. Later: phase-2 regionals (EDINET + DART need keys + LEI join), CUSIP gains
+4. User: reconcile checkout vs agent worktree, then decide on push (say so!).
+5. Later: phase-2 regionals (EDINET + DART need keys + LEI join), CUSIP gains
    check, OpenFIGI key, dark mode last, beneficial ownership, OpenAlex paging.
 
 ## Shipped overnight (all as Muse Code, builds green, 44/44 tests)
