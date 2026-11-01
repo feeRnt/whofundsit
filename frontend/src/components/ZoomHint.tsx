@@ -7,11 +7,11 @@ export default function ZoomHint({ onGone }: { onGone: () => void }) {
   const [fading, setFading] = useState(false);
   const [gone, setGone] = useState(false);
   useEffect(() => {
-    const fade = setTimeout(() => setFading(true), 4500);
+    const fade = setTimeout(() => setFading(true), 6100);
     const remove = setTimeout(() => {
       setGone(true);
       onGone();
-    }, 5400);
+    }, 7000);
     return () => {
       clearTimeout(fade);
       clearTimeout(remove);
