@@ -271,22 +271,24 @@ export default function MapGlobe({
       wrapLongitude: true,
       getPath: (d) => d.path,
       // Greenish grants, red ownership, reddish-orange 13F money arcs.
+      // 13F arcs run faint + thin: hundreds overlap at funder hubs, so low
+      // single-arc alpha lets dense bundles read as glow, not a solid blob.
       getColor: (d) =>
         d.flowType === "grant"
           ? [52, 211, 153, 140]
           : d.flowType === "ownership"
             ? [239, 68, 68, 150]
-            : [251, 146, 60, 120],
+            : [251, 146, 60, 55],
       // Per-type widths (works-counts vs dollars need different scales).
       getWidth: (d) =>
         d.flowType === "13f"
-          ? Math.max(1, Math.min(5, Math.log10(d.amount) - 4))
+          ? Math.max(1, Math.min(3, Math.log10(d.amount) - 4))
           : d.flowType === "ownership"
             ? 2.5
             : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2)),
       widthUnits: "pixels",
       widthMinPixels: 1,
-      widthMaxPixels: 5,
+      widthMaxPixels: 3,
     }),
     // projection/basemap are deps on purpose: the overlay remounts on
     // either toggle, and a fresh overlay needs fresh layer instances
