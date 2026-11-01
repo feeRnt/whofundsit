@@ -474,6 +474,32 @@ export default function MapGlobe({
           {basemap === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>
+      <div className="map-legend" aria-label="Map legend">
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: "#2dd4bf" }} />
+          Company
+        </span>
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: "#a855f7" }} />
+          Has flows
+        </span>
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: "#fbbf24" }} />
+          University
+        </span>
+        <span className="legend-item">
+          <span className="legend-line" style={{ background: "#fb923c" }} />
+          13F holding
+        </span>
+        <span className="legend-item">
+          <span className="legend-line" style={{ background: "#ef4444" }} />
+          Ownership
+        </span>
+        <span className="legend-item">
+          <span className="legend-line" style={{ background: "#34d399" }} />
+          Grant
+        </span>
+      </div>
     </Map>
     {!mapReady && !mapError && (
       <div className="map-loading" aria-label="Loading map">

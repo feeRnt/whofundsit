@@ -145,14 +145,15 @@ export default function App() {
     };
   }, [flows]);
 
-  // BlackRock + all ownership funders on by default; everything else off
-  // until toggled.
+  // BlackRock + all ownership/grant funders on by default; everything else
+  // off until toggled. (Grant funders must default on or the University
+  // Funds master switch shows nothing when enabled.)
   const enabledFunders = useMemo(() => {
     const ids = new Set<string>();
     for (const f of [...funders13f, ...fundersGrants, ...fundersOwnership]) {
       const on =
         funderOverrides?.get(f.id) ??
-        (f.kind === "ownership" || f.name.toLowerCase().includes("blackrock"));
+        (f.kind !== "13f" || f.name.toLowerCase().includes("blackrock"));
       if (on) {
         ids.add(f.id);
       }

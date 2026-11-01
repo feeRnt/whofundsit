@@ -489,6 +489,47 @@ button.maplibregl-popup-close-button {
   background: #232b40;
 }
 
+/* Legend strip: sits right of the control column (dark-mode button stays
+   the bottom button). Swatch colors match the WebGL layers exactly. */
+.map-legend {
+  position: absolute;
+  left: calc(1rem + 2.2rem + 0.5rem);
+  bottom: 1rem;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+  max-width: 60vw;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.72rem;
+  color: #e5e7eb;
+  background: #1a2030;
+  border: 1px solid #3a4358;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.legend-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.legend-line {
+  width: 1.1rem;
+  height: 0.22rem;
+  border-radius: 2px;
+  flex: none;
+}
+
 .flows-menu {
   position: relative;
 }
