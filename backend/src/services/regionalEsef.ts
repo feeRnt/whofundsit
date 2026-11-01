@@ -191,8 +191,13 @@ export async function runRegionalEsef(): Promise<{
     if (rows.length === 0) {
       throw new Error("[esef] no lei: entities — run npm run global:sync first");
     }
+    let done = 0;
     for (const row of rows) {
       const lei = row.id.slice("lei:".length);
+      done += 1;
+      if (done % 25 === 0) {
+        console.log(`[esef] ${done}/${rows.length} LEIs, ${updated} updated...`);
+      }
       let jsonUrl: string | null;
       try {
         jsonUrl = await latestJsonUrl(lei);
@@ -249,6 +254,9 @@ export async function runRegionalEsef(): Promise<{
         continue;
       }
       updated += 1;
+      console.log(
+        `[esef] ${row.name}: ${pick.conceptTag} ${pick.value} ${pick.currency} (${pick.periodEnd.slice(0, 10)})`,
+      );
     }
     return { considered: rows.length, updated, skipped };
   } finally {
