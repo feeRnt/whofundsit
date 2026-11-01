@@ -135,6 +135,7 @@ export default function MapGlobe({
   onToggleCompanyFlows,
   focusCompanyId,
   onToggleFocusCompany,
+  onOpenPopup,
 }: {
   entities: Entity[];
   flows: Flow[];
@@ -146,6 +147,7 @@ export default function MapGlobe({
   onToggleCompanyFlows: (id: string) => void;
   focusCompanyId: string | null;
   onToggleFocusCompany: (id: string) => void;
+  onOpenPopup: () => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -256,6 +258,7 @@ export default function MapGlobe({
     // Dots open the popup; arcs (hover tooltips only) and empty space close it.
     if (object && !("flowType" in object)) {
       setSelected(object as unknown as Entity);
+      onOpenPopup();
     } else {
       setSelected(null);
     }
