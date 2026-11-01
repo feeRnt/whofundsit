@@ -2,6 +2,17 @@
 
 ## ⏳ Not yet built (ordered by demo impact)
 
+- [ ] **Claim-verification loop with "x% verified" scores.** (Agentic background
+      loop over our biggest claims — top entities' total assets/debt, top funding
+      flows — rechecking each against an independent external source (13F
+      aggregators, company IR filings, OpenAlex works) and scoring 0-100% by
+      closeness (e.g. within 1% = 100, within 5% = 90, missing = 0). Scores
+      surface as trust badges in popups/tooltips ("87% verified"). Needs: a
+      `verification` store (entity/flow id → score + source + checked-at),
+      per-claim-type checkers with cached fetches (respect every source ToS),
+      and a scheduled/CI loop — NOT on the request path. Manual precedent:
+      Vanguard→NVIDIA $422.74B vs $423B and BlackRock→NXP $6,716,412,097 vs
+      $6,716,412,000 both verified by hand on 2026-11-01.)
 - [x] **Regional financial loaders, phase 1.** (`regional:esef` + `regional:twse`
       shipped with tests; native currencies. NOT yet run live — needs `db:push`
       for the currency column, then a trial + `db:export`.)
