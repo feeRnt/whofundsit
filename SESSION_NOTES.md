@@ -99,6 +99,8 @@ Running log for picking work back up. Update when the picture changes.
 4. User: reconcile checkout vs agent worktree, then decide on push (say so!).
 5. Later: phase-2 regionals (EDINET + DART need keys + LEI join), CUSIP gains
    check, OpenFIGI key, dark mode last, beneficial ownership, OpenAlex paging.
+6. TODO: UK Companies House regional (free key, iXBRL accounts) — spec the
+   LEI/company-number join when EU yield is re-measured after quota sync.
 
 ## Shipped overnight (all as Muse Code, builds green, 44/44 tests)
 
