@@ -58,6 +58,12 @@ Running log for picking work back up. Update when the picture changes.
   sitelink-ordered. Location labels fixed: locationTag (no more US-X0 /
   "—" with address) + displayLocation frontend fallback. 13f reruns
   backfill fund labels; bulk rows need a re-bulk for new tags.
+- Coords junk pre-filter (bare registrant names skip Nominatim, save ~3.3s
+  each); dead lines logged to data/cache/geo/dead-lines.json for the future
+  LLM miss-repair pass. verify:claims = stochastic METHODOLOGY audit
+  (user's design): 25 seeded samples per source/region/index/flow cell vs
+  live SEC + Nominatim reverse, 0-100 scores, % verified per cell, report
+  in data/verification-report.json. Suite at 68/68.
 - NXP "6.7T" scare = MISREAD, data was right: 8 online sources confirm
   BlackRock → NXP $6,716,412,000, DB holds 6,716,412,097. Fixed the real
   UX bug instead: formatMoney now abbreviates ($6.72B), flow tooltip uses

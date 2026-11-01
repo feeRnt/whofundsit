@@ -135,7 +135,7 @@ interface RecentFilings {
   reportDate: string[];
 }
 
-async function latest13F(
+export async function latest13F(
   cik10: string,
   label: string,
 ): Promise<{ accn: string; filingDate: string; state: string | null }> {
@@ -176,7 +176,10 @@ export function pickInfoTable(
     .sort((a, b) => Number(b.size || 0) - Number(a.size || 0))[0]?.name;
 }
 
-async function infoTableXml(cikNum: string, accn: string): Promise<string> {
+export async function infoTableXml(
+  cikNum: string,
+  accn: string,
+): Promise<string> {
   const stub = accn.replace(/-/g, "");
   const base = `${ARCHIVE_URL}/${cikNum}/${stub}`;
   const listing = await cachedJson<{
