@@ -32,7 +32,7 @@ export default function App() {
   const [focusTick, setFocusTick] = useState(0);
   const [showFlows, setShowFlows] = useState(true);
   const [showGrants, setShowGrants] = useState(false);
-  const [showOwnership, setShowOwnership] = useState(false);
+  const [showOwnership, setShowOwnership] = useState(true);
   // Focus mode: arcs for one company only; dropdowns tick just its funders.
   const [focusCompany, setFocusCompany] = useState<string | null>(null);
   const [funderOverrides, setFunderOverrides] = useState<Map<
@@ -125,13 +125,14 @@ export default function App() {
     };
   }, [flows]);
 
-  // BlackRock on by default; everything else off until toggled.
+  // BlackRock + all ownership funders on by default; everything else off
+  // until toggled.
   const enabledFunders = useMemo(() => {
     const ids = new Set<string>();
     for (const f of [...funders13f, ...fundersGrants, ...fundersOwnership]) {
       const on =
         funderOverrides?.get(f.id) ??
-        f.name.toLowerCase().includes("blackrock");
+        (f.kind === "ownership" || f.name.toLowerCase().includes("blackrock"));
       if (on) {
         ids.add(f.id);
       }
@@ -171,24 +172,47 @@ export default function App() {
     return ids;
   }, [focusCompany, focusFunders, enabledFunders, funderOverrides]);
 
-  const visibleFlows = useMemo(
-    () =>
-      flows
-        .filter(
-          (f) =>
-            ((f.flowType === "13f" && showFlows) ||
-              (f.flowType === "grant" && showGrants) ||
-              (f.flowType === "ownership" && showOwnership)) &&
-            effectiveFunders.has(f.sourceEntityId) &&
-            !disabledCompanies.has(f.sourceEntityId) &&
-            !disabledCompanies.has(f.targetEntityId) &&
-            !isEndpointHidden(f.sourceEntityId) &&
-            !isEndpointHidden(f.targetEntityId) &&
-            (!focusCompany ||
-              f.sourceEntityId === focusCompany ||
-              f.targetEntityId === focusCompany),
-        )
-        .slice(0, flowLimit),
+  const visibleFlows = useMemo(() => {
+      const filtered = flows.filter(
+        (f) =>
+          ((f.flowType === "13f" && showFlows) ||
+            (f.flowType === "grant" && showGrants) ||
+            (f.flowType === "ownership" && showOwnership)) &&
+          effectiveFunders.has(f.sourceEntityId) &&
+          !disabledCompanies.has(f.sourceEntityId) &&
+          !disabledCompanies.has(f.targetEntityId) &&
+          !isEndpointHidden(f.sourceEntityId) &&
+          !isEndpointHidden(f.targetEntityId) &&
+          (!focusCompany ||
+            f.sourceEntityId === focusCompany ||
+            f.targetEntityId === focusCompany),
+      );
+      // Round-robin across flow types so small-unit types (ownership stakes
+      // are 0/undisclosed, grants are work counts) get a fair share of the
+      // cap instead of being buried under dollar amounts.
+      const byType = new Map<string, typeof filtered>();
+      for (const f of filtered) {
+        const list = byType.get(f.flowType) ?? [];
+        list.push(f);
+        byType.set(f.flowType, list);
+      }
+      const out: typeof filtered = [];
+      let i = 0;
+      for (;;) {
+        let added = false;
+        for (const list of byType.values()) {
+          if (i < list.length && out.length < flowLimit) {
+            out.push(list[i]);
+            added = true;
+          }
+        }
+        if (!added || out.length >= flowLimit) {
+          break;
+        }
+        i += 1;
+      }
+      return out;
+    },
     [
       flows,
       flowLimit,
@@ -202,6 +226,10 @@ export default function App() {
       focusCompany,
     ],
   );
+
+  // The Arcs slider is global: live whenever ANY arc type is on, not just
+  // the Hedge-Funds master switch.
+  const anyArcsOn = showFlows || showGrants || showOwnership;
 
   // A flow hides only when its endpoint entity is loaded AND its source
   // group is toggled off — unfetched endpoints never hide anything.
@@ -477,15 +505,15 @@ export default function App() {
           className="arcs-control"
           title="Max arcs shown, biggest first"
         >
-          Arcs {showFlows ? Math.min(flowLimit, flows.length) : 0}
-          {showFlows && flowLimit > LAG_WARN_AT ? " — may lag" : ""}
+          Arcs {anyArcsOn ? visibleFlows.length : 0}
+          {anyArcsOn && flowLimit > LAG_WARN_AT ? " — may lag" : ""}
           <input
             type="range"
             min={0}
             max={flows.length}
             step={500}
             value={Math.min(flowLimit, flows.length)}
-            disabled={!showFlows}
+            disabled={!anyArcsOn}
             onChange={(ev) => setFlowLimit(Number(ev.target.value))}
           />
         </label>

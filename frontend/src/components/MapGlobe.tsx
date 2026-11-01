@@ -162,6 +162,9 @@ export default function MapGlobe({
   onToggleBasemap: () => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
+  // Heavy GPU load (tens of thousands of arcs) can kill the GL context,
+  // leaving corrupted tiles: detect it and offer a refresh.
+  const [contextLost, setContextLost] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [selected, setSelected] = useState<Entity | null>(null);
   // Last camera, re-applied as initialViewState when the map remounts
@@ -170,33 +173,42 @@ export default function MapGlobe({
   const tileErrorsRef = useRef(0);
   const mapRef = useRef<MapRef>(null);
 
+  // Shared flight: zoom-out scales with flight distance (nearby targets
+  // keep your zoom, far flights ease toward the overview at zoom 4).
+  // k = max(dLat, dLng)/180° × 50%. Used by search picks and arc clicks.
+  function flyToPoint(lat: number, lng: number) {
+    if (!mapRef.current) {
+      return;
+    }
+    const current = mapRef.current.getZoom();
+    const center = mapRef.current.getCenter();
+    const dLat = Math.abs(lat - center.lat);
+    let dLng = Math.abs(lng - center.lng) % 360;
+    if (dLng > 180) {
+      dLng = 360 - dLng;
+    }
+    const k = Math.min(0.5, (Math.max(dLat, dLng) / 180) * 0.5);
+    mapRef.current.flyTo({
+      center: [lng, lat],
+      zoom: current + (4 - current) * k,
+    });
+  }
+
   // Search selection: fly to the company and open its popup. focusTick
   // re-fires the flight when the SAME company is picked twice in a row
   // (React would otherwise bail out on the identical entity object).
   useEffect(() => {
     if (focused && mapRef.current) {
-      // Zoom-out scales with flight distance: nearby picks keep your zoom,
-      // far flights ease toward the company overview (zoom 4), capped at
-      // the old halfway behavior. k = max(dLat, dLng)/180° × 50%.
-      const current = mapRef.current.getZoom();
-      const center = mapRef.current.getCenter();
-      const dLat = Math.abs(focused.lat - center.lat);
-      let dLng = Math.abs(focused.lng - center.lng) % 360;
-      if (dLng > 180) {
-        dLng = 360 - dLng;
-      }
-      const k = Math.min(0.5, (Math.max(dLat, dLng) / 180) * 0.5);
-      mapRef.current.flyTo({
-        center: [focused.lng, focused.lat],
-        zoom: current + (4 - current) * k,
-      });
+      flyToPoint(focused.lat, focused.lng);
       setSelected(focused);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, focusTick]);
 
   // The map remounts on projection/basemap toggle; show the spinner until onLoad.
   useEffect(() => {
     setMapReady(false);
+    setContextLost(false);
   }, [projection, basemap]);
 
   // Zoom hint shows exactly once per page load (first ready only), never
@@ -282,20 +294,40 @@ export default function MapGlobe({
       widthMinPixels: 1,
       widthMaxPixels: 5,
     }),
-    // projection is a dep on purpose: the overlay remounts on toggle, and a
-    // fresh overlay needs fresh layer instances (reused ones render garbage).
+    // projection/basemap are deps on purpose: the overlay remounts on
+    // either toggle, and a fresh overlay needs fresh layer instances
+    // (reused ones stay bound to the dead Deck instance and vanish).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [entities, drawableFlows, flowEndpoints, selected, projection]);
+  ], [entities, drawableFlows, flowEndpoints, selected, projection, basemap]);
+
+  // Arc ping-pong: first click flies to the funded end, clicking the same
+  // arc again flies to the funder; any dot click resets to funded-first.
+  const arcPingPong = useRef<{ id: string; toFunder: boolean }>({
+    id: "",
+    toFunder: false,
+  });
 
   function handleClick(info: PickingInfo) {
     const object = info.object as Record<string, unknown> | undefined;
-    // Dots open the popup; arcs (hover tooltips only) and empty space close it.
     if (object && !("flowType" in object)) {
+      arcPingPong.current = { id: "", toFunder: false };
       setSelected(object as unknown as Entity);
       onOpenPopup();
-    } else {
-      setSelected(null);
+      return;
     }
+    if (object && "flowType" in object) {
+      const flow = object as unknown as Flow;
+      if (arcPingPong.current.id === flow.id) {
+        arcPingPong.current.toFunder = !arcPingPong.current.toFunder;
+      } else {
+        arcPingPong.current = { id: flow.id, toFunder: false };
+      }
+      const dest = arcPingPong.current.toFunder
+        ? flow.sourceEntity
+        : flow.targetEntity;
+      flyToPoint(dest.lat, dest.lng);
+    }
+    setSelected(null);
   }
 
   // Fresh map instance per projection/basemap: MapLibre corrupts tile
@@ -317,7 +349,10 @@ export default function MapGlobe({
         })
       }
       projection={projection}
-      onLoad={() => setMapReady(true)}
+      onLoad={(e) => {
+        setMapReady(true);
+        e.target.on("webglcontextlost", () => setContextLost(true));
+      }}
       onError={() => {
         tileErrorsRef.current += 1;
         if (tileErrorsRef.current > TILE_ERROR_BUDGET) {
@@ -356,6 +391,15 @@ export default function MapGlobe({
       {mapError && (
         <div className="map-note">
           Basemap tiles are failing to load — check your network connection.
+        </div>
+      )}
+      {contextLost && (
+        <div className="map-note refreshable">
+          Graphics ran out of memory —{" "}
+          <button type="button" onClick={() => window.location.reload()}>
+            refresh the page
+          </button>{" "}
+          to restore the map.
         </div>
       )}
       <div className="map-controls">

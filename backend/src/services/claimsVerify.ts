@@ -302,11 +302,35 @@ async function checkEntity(e: VEntity): Promise<CheckResult> {
   };
 }
 
+// Ownership stakes come from GLEIF relationship records with no per-claim
+// live endpoint: structural check only (well-formed global id, finite
+// amount; 0 = stake undisclosed, legitimate).
+export function ownershipStructural(
+  id: string,
+  amount: number,
+): CheckResult {
+  const parts = id.split(":");
+  const ok =
+    parts.length === 3 &&
+    parts[0] === "global" &&
+    parts[1] !== "" &&
+    parts[2] !== "" &&
+    Number.isFinite(amount) &&
+    amount >= 0;
+  return {
+    score: ok ? 100 : 0,
+    flags: ok ? [] : [`${id}: malformed ownership record`],
+  };
+}
+
 async function checkFlow(f: {
   id: string;
   amount: number;
   flowType: string;
 }): Promise<CheckResult & { kind: "external" | "structural" }> {
+  if (f.flowType === "ownership") {
+    return { ...ownershipStructural(f.id, f.amount), kind: "structural" };
+  }
   const ref = f.flowType === "13f" ? parseFlowRef(f.id) : null;
   if (ref) {
     // 13F methodology: is this CUSIP still in the manager's live filing at
@@ -330,7 +354,7 @@ async function checkFlow(f: {
           : [],
     };
   }
-  // Grants/ownership have no per-claim live endpoint; structural sanity only.
+  // Grants have no per-claim live endpoint; structural sanity only.
   const ok = Number.isFinite(f.amount) && f.amount > 0;
   return {
     score: ok ? 100 : 0,

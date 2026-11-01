@@ -7,6 +7,7 @@ import {
   cellTake,
   parseEntityRef,
   parseFlowRef,
+  ownershipStructural,
   regionBucket,
   sampleIndices,
   summarize,
@@ -85,5 +86,19 @@ describe("isMajorIndex", () => {
     assert.equal(isMajorIndex(["AAPL", "ZZZ"]), true);
     assert.equal(isMajorIndex(["ZZZNOTREAL"]), false);
     assert.equal(isMajorIndex([]), false);
+  });
+});
+
+describe("ownershipStructural", () => {
+  it("passes a well-formed global id with an undisclosed (0) stake", () => {
+    const r = ownershipStructural("global:AAA:BBB", 0);
+    assert.equal(r.score, 100);
+    assert.deepEqual(r.flags, []);
+  });
+
+  it("fails malformed ids and non-finite amounts", () => {
+    assert.equal(ownershipStructural("global:AAA", 0).score, 0);
+    assert.equal(ownershipStructural("13f:123:456", 10).score, 0);
+    assert.equal(ownershipStructural("global:AAA:BBB", NaN).score, 0);
   });
 });
