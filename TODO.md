@@ -17,7 +17,9 @@
       shipped with tests; native currencies. Trialed 2026-11-01: ESEF sort/shape
       fixed to verified JSON:API, TWSE made self-sufficient via GLEIF creation;
       post-fix rerun in the current chain, then `db:export`.)
-- [ ] **Regional financial loaders, phase 2** (EDINET/Japan + Open DART/Korea:
+- [ ] **Regional financial loaders, phase 2** (EDINET/Japan BLOCKED 2026-11-01:
+      b2clogin signup demands mobile 2FA and the user's country code is not
+      selectable — skip Japan loader unless a workaround appears; Open DART/Korea:
       needs free keys (ToS accepted at signup) AND a join key to LEI rows —
       EDINET secCode / DART corp_code don't map to LEI yet. Options: Wikidata
       ticker map per exchange (as TWSE does), or filer-name matching.)

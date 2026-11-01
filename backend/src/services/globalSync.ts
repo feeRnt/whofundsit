@@ -11,7 +11,7 @@ import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
 // for Asia); the US is excluded everywhere because SEC data already covers
 // it. Within each region, sitelink count surfaces the biggest companies.
 // Row ceilings: GLOBAL_LIMIT companies total (default 500, split by quota),
-// GLOBAL_MAX_CHILDREN direct children per parent (default 200). Cached.
+// GLOBAL_MAX_CHILDREN direct children per parent (default 50). Cached.
 
 const GLEIF = "https://api.gleif.org/api/v1";
 const SPARQL = "https://query.wikidata.org/sparql";
