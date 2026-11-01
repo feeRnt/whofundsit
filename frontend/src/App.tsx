@@ -39,6 +39,8 @@ export default function App() {
     new Set(),
   );
   const [flowLimit, setFlowLimit] = useState(250);
+  // Max dots shown, biggest fundsVolume first; null = all (rightmost).
+  const [dotLimit, setDotLimit] = useState<number | null>(null);
   // Per-database entity toggles (flashcard popup); empty = all shown.
   const [disabledSources, setDisabledSources] = useState<Set<string>>(new Set());
   // Flashcard tick: rotates the header through present source groups.
@@ -69,6 +71,15 @@ export default function App() {
         : entities.filter((e) => !disabledSources.has(groupOf(e.source).key)),
     [entities, disabledSources],
   );
+
+  // Dots slider: top-N by assets so sliding left keeps the giants.
+  // Arcs follow automatically — MapGlobe only draws arcs whose ends are shown.
+  const shownEntities = useMemo(() => {
+    const sorted = [...visibleEntities].sort(
+      (a, b) => b.fundsVolume - a.fundsVolume,
+    );
+    return dotLimit == null ? sorted : sorted.slice(0, dotLimit);
+  }, [visibleEntities, dotLimit]);
 
   const toggleSource = (key: string) =>
     setDisabledSources((s) => {
@@ -310,7 +321,7 @@ export default function App() {
             ? "Loading…"
             : error
               ? `API error: ${error} (is the backend running?)`
-              : `${visibleEntities.length} entities · ${visibleFlows.length}/${flows.length} flows · `}
+              : `${shownEntities.length} entities · ${visibleFlows.length}/${flows.length} flows · `}
           {!loading && !error && presentGroups.length > 0 && (
             <button
               type="button"
@@ -443,9 +454,26 @@ export default function App() {
             onChange={(ev) => setFlowLimit(Number(ev.target.value))}
           />
         </label>
+        <label
+          className="arcs-control"
+          title="Max company dots shown, biggest assets first"
+        >
+          Dots {shownEntities.length}
+          <input
+            type="range"
+            min={0}
+            max={visibleEntities.length}
+            step={50}
+            value={dotLimit ?? visibleEntities.length}
+            onChange={(ev) => {
+              const v = Number(ev.target.value);
+              setDotLimit(v >= visibleEntities.length ? null : v);
+            }}
+          />
+        </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={visibleEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} />
+          <MapGlobe entities={shownEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} />
         )}</main>
     </div>
   );

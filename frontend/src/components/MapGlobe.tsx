@@ -163,12 +163,20 @@ export default function MapGlobe({
   // (React would otherwise bail out on the identical entity object).
   useEffect(() => {
     if (focused && mapRef.current) {
-      // Fly only halfway toward the company view (zoom 4) instead of all
-      // the way out: zoomed-in users keep half their zoom.
+      // Zoom-out scales with flight distance: nearby picks keep your zoom,
+      // far flights ease toward the company overview (zoom 4), capped at
+      // the old halfway behavior. k = max(dLat, dLng)/180° × 50%.
       const current = mapRef.current.getZoom();
+      const center = mapRef.current.getCenter();
+      const dLat = Math.abs(focused.lat - center.lat);
+      let dLng = Math.abs(focused.lng - center.lng) % 360;
+      if (dLng > 180) {
+        dLng = 360 - dLng;
+      }
+      const k = Math.min(0.5, (Math.max(dLat, dLng) / 180) * 0.5);
       mapRef.current.flyTo({
         center: [focused.lng, focused.lat],
-        zoom: current + (4 - current) / 2,
+        zoom: current + (4 - current) * k,
       });
       setSelected(focused);
     }
@@ -190,6 +198,16 @@ export default function MapGlobe({
       setShowHint(true);
     }
   }, [mapReady, mapError]);
+
+  // Arcs only where both ends have a dot: flows and entities come from
+  // separate capped fetches, so an endpoint can fall outside the entity
+  // cap and leave a dangling arc. Filter, don't fake a dot.
+  const drawableFlows = useMemo(() => {
+    const ids = new Set(entities.map((e) => e.id));
+    return flows.filter(
+      (f) => ids.has(f.sourceEntityId) && ids.has(f.targetEntityId),
+    );
+  }, [entities, flows]);
 
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
@@ -224,7 +242,7 @@ export default function MapGlobe({
     }),
     new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows",
-      data: flows.map((f) => ({
+      data: drawableFlows.map((f) => ({
         ...f,
         path: greatCirclePath(
           [f.sourceEntity.lng, f.sourceEntity.lat],
@@ -251,7 +269,7 @@ export default function MapGlobe({
     // projection is a dep on purpose: the overlay remounts on toggle, and a
     // fresh overlay needs fresh layer instances (reused ones render garbage).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [entities, flows, flowEndpoints, selected, projection]);
+  ], [entities, drawableFlows, flowEndpoints, selected, projection]);
 
   function handleClick(info: PickingInfo) {
     const object = info.object as Record<string, unknown> | undefined;
