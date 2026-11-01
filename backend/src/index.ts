@@ -34,9 +34,11 @@ app.get("/health", (_req, res) => {
 app.get("/api/entities", async (req, res) => {
   try {
     const requested = Number(req.query.limit ?? 200);
+    // 50k ceiling: the dots slider can request the whole dataset; deck.gl
+    // renders it, but the JSON payload (~18MB full) is wifi-only territory.
     const limit = Math.min(
       Math.max(Number.isFinite(requested) ? requested : 200, 1),
-      5000,
+      50000,
     );
     // Skip 0,0 placeholders (ungeocoded rows pile up in the ocean off
     // Africa); the pipeline fills coordinates in fundsVolume order.
@@ -57,9 +59,10 @@ app.get("/api/entities", async (req, res) => {
 app.get("/api/flows", async (req, res) => {
   try {
     const requested = Number(req.query.limit ?? 500);
+    // 50k ceiling: the arcs slider can request all flows (~8MB full).
     const limit = Math.min(
       Math.max(Number.isFinite(requested) ? requested : 500, 1),
-      1000,
+      50000,
     );
     const endpoint = { id: true, name: true, lat: true, lng: true };
     const placed = { lat: { not: 0 }, lng: { not: 0 } };
@@ -99,6 +102,12 @@ const port = Number(process.env.PORT ?? 4000);
 async function resolveHost(): Promise<string> {
   if (process.env.HOST) {
     return process.env.HOST;
+  }
+  // Backend dev is always loopback: tsx watch owns stdin, so prompting
+  // here hangs with no way to answer. (Split-dev LAN still works — run
+  // vite with --host; it proxies /api to this localhost server.)
+  if (process.env.npm_lifecycle_event === "dev") {
+    return "127.0.0.1";
   }
   if (!process.stdin.isTTY) {
     return "127.0.0.1";
