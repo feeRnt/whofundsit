@@ -45,11 +45,13 @@ if (args.includes("--all")) {
   scope = await askScope(pending);
 }
 
+const retryFailed = args.includes("--retry-failed");
 if (scope === "top") {
   const summary = await runPipeline({
     normalize: false,
     take: 100,
     indexOnly: true,
+    retryFailed,
   });
   console.log(summary);
 } else {
@@ -60,7 +62,12 @@ if (scope === "top") {
   let runs = 0;
   let skip = 0;
   for (;;) {
-    const summary = await runPipeline({ normalize: false, take: 500, skip });
+    const summary = await runPipeline({
+      normalize: false,
+      take: 500,
+      skip,
+      retryFailed,
+    });
     runs += 1;
     console.log(`[coords] run ${runs}:`, summary);
     if (summary.scanned === 0 || runs >= 500) {

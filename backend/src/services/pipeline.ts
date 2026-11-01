@@ -1,4 +1,7 @@
 import axios from "axios";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PrismaClient, type Entity } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
@@ -74,6 +77,20 @@ export function shouldSwallowGeoError(status: number | undefined): boolean {
   return status === undefined || status >= 500;
 }
 
+// Queries that errored transiently (5xx/network) this run: retryable, so
+// they must NOT be marked failed. Cleared per runPipeline call.
+const transientTexts = new Set<string>();
+
+// Next geoStatus after an attempt: placed on coords, failed on a genuine
+// miss, null (leave pending) when the attempt never really happened.
+// Pure — the LLM repair pass will query geoStatus = "failed".
+export function nextGeoStatus(found: boolean, transient: boolean): string | null {
+  if (found) {
+    return "placed";
+  }
+  return transient ? null : "failed";
+}
+
 // Direct Nominatim calls from this machine: memory, then file cache, then
 // one rate-limited call (misses cache too, so they never re-query).
 function geoPath(text: string): string {
@@ -113,6 +130,7 @@ export async function geocodeLocal(text: string): Promise<Coords | null> {
     console.warn(
       `[coords] Nominatim ${status ?? "network"} error for ${JSON.stringify(text)} — skipping this run`,
     );
+    transientTexts.add(text);
     return null;
   }
   geocodeCache.set(text, result);
@@ -206,6 +224,7 @@ export function junkAddress(text: string): boolean {
 const missLog = new Set<string>();
 let deadLinesLoaded = false;
 let deadHits = 0;
+let junkHits = 0;
 
 function ensureDeadLines(): void {
   if (deadLinesLoaded) {
@@ -214,6 +233,21 @@ function ensureDeadLines(): void {
   deadLinesLoaded = true;
   if (process.env.CACHE_REFRESH) {
     return; // explicit refresh retries everything, dead or not
+  }
+  // Committed seed first (fresh clones skip junk with zero calls), then
+  // the local accumulation. Both are our own address strings + outcome
+  // facts — no Nominatim data — so the seed is safe to commit.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const seedFile = path.join(here, "..", "data", "dead-lines.json");
+  if (fs.existsSync(seedFile)) {
+    const seed = JSON.parse(fs.readFileSync(seedFile, "utf8")) as unknown;
+    if (Array.isArray(seed)) {
+      for (const t of seed) {
+        if (typeof t === "string") {
+          missLog.add(t);
+        }
+      }
+    }
   }
   const prev = readCache<string[]>("geo/dead-lines.json");
   if (prev) {
@@ -286,6 +320,8 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
   const out = new Map<string, Coords | null>();
   const byQuery = new Map<string, string[]>();
   ensureDeadLines();
+  const junkBefore = junkHits;
+  const deadBefore = deadHits;
   for (const text of new Set(texts)) {
     if (missLog.has(text)) {
       // Known dead (preloaded file or earlier miss): zero calls, zero wait.
@@ -296,6 +332,7 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     if (junkAddress(text)) {
       out.set(text, null);
       missLog.add(text);
+      junkHits += 1;
       continue;
     }
     const q = expandLocationText(text);
@@ -315,6 +352,7 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     process.env.GEOCODE_BACKEND === "modal"
       ? await geocodeRemoteCached(queries)
       : await geocodeLocalEach(queries);
+  const primaryHits = [...results.values()].filter((r) => r !== null).length;
   // Second phase: missed queries get one cheaper retry each (each
   // fallback runs once, then fans out to every primary that needs it).
   const retry = new Map<string, string[]>();
@@ -356,11 +394,29 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     const r = results.get(q) ?? null;
     if (r === null) {
       missLog.add(q);
+      // Transience is tracked per-query but judged per-original: if any
+      // query behind this original errored, the original stays pending.
+      const flaky =
+        transientTexts.has(q) ||
+        fallbackQueries(q).some((f) => transientTexts.has(f));
+      if (flaky) {
+        for (const o of originals) {
+          transientTexts.add(o);
+        }
+      }
     }
     for (const o of originals) {
       out.set(o, r);
     }
   }
+  // Diagnosability line: every miss class and its count, so the next
+  // methodology fix knows exactly where the bodies are.
+  const hits = [...results.values()].filter((r) => r !== null).length;
+  console.log(
+    `[coords] geocode: ${queries.length} primaries (${primaryHits} hits), ` +
+      `${retry.size} retries (${hits - primaryHits} hits), ` +
+      `${junkHits - junkBefore} junk, ${deadHits - deadBefore} dead-file`,
+  );
   return out;
 }
 
@@ -460,6 +516,7 @@ export interface PipelineSummary {
   normalized: number; // rows renamed by the Llama worker
   skipped: number; // no coordinates and no rename (scanned = updated + skipped)
   dead: number; // skipped via the dead-lines file, zero API calls
+  junk: number; // skipped by the registrant-name pre-filter, zero API calls
 }
 
 export function formatDuration(totalSeconds: number): string {
@@ -480,7 +537,9 @@ export async function countPendingGeocodes(): Promise<number> {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   const prisma = new PrismaClient({ adapter });
   try {
-    return await prisma.entity.count({ where: { lat: 0, lng: 0 } });
+    return await prisma.entity.count({
+      where: { lat: 0, lng: 0, geoStatus: { not: "failed" } },
+    });
   } finally {
     await prisma.$disconnect();
   }
@@ -492,6 +551,7 @@ export async function runPipeline(
     take?: number;
     indexOnly?: boolean;
     skip?: number;
+    retryFailed?: boolean;
   } = {},
 ): Promise<PipelineSummary> {
   if (!process.env.DATABASE_URL) {
@@ -502,10 +562,14 @@ export async function runPipeline(
   const prisma = new PrismaClient({ adapter });
 
   try {
+    transientTexts.clear();
     const entities = await prisma.entity.findMany({
       where: {
         lat: 0,
         lng: 0,
+        // Failed rows stay out of future reruns (the LLM pass owns them);
+        // --retry-failed opts back in after methodology improvements.
+        ...(opts.retryFailed ? {} : { geoStatus: { not: "failed" } }),
         ...(opts.indexOnly ? { tickers: { hasSome: NASDAQ100_TICKERS } } : {}),
       },
       take: opts.take ?? MAX_ENTITIES_PER_RUN,
@@ -520,15 +584,16 @@ export async function runPipeline(
     let skipped = 0;
     let modalCalls = 0;
     deadHits = 0;
+    junkHits = 0;
+    const t0 = Date.now();
 
     const coordsByText = await geocodeMany(
       entities.map((e) => e.businessAddress ?? e.rawAddressText),
     );
 
     for (const entity of entities) {
-      const coords =
-        coordsByText.get(entity.businessAddress ?? entity.rawAddressText) ??
-        null;
+      const addrText = entity.businessAddress ?? entity.rawAddressText;
+      const coords = coordsByText.get(addrText) ?? null;
 
       let canonicalName: string | null = null;
       if (
@@ -541,7 +606,14 @@ export async function runPipeline(
         canonicalName = await normalizeWithLlama(entity);
       }
 
-      if (!coords && !canonicalName) {
+      // Failed rows get marked (the LLM pass's work queue); transient
+      // errors and junk stay pending so a retry can still place them.
+      // Junk is dead-lines-listed but never DB-failed: it was never tried.
+      const status = junkAddress(addrText)
+        ? null
+        : nextGeoStatus(coords !== null, transientTexts.has(addrText));
+
+      if (!coords && !canonicalName && !status) {
         skipped += 1;
         continue;
       }
@@ -551,10 +623,13 @@ export async function runPipeline(
         data: {
           ...(coords ?? {}),
           ...(canonicalName ? { name: canonicalName } : {}),
+          ...(status ? { geoStatus: status } : {}),
         },
       });
       if (coords) {
         geocoded += 1;
+      } else {
+        skipped += 1;
       }
       if (canonicalName) {
         normalized += 1;
@@ -562,12 +637,16 @@ export async function runPipeline(
     }
 
     flushMissLog(); // persist dead lines next to the geocode cache
+    console.log(
+      `[coords] batch: ${entities.length} scanned in ${formatDuration((Date.now() - t0) / 1000)}`,
+    );
     return {
       scanned: entities.length,
       geocoded,
       normalized,
       skipped,
       dead: deadHits,
+      junk: junkHits,
     };
   } finally {
     await prisma.$disconnect();

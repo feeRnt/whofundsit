@@ -48,6 +48,11 @@ model Entity {
   // Native reporting currency of fundsVolume (regional facts land unflattened).
   currency String @default("USD")
 
+  // Geocode lifecycle: "pending" (never tried) → "placed" (has coords) or
+  // "failed" (Nominatim genuinely cannot resolve it). Failed rows are the
+  // future LLM repair pass's work queue — query them, don't re-geocode them.
+  geoStatus String @default("pending")
+
   sourceFlows CapitalFlow[] @relation("SourceFlows")
   targetFlows CapitalFlow[] @relation("TargetFlows")
 }

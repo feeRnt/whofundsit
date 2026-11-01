@@ -5,6 +5,7 @@ import {
   fallbackQueries,
   formatDuration,
   junkAddress,
+  nextGeoStatus,
   shouldSwallowGeoError,
 } from "./pipeline.js";
 
@@ -78,6 +79,13 @@ describe("junkAddress", () => {
       "SPRINGFIELD, IL, 62701",
       "IL, 62701",
     ]);
+  });
+
+  it("marks placed/failed, leaves transient pending", () => {
+    assert.equal(nextGeoStatus(true, false), "placed");
+    assert.equal(nextGeoStatus(true, true), "placed");
+    assert.equal(nextGeoStatus(false, false), "failed");
+    assert.equal(nextGeoStatus(false, true), null);
   });
 
   it("swallows 5xx/network geo errors, rethrows 4xx", () => {

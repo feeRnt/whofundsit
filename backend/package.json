@@ -24,7 +24,8 @@
     "global:sync": "tsx src/scripts/global_sync.ts",
     "regional:esef": "tsx src/scripts/regional_esef.ts",
     "regional:twse": "tsx src/scripts/regional_twse.ts",
-    "verify:claims": "tsx src/scripts/verify_claims.ts"
+    "verify:claims": "tsx src/scripts/verify_claims.ts",
+    "deadlines:snapshot": "tsx src/scripts/deadlines_snapshot.ts"
   },
   "keywords": [],
   "type": "module",

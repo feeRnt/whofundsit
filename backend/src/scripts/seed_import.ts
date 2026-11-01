@@ -69,6 +69,12 @@ try {
       formerNames: asStringArray(r.formerNames),
       mergedFrom: r.mergedFrom as Prisma.InputJsonValue | undefined,
       currency: asString(r.currency) ?? "USD",
+      geoStatus:
+        Number(r.lat) !== 0 || Number(r.lng) !== 0
+          ? "placed"
+          : ["pending", "placed", "failed"].includes(String(r.geoStatus))
+            ? String(r.geoStatus)
+            : "pending",
     }),
   );
   const flows: Prisma.CapitalFlowCreateManyInput[] = loadSeed("flows.json").map(
