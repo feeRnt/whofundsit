@@ -455,7 +455,7 @@ async function geocodeFund(
       continue;
     }
     try {
-      const at = await geocodeLocal(expanded);
+      const at = await geocodeLocal(expanded, spec.name);
       if (at) {
         return at;
       }

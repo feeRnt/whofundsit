@@ -18,8 +18,11 @@ export function cacheKey(text: string): string {
 
 // Audit trail for ToS conformity: one timestamped line per real outbound
 // call (cache hits stay silent by design). Call at every axios site.
-export function apiLog(method: string, url: string): void {
-  console.log(`[API] ${new Date().toISOString()} ${method} ${url}`);
+// Optional note (e.g. company name) correlates lookups with entities.
+export function apiLog(method: string, url: string, note?: string): void {
+  console.log(
+    `[API] ${new Date().toISOString()} ${method} ${url}${note ? ` (${note})` : ""}`,
+  );
 }
 
 export function readCache<T>(relPath: string): T | undefined {

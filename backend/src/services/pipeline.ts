@@ -97,7 +97,10 @@ function geoPath(text: string): string {
   return `geo/nominatim-${cacheKey(text)}.json`;
 }
 
-export async function geocodeLocal(text: string): Promise<Coords | null> {
+export async function geocodeLocal(
+  text: string,
+  note?: string,
+): Promise<Coords | null> {
   const cached = geocodeCache.get(text);
   if (cached !== undefined) {
     return cached;
@@ -106,7 +109,11 @@ export async function geocodeLocal(text: string): Promise<Coords | null> {
   try {
     result = await cachedJson<Coords | null>(geoPath(text), () =>
       nominatim(async () => {
-      apiLog("GET", `https://nominatim.openstreetmap.org/search?q=${text}`);
+      apiLog(
+        "GET",
+        `https://nominatim.openstreetmap.org/search?q=${text}`,
+        note,
+      );
       const { data } = await axios.get<NominatimHit[]>(
         "https://nominatim.openstreetmap.org/search",
         {
@@ -325,7 +332,10 @@ export function fallbackQueries(address: string): string[] {
 
 // Prefers the business street address from SEC submissions; falls back to the
 // raw Frames state code, expanded so its hits land on state centroids.
-async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>> {
+async function geocodeMany(
+  texts: string[],
+  names?: Map<string, string>,
+): Promise<Map<string, Coords | null>> {
   const out = new Map<string, Coords | null>();
   const byQuery = new Map<string, string[]>();
   ensureDeadLines();
@@ -360,7 +370,7 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
   const results =
     process.env.GEOCODE_BACKEND === "modal"
       ? await geocodeRemoteCached(queries)
-      : await geocodeLocalEach(queries);
+      : await geocodeLocalEach(queries, "query", names);
   const primaryHits = [...results.values()].filter((r) => r !== null).length;
   // Second phase: missed queries get one cheaper retry each (each
   // fallback runs once, then fans out to every primary that needs it).
@@ -388,10 +398,19 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
     }
   }
   if (retry.size > 0) {
+    // Retry queries inherit the first primary's company name for the log.
+    const retryNames = names
+      ? new Map(
+          [...retry.entries()].flatMap(([f, primaries]) => {
+            const n = names.get(primaries[0] as string);
+            return n ? [[f, n] as [string, string]] : [];
+          }),
+        )
+      : undefined;
     const second =
       process.env.GEOCODE_BACKEND === "modal"
         ? await geocodeRemoteCached([...retry.keys()])
-        : await geocodeLocalEach([...retry.keys()], "retry");
+        : await geocodeLocalEach([...retry.keys()], "retry", retryNames);
     for (const [f, primaries] of retry) {
       for (const q of primaries) {
         if ((results.get(q) ?? null) === null) {
@@ -434,11 +453,12 @@ async function geocodeMany(texts: string[]): Promise<Map<string, Coords | null>>
 async function geocodeLocalEach(
   queries: string[],
   tag = "query",
+  names?: Map<string, string>,
 ): Promise<Map<string, Coords | null>> {
   const out = new Map<string, Coords | null>();
   let i = 0;
   for (const q of queries) {
-    out.set(q, await geocodeLocal(q));
+    out.set(q, await geocodeLocal(q, names?.get(q)));
     i += 1;
     if (i % 25 === 0 || i === queries.length) {
       // Paced at 1.1s/query, so remaining count converts directly to ETA.
@@ -600,8 +620,18 @@ export async function runPipeline(
     junkHits = 0;
     const t0 = Date.now();
 
+    // Company name per expanded query (first wins) for lookup log lines.
+    const names = new Map<string, string>();
+    for (const e of entities) {
+      const t = e.businessAddress ?? e.rawAddressText;
+      const q = expandLocationText(t) ?? t;
+      if (!names.has(q)) {
+        names.set(q, e.name);
+      }
+    }
     const coordsByText = await geocodeMany(
       entities.map((e) => e.businessAddress ?? e.rawAddressText),
+      names,
     );
 
     for (const entity of entities) {
