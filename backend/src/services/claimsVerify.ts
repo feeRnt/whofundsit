@@ -23,8 +23,25 @@ import { SP500_TICKERS } from "../data/sp500.js";
 // against a live primary source, and reports "% verified" (score >= 90)
 // plus the mean score. `npm run verify:claims`.
 
-const SAMPLE = Number(process.env.VERIFY_SAMPLE ?? 25);
 const SEED = Number(process.env.VERIFY_SEED ?? 7);
+// Fraction mode (default): 10% of each cell, capped at 30, full census of
+// tiny cells. VERIFY_FRACTION / VERIFY_MAX_PER_CELL tune it.
+// Original spec, kept behind a flag: fixed 25 seeded samples per cell —
+// set VERIFY_SAMPLE=25 to restore it.
+const FRACTION = Number(process.env.VERIFY_FRACTION ?? 0.1);
+const MAX_PER_CELL = Number(process.env.VERIFY_MAX_PER_CELL ?? 30);
+const LEGACY_SAMPLE =
+  process.env.VERIFY_SAMPLE !== undefined
+    ? Number(process.env.VERIFY_SAMPLE)
+    : null;
+
+// How many members to draw from a cell of size `pop`. Pure.
+export function cellTake(pop: number): number {
+  if (LEGACY_SAMPLE !== null) {
+    return Math.min(LEGACY_SAMPLE, pop);
+  }
+  return Math.min(pop, Math.max(1, Math.ceil(pop * FRACTION)), MAX_PER_CELL);
+}
 const MAX_SOURCE_CELLS = 12;
 const MAX_ENTITIES = Number(process.env.VERIFY_MAX_ENTITIES ?? 500);
 const MAX_FLOWS = Number(process.env.VERIFY_MAX_FLOWS ?? 300);
@@ -412,7 +429,9 @@ export async function runVerify(): Promise<{
       .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([name, ids]) => ({
         name,
-        memberIds: sampleIndices(ids.length, SAMPLE, rng).map((i) => ids[i] as string),
+        memberIds: sampleIndices(ids.length, cellTake(ids.length), rng).map(
+          (i) => ids[i] as string,
+        ),
       }));
     const entityIds = [...new Set(entityCells.flatMap((c) => c.memberIds))].slice(
       0,
@@ -467,7 +486,9 @@ export async function runVerify(): Promise<{
       .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([name, ids]) => ({
         name: `flow=${name}`,
-        memberIds: sampleIndices(ids.length, SAMPLE, rng).map((i) => ids[i] as string),
+        memberIds: sampleIndices(ids.length, cellTake(ids.length), rng).map(
+          (i) => ids[i] as string,
+        ),
       }));
     const flowIds = [...new Set(flowCells.flatMap((c) => c.memberIds))].slice(0, MAX_FLOWS);
     const fullFlows = (await prisma.capitalFlow.findMany({
@@ -496,7 +517,10 @@ export async function runVerify(): Promise<{
     const report = {
       generatedAt: new Date().toISOString(),
       seed: SEED,
-      samplePerCell: SAMPLE,
+      mode:
+        LEGACY_SAMPLE !== null
+          ? { fixed: LEGACY_SAMPLE }
+          : { fraction: FRACTION, maxPerCell: MAX_PER_CELL },
       cells,
       overall,
     };

@@ -4,6 +4,7 @@ import {
   amountScore,
   isMajorIndex,
   mulberry32,
+  cellTake,
   parseEntityRef,
   parseFlowRef,
   regionBucket,
@@ -70,6 +71,13 @@ describe("isMajorIndex", () => {
     assert.equal(full.pctVerified, 100);
     assert.equal(full.tested, 1);
     assert.equal(full.untestable, 1);
+  });
+
+  it("takes ~10% per cell with a cap, census of tiny cells", () => {
+    assert.equal(cellTake(0), 0);
+    assert.equal(cellTake(5), 5);
+    assert.equal(cellTake(500), 30);
+    assert.ok(cellTake(100) <= 30 && cellTake(100) >= 1);
   });
 
   it("spots S&P/Nasdaq members by ticker", () => {
