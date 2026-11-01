@@ -11,9 +11,25 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 };
 
 // Native-unit money display (regional facts are never silently USD).
+// Abbreviated past thousands: full digit strings ("$6,716,412,097") get
+// misread at a glance, so large values render as $6.72B / $423B / $1.20T.
 export function formatMoney(amount: number, currency?: string | null): string {
   const code = currency && currency.length > 0 ? currency : "USD";
   const symbol = CURRENCY_SYMBOLS[code] ?? `${code} `;
+  const abs = Math.abs(amount);
+  const units: [number, string][] = [
+    [1e12, "T"],
+    [1e9, "B"],
+    [1e6, "M"],
+    [1e3, "K"],
+  ];
+  for (const [div, suffix] of units) {
+    if (abs >= div) {
+      const v = amount / div;
+      const str = v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+      return `${symbol}${str}${suffix}`;
+    }
+  }
   return `${symbol}${amount.toLocaleString("en-US")}`;
 }
 

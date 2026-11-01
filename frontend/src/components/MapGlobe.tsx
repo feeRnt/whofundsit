@@ -33,9 +33,13 @@ function tooltip({ object }: PickingInfo) {
   if ("flowType" in object) {
     const flow = object as unknown as Flow;
     if (flow.flowType === "13f") {
-      const sleeves =
-        flow.sleeves && flow.sleeves > 1 ? ` · ${flow.sleeves} sleeves` : "";
-      return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — $${flow.amount.toLocaleString("en-US")}${sleeves}`;
+      // One filing reports the same stock on several rows (per-manager
+      // breakdowns); the amount sums them. "Filing lines", not jargon.
+      const lines =
+        flow.sleeves && flow.sleeves > 1
+          ? ` · ${flow.sleeves} filing lines`
+          : "";
+      return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${formatMoney(flow.amount, "USD")}${lines}`;
     }
     if (flow.flowType === "ownership") {
       return `${flow.sourceEntity.name} owns ${flow.targetEntity.name} (stake undisclosed)`;

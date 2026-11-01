@@ -41,6 +41,10 @@ Running log for picking work back up. Update when the picture changes.
   Still needs HUMAN eyes: actual globe render in a browser.
 - $422B flow VERIFIED (2026-11-01, two aggregators): Vanguard → NVIDIA $423B
   per Q4-2025 13F (filed 2026-01-29); DB holds $422.74B. Legit.
+- NXP "6.7T" scare = MISREAD, data was right: 8 online sources confirm
+  BlackRock → NXP $6,716,412,000, DB holds 6,716,412,097. Fixed the real
+  UX bug instead: formatMoney now abbreviates ($6.72B), flow tooltip uses
+  it, "sleeves" renamed to "filing lines" user-side.
 - Seed audit: 856/21,514 placed; ONLY bug-class finding was coords --all
   quitting behind the first all-miss batch (~16k never attempted). Fixed:
   --all now pages past sticky batches (skip + stable order). Ownership
