@@ -273,7 +273,7 @@ export async function runGlobalSync(): Promise<{
   const limit = Math.max(1, Number(process.env.GLOBAL_LIMIT ?? 500));
   const maxChildren = Math.max(
     0,
-    Number(process.env.GLOBAL_MAX_CHILDREN ?? 200),
+    Number(process.env.GLOBAL_MAX_CHILDREN ?? 50),
   );
   const companies = await sparqlCompanies(limit);
   console.log(`[global] ${companies.length} companies from Wikidata`);
