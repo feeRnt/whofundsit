@@ -236,11 +236,41 @@ export function junkAddress(text: string): boolean {
 // zero API calls. Pure-file read: very fast, one small JSON parse.
 const missLog = new Set<string>();
 let deadLinesLoaded = false;
+let geoSeedLoaded = false;
 let deadHits = 0;
 let junkHits = 0;
 // Running totals across runPipeline batches in this process (coords --all
 // calls it repeatedly), so every progress line shows the run so far.
 const runTotals = { geocoded: 0, failed: 0, skipped: 0 };
+
+// Committed coords seed (geo:snapshot output): preloaded into the memory
+// cache so fresh clones resolve known addresses with zero API calls.
+function ensureGeoSeed(): void {
+  if (geoSeedLoaded) {
+    return;
+  }
+  geoSeedLoaded = true;
+  if (process.env.CACHE_REFRESH) {
+    return;
+  }
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const seedFile = path.join(here, "..", "data", "geo-mapping.json");
+  if (!fs.existsSync(seedFile)) {
+    return;
+  }
+  try {
+    const doc = JSON.parse(fs.readFileSync(seedFile, "utf8")) as {
+      mapping?: Record<string, { lat?: unknown; lng?: unknown }>;
+    };
+    for (const [text, c] of Object.entries(doc.mapping ?? {})) {
+      if (typeof c.lat === "number" && typeof c.lng === "number") {
+        geocodeCache.set(text, { lat: c.lat, lng: c.lng });
+      }
+    }
+  } catch {
+    // Corrupt seed: ignore it, the API remains the source of truth.
+  }
+}
 
 function ensureDeadLines(): void {
   if (deadLinesLoaded) {
@@ -339,6 +369,7 @@ async function geocodeMany(
   const out = new Map<string, Coords | null>();
   const byQuery = new Map<string, string[]>();
   ensureDeadLines();
+  ensureGeoSeed();
   const junkBefore = junkHits;
   const deadBefore = deadHits;
   for (const text of new Set(texts)) {

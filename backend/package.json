@@ -26,7 +26,8 @@
     "regional:esef": "tsx src/scripts/regional_esef.ts",
     "regional:twse": "tsx src/scripts/regional_twse.ts",
     "verify:claims": "tsx src/scripts/verify_claims.ts",
-    "deadlines:snapshot": "tsx src/scripts/deadlines_snapshot.ts"
+    "deadlines:snapshot": "tsx src/scripts/deadlines_snapshot.ts",
+    "geo:snapshot": "tsx src/scripts/geo_snapshot.ts"
   },
   "keywords": [],
   "type": "module",

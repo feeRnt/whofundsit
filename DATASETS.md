@@ -26,7 +26,9 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   contributors") carried wherever the coordinates surface. Usage policy:
   max 1 req/s with a declared `User-Agent` (`NOMINATIM_USER_AGENT`).
 - **Local copies (gitignored):** `backend/data/cache/geo/`.
-- **Committed derivatives:** coordinates inside `seed-data/entities.json`.
+- **Committed derivatives:** coordinates inside `seed-data/entities.json`,
+  plus the `backend/src/data/geo-mapping.json` address→coords seed
+  (`npm run geo:snapshot`, ODbL 1.0 share-alike, attribution in-file).
   Because these derive from ODbL data, any public deployment must keep the
   © OpenStreetMap attribution visible (see TODO: standalone-cache license).
 

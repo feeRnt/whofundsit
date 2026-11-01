@@ -73,6 +73,7 @@ From `whofundsit/backend/` (pipeline order):
 | `ingest` | XBRL frames top-up for the current quarter |
 | `coords_populate` | Nominatim geocoding, 1 req/s, biggest first (city/state fallback retry on misses; marks `geoStatus`, `--retry-failed` re-includes failed rows) |
 | `deadlines:snapshot` | Copy local `dead-lines.json` into the committed seed for fresh clones |
+| `geo:snapshot` | Export address→coords mapping into the committed ODbL seed for fresh clones |
 | `ingest:all` | `ingest` + `coords_populate` in one go |
 | `pipeline` | Geocode pending entities (≤100/run) + Modal cleanup when configured |
 | `flows:openalex` | Grant arcs from OpenAlex (cached) |
