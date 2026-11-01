@@ -21,6 +21,7 @@
     "merge": "tsx src/scripts/merge_entities.ts",
     "dedupe:report": "tsx src/scripts/dedupe_report.ts",
     "names:sync": "tsx src/scripts/names_sync.ts",
+    "industry:sync": "tsx src/scripts/industry_sync.ts",
     "global:sync": "tsx src/scripts/global_sync.ts",
     "regional:esef": "tsx src/scripts/regional_esef.ts",
     "regional:twse": "tsx src/scripts/regional_twse.ts",

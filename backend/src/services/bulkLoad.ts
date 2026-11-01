@@ -229,6 +229,22 @@ function joinAddress(addr: {
 // addresses: {business, mailing}}. Note cik is a zero-padded STRING
 // ("0000320193"), unlike companyfacts' number — both are accepted.
 // v2: carries exchanges/category/formerNames (v1 rows lack them).
+
+// Industry text from a submissions doc: sicDescription wins ("Metal Mining"
+// beats "1000"). Empty when the filer never filed one. Pure + unit-tested.
+export function extractSic(doc: {
+  sic?: unknown;
+  sicDescription?: unknown;
+}): string | null {
+  if (typeof doc.sicDescription === "string" && doc.sicDescription.length > 0) {
+    return doc.sicDescription;
+  }
+  if (typeof doc.sic === "string" && doc.sic.length > 0) {
+    return doc.sic;
+  }
+  return null;
+}
+
 export const ADDRESS_MAP_CACHE = "sec/address-map-v3.json";
 const ADDRESS_MAP_CACHE_LEGACY = "sec/address-map-v2.json";
 

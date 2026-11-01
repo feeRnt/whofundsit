@@ -75,6 +75,8 @@ export interface Entity {
   exchanges: string[];
   category: string | null;
   formerNames: string[];
+  // Absent on rows seeded before industry:sync.
+  industry?: string | null;
   source: string;
   // Merge provenance (absent on rows seeded before the merge tooling).
   mergedFrom?: { id: string; name: string; source: string }[] | null;

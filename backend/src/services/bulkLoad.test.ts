@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { jsonEntries, locationTag } from "./bulkLoad.js";
+import { extractSic, jsonEntries, locationTag } from "./bulkLoad.js";
 
 // Fixture lives next to this file (committed); runners against dist must
 // copy __fixtures__ alongside the compiled test.
@@ -55,5 +55,17 @@ describe("locationTag", () => {
     assert.equal(locationTag(null, null), "—");
     assert.equal(locationTag(null, undefined), "—");
     assert.equal(locationTag("X0", null), "—");
+  });
+});
+
+describe("extractSic", () => {
+  it("prefers the description, falls back to the code", () => {
+    assert.equal(
+      extractSic({ sic: "1000", sicDescription: "Metal Mining" }),
+      "Metal Mining",
+    );
+    assert.equal(extractSic({ sic: "1000" }), "1000");
+    assert.equal(extractSic({}), null);
+    assert.equal(extractSic({ sicDescription: "" }), null);
   });
 });

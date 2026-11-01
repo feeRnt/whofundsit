@@ -53,6 +53,9 @@ model Entity {
   // future LLM repair pass's work queue — query them, don't re-geocode them.
   geoStatus String @default("pending")
 
+  // SIC industry description, e.g. "Semiconductors" (SEC submissions).
+  industry String?
+
   sourceFlows CapitalFlow[] @relation("SourceFlows")
   targetFlows CapitalFlow[] @relation("TargetFlows")
 }

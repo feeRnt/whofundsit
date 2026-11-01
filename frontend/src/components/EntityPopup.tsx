@@ -179,6 +179,12 @@ export default function EntityPopup({
           <dt>Address</dt>
           <dd>{entity.businessAddress ?? entity.rawAddressText}</dd>
         </div>
+        {entity.industry && (
+          <div>
+            <dt>Industry</dt>
+            <dd>{entity.industry}</dd>
+          </div>
+        )}
         {entity.form && (
           <div>
             <dt>Source filing</dt>

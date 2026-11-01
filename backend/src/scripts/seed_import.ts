@@ -69,6 +69,7 @@ try {
       formerNames: asStringArray(r.formerNames),
       mergedFrom: r.mergedFrom as Prisma.InputJsonValue | undefined,
       currency: asString(r.currency) ?? "USD",
+      industry: asString(r.industry),
       geoStatus:
         Number(r.lat) !== 0 || Number(r.lng) !== 0
           ? "placed"

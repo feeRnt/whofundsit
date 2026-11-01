@@ -81,6 +81,7 @@ From `whofundsit/backend/` (pipeline order):
 | `regional:esef` | EU/UK financial facts onto `lei:` rows, native currency (`ESEF_LIMIT`) |
 | `regional:twse` | Taiwan balance-sheet facts onto `lei:` rows in TWD (`TWSE_LIMIT`) |
 | `names:sync` | Backfill legal filer names from the local archive |
+| `industry:sync` | Backfill SIC industry + normalize `type` from the local archive (offline) |
 | `merge -- <keep> <drop>` | Fold a duplicate row (repoints flows, keeps provenance) |
 | `dedupe:report` | Print candidate duplicate groups for review (read-only) |
 | `db:push` | Push the Prisma schema to Postgres |

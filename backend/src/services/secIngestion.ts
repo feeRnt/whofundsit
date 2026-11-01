@@ -337,6 +337,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             businessAddress: true,
             tickers: true,
             type: true,
+            industry: true,
             exchanges: true,
             category: true,
             formerNames: true,
@@ -347,8 +348,10 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
         // backfills rows that skipped the fetch.
         let name = row.entityName;
         let tickers: string[] = existing?.tickers ?? [];
+        // Legacy rows smuggled the industry inside type; read both.
         let industry: string | null =
-          existing?.type && existing.type !== "Company" ? existing.type : null;
+          existing?.industry ??
+          (existing?.type && existing.type !== "Company" ? existing.type : null);
         let exchanges: string[] = existing?.exchanges ?? [];
         let category: string | null = existing?.category ?? null;
         let formerNames: string[] = existing?.formerNames ?? [];
@@ -382,7 +385,6 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
             }
           }
         }
-        const type = industry ?? "Company";
         const form = typeof row.form === "string" ? row.form : null;
         const filed = typeof row.filed === "string" ? new Date(row.filed) : null;
 
@@ -391,7 +393,8 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           create: {
             id,
             name,
-            type,
+            type: "Company",
+            industry,
             lat: 0, // placeholder — see pipeline.ts geocoding
             lng: 0,
             fundsVolume: row.val,
@@ -411,7 +414,8 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
           },
           update: {
             name,
-            type,
+            type: "Company",
+            industry,
             fundsVolume: row.val,
             rawAddressText: row.loc,
             businessAddress,
