@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import logoUrl from "./assets/logo.svg";
-import MapGlobe from "./components/MapGlobe";
+import MapGlobe, { type Basemap } from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
 import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
@@ -333,6 +333,13 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
+  // Dark basemap by default (matches the UI); choice persists per browser.
+  const [basemap, setBasemap] = useState<Basemap>(() =>
+    localStorage.getItem("whf-basemap") === "light" ? "light" : "dark",
+  );
+  useEffect(() => {
+    localStorage.setItem("whf-basemap", basemap);
+  }, [basemap]);
 
   useEffect(() => {
     Promise.all([fetchEntities(), fetchFlows()])
@@ -502,7 +509,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={shownEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} />
+          <MapGlobe entities={shownEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
         )}</main>
     </div>
   );

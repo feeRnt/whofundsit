@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
-import { Globe as GlobeIcon, Home, Map as MapIcon, Minus, Plus } from "lucide-react";
+import { Globe as GlobeIcon, Home, Map as MapIcon, Minus, Moon, Plus, Sun } from "lucide-react";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -23,8 +23,14 @@ import ZoomHint from "./ZoomHint";
 // type, which silently kills all tile decoding. Point it at the bundled worker.
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
-// Free, keyless OpenFreeMap "Liberty" style (blue/green earth, real countries).
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+export type Basemap = "light" | "dark";
+
+// Basemap styles, both free and keyless with built-in attribution:
+// OpenFreeMap "Liberty" (blue/green earth) and Carto "Dark Matter".
+const MAP_STYLES: Record<Basemap, string> = {
+  light: "https://tiles.openfreemap.org/styles/liberty",
+  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+};
 
 // Only systemic tile failure trips the note; isolated tile errors are ignored.
 const TILE_ERROR_BUDGET = 25;
@@ -137,6 +143,8 @@ export default function MapGlobe({
   onToggleFocusCompany,
   onOpenPopup,
   onToggleProjection,
+  basemap,
+  onToggleBasemap,
 }: {
   entities: Entity[];
   flows: Flow[];
@@ -150,6 +158,8 @@ export default function MapGlobe({
   onToggleFocusCompany: (id: string) => void;
   onOpenPopup: () => void;
   onToggleProjection: () => void;
+  basemap: Basemap;
+  onToggleBasemap: () => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -184,10 +194,10 @@ export default function MapGlobe({
     }
   }, [focused, focusTick]);
 
-  // The map remounts on projection toggle; show the spinner until onLoad.
+  // The map remounts on projection/basemap toggle; show the spinner until onLoad.
   useEffect(() => {
     setMapReady(false);
-  }, [projection]);
+  }, [projection, basemap]);
 
   // Zoom hint shows exactly once per page load (first ready only), never
   // again on projection toggles.
@@ -288,15 +298,16 @@ export default function MapGlobe({
     }
   }
 
-  // Fresh map instance per projection: MapLibre corrupts tile buffers
-  // when switching globe/mercator at runtime (pastel noise blocks).
+  // Fresh map instance per projection/basemap: MapLibre corrupts tile
+  // buffers when switching globe/mercator at runtime (pastel noise blocks),
+  // and a remount is the safest style swap too.
   return (
     <>
     <Map
-      key={projection}
+      key={`${projection}-${basemap}`}
       ref={mapRef}
       mapLib={maplibregl}
-      mapStyle={MAP_STYLE}
+      mapStyle={MAP_STYLES[basemap]}
       initialViewState={cameraRef.current}
       onMove={(e) =>
         (cameraRef.current = {
@@ -317,7 +328,7 @@ export default function MapGlobe({
       {/* Mount the overlay only once globe projection is engaged. */}
       {mapReady && !mapError && (
         <DeckGLOverlay
-          key={projection}
+          key={`${projection}-${basemap}`}
           layers={layers}
           getTooltip={tooltip}
           onClick={handleClick}
@@ -389,6 +400,15 @@ export default function MapGlobe({
           ) : (
             <GlobeIcon size={16} />
           )}
+        </button>
+        <button
+          type="button"
+          onClick={onToggleBasemap}
+          title="Toggle dark / light basemap"
+          aria-label="Toggle dark / light basemap"
+          aria-pressed={basemap === "dark"}
+        >
+          {basemap === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>
     </Map>

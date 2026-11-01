@@ -45,10 +45,12 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 
 ## OpenFreeMap (basemap tiles)
 
-- **What we take:** the Liberty vector style + tiles, loaded live in the
-  browser at runtime (nothing cached or shipped).
+- **What we take:** the Liberty vector style + tiles (light mode), loaded
+  live in the browser at runtime (nothing cached or shipped). Dark mode
+  uses CARTO's Dark Matter GL style the same way (also free, keyless).
 - **Terms:** free keyless use **with attribution**; the map's built-in
-  attribution control renders it (© OpenMapTiles © OpenStreetMap contributors).
+  attribution control renders it (© OpenMapTiles © OpenStreetMap
+  contributors, © CARTO on dark mode).
 
 ## Wikidata SPARQL (international company list)
 
