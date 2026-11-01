@@ -45,6 +45,9 @@
       (lat/lng 0 filtered?), `/api/entities` order/limit burying them, or the
       export predating `global:sync`. Check DB source counts, then the endpoint's
       filter/order, then re-export.)
+- [ ] **Price sparkline in the company popup** (garnish, not a pivot: free Stooq
+      daily closes per selected ticker, cached; answers "up or down?" for a
+      holding. Only after rehearsal + euro/asia gap.)
 
 ## Beneficial ownership (top individual owners)
 
