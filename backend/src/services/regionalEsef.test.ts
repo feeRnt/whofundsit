@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { extractEsefFacts, pickLatestJsonUrl } from "./regionalEsef.js";
+import {
+  extractEsefFacts,
+  pickLatestJsonUrl,
+  toFinancialDate,
+} from "./regionalEsef.js";
 
 describe("extractEsefFacts", () => {
   it("takes latest Assets, applies decimals, reads ISO currency", () => {
@@ -58,5 +62,20 @@ describe("pickLatestJsonUrl", () => {
       "https://x/new.json",
     );
     assert.equal(pickLatestJsonUrl([]), null);
+  });
+});
+
+describe("toFinancialDate", () => {
+  it("parses full dates and bare years, nulls garbage", () => {
+    assert.equal(
+      toFinancialDate("2024-12-31")?.toISOString().slice(0, 10),
+      "2024-12-31",
+    );
+    assert.equal(
+      toFinancialDate("2024")?.toISOString().slice(0, 10),
+      "2024-01-01",
+    );
+    assert.equal(toFinancialDate("not-a-date"), null);
+    assert.equal(toFinancialDate(""), null);
   });
 });

@@ -80,6 +80,13 @@ interface EsefFiling {
   date?: unknown;
 }
 
+// ESEF period strings are format-free ("2024", "2024-12-31", ...); unparsable
+// ones yield null rather than an Invalid Date that would kill the run.
+export function toFinancialDate(periodEnd: string): Date | null {
+  const d = new Date(periodEnd);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function pickLatestJsonUrl(filings: EsefFiling[]): string | null {
   const dated = filings
     .filter(
@@ -137,6 +144,9 @@ export async function runRegionalEsef(): Promise<{
       select: { id: true, name: true },
       take: limit,
     });
+    if (rows.length === 0) {
+      throw new Error("[esef] no lei: entities — run npm run global:sync first");
+    }
     for (const row of rows) {
       const lei = row.id.slice("lei:".length);
       let jsonUrl: string | null;
@@ -178,16 +188,21 @@ export async function runRegionalEsef(): Promise<{
         skipped.push(`${row.name} (no Assets/Revenue fact)`);
         continue;
       }
-      await prisma.entity.update({
-        where: { id: row.id },
-        data: {
-          fundsVolume: pick.value,
-          conceptTag: pick.conceptTag,
-          financialDate: new Date(pick.periodEnd),
-          currency: pick.currency,
-          sourceTimeFrame: pick.periodEnd.slice(0, 10),
-        },
-      });
+      try {
+        await prisma.entity.update({
+          where: { id: row.id },
+          data: {
+            fundsVolume: pick.value,
+            conceptTag: pick.conceptTag,
+            financialDate: toFinancialDate(pick.periodEnd),
+            currency: pick.currency,
+            sourceTimeFrame: pick.periodEnd.slice(0, 10),
+          },
+        });
+      } catch {
+        skipped.push(`${row.name} (DB update failed)`);
+        continue;
+      }
       updated += 1;
     }
     return { considered: rows.length, updated, skipped };

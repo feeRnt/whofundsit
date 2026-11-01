@@ -29,7 +29,11 @@ Running log for picking work back up. Update when the picture changes.
   `coords_populate`, then 13f/500 again (DB-first pickup of placed stubs).
   (Chain predates stubs, so the first rerun does the stubbing.)
 - `names:sync` result unknown (was running at last report).
-- Regionals committed but NEVER RUN LIVE (need chain to finish first).
+- Regionals committed but NEVER RUN LIVE. Trial-readiness audit done:
+  TWSE phantom-update counting fixed (+`missing` stat, outer limit break),
+  both regionals preflight on lei: rows (fail loud, run global:sync first),
+  ESEF date guard + per-row update catch. Seed export/import round-trip
+  verified field-complete (currency, mergedFrom, sleeves).
 - `npm run demo` never rehearsed on a fresh DB (do right after chain).
 - User's checkout vs agent worktree may differ (they once saw fce0a2a
   files as uncommitted) — reconcile before any push.

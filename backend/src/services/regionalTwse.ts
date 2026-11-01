@@ -132,6 +132,7 @@ export async function runRegionalTwse(): Promise<{
   viaTicker: number;
   viaName: number;
   unmatched: number;
+  missing: number;
 }> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -141,11 +142,14 @@ export async function runRegionalTwse(): Promise<{
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
   });
   try {
-    const tickerToLei = await twseCodeToLei();
     const leiRows = await prisma.entity.findMany({
       where: { id: { startsWith: "lei:" } },
       select: { id: true, name: true },
     });
+    if (leiRows.length === 0) {
+      throw new Error("[twse] no lei: entities — run npm run global:sync first");
+    }
+    const tickerToLei = await twseCodeToLei();
     const nameToLei = new Map(
       leiRows.map((r) => [twNameKey(r.name), r.id.slice("lei:".length)]),
     );
@@ -154,6 +158,7 @@ export async function runRegionalTwse(): Promise<{
     let viaTicker = 0;
     let viaName = 0;
     let unmatched = 0;
+    let missing = 0;
     for (const endpoint of BALANCE_ENDPOINTS) {
       const raw = await twseGet(endpoint);
       for (const r of raw) {
@@ -170,7 +175,9 @@ export async function runRegionalTwse(): Promise<{
         if (updated >= limit) {
           break;
         }
-        await prisma.entity.updateMany({
+        // Ticker joins can name LEIs global:sync never created; a zero-count
+        // write is a miss, not an update.
+        const res = await prisma.entity.updateMany({
           where: { id: `lei:${join.lei}` },
           data: {
             fundsVolume: row.assets,
@@ -180,6 +187,10 @@ export async function runRegionalTwse(): Promise<{
             sourceTimeFrame: row.date,
           },
         });
+        if (res.count === 0) {
+          missing += 1;
+          continue;
+        }
         updated += 1;
         if (join.via === "ticker") {
           viaTicker += 1;
@@ -187,8 +198,11 @@ export async function runRegionalTwse(): Promise<{
           viaName += 1;
         }
       }
+      if (updated >= limit) {
+        break;
+      }
     }
-    return { rows, updated, viaTicker, viaName, unmatched };
+    return { rows, updated, viaTicker, viaName, unmatched, missing };
   } finally {
     await prisma.$disconnect();
   }
