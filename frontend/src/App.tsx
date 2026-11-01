@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Globe as GlobeIcon, Map as MapIcon, X } from "lucide-react";
+import { Globe as GlobeIcon, X } from "lucide-react";
 import MapGlobe from "./components/MapGlobe";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
@@ -447,22 +447,6 @@ export default function App() {
             ))}
           </div>
         </details>
-        <button
-          type="button"
-          className="toggle"
-          onClick={() =>
-            setProjection((p) => (p === "globe" ? "mercator" : "globe"))
-          }
-          aria-pressed={projection === "globe"}
-          title="Toggle globe / flat map"
-        >
-          {projection === "globe" ? (
-            <MapIcon size={16} />
-          ) : (
-            <GlobeIcon size={16} />
-          )}
-          {projection === "globe" ? "Flat map" : "Globe"}
-        </button>
         <label
           className="arcs-control"
           title="Max arcs shown, biggest first"
@@ -499,7 +483,7 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={shownEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} />
+          <MapGlobe entities={shownEntities} flows={visibleFlows} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} />
         )}</main>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
-import { Home, Minus, Plus } from "lucide-react";
+import { Globe as GlobeIcon, Home, Map as MapIcon, Minus, Plus } from "lucide-react";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -136,6 +136,7 @@ export default function MapGlobe({
   focusCompanyId,
   onToggleFocusCompany,
   onOpenPopup,
+  onToggleProjection,
 }: {
   entities: Entity[];
   flows: Flow[];
@@ -148,6 +149,7 @@ export default function MapGlobe({
   focusCompanyId: string | null;
   onToggleFocusCompany: (id: string) => void;
   onOpenPopup: () => void;
+  onToggleProjection: () => void;
 }) {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -374,6 +376,19 @@ export default function MapGlobe({
           aria-label="Reset view"
         >
           <Home size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleProjection}
+          title="Toggle globe / flat map"
+          aria-label="Toggle globe / flat map"
+          aria-pressed={projection === "globe"}
+        >
+          {projection === "globe" ? (
+            <MapIcon size={16} />
+          ) : (
+            <GlobeIcon size={16} />
+          )}
         </button>
       </div>
     </Map>
