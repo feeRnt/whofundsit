@@ -563,3 +563,16 @@ comment corrected; old note left as history.
   wired into region/industry/coords fetchers + test. VERIFIED: tsc
   clean, 15/15 globalSync tests. User to check [config] UA warning +
   set WIKIDATA_USER_AGENT. No DB writes.
+- coords:global result (user, live): 1187 placed / 5915 (20.07%) in 60
+  batches — matches the assessment; failed rows were eligible, so part
+  of the 1187 came out of the LLM queue (post-hoc split unknowable,
+  placement overwrites status). Per-batch red/green/mixed lines added
+  for the next run. VERIFIED: tsc clean, existing tests green.
+- Modal keys (Wonder's suggestion, env-parsed per user): all 3 workers
+  (geocode/formalize/inference) now gate on MODAL_API_KEY from the
+  `whofundsit` Modal secret, fail-closed, hmac-compared; TS callers
+  send `key` from backend/.env (geocode/formalize throw when unset,
+  normalize warns once + skips, all surface {"error"} loud). Deploy:
+  `modal secret create whofundsit MODAL_API_KEY=...` + redeploy.
+  VERIFIED: tsc clean, 40/40 pipeline+formalize+globalSync tests,
+  py_compile on all 3 workers. No DB writes.

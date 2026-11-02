@@ -4,16 +4,22 @@ TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
   1. Accept the Llama 3.1 license on Hugging Face for
      meta-llama/Llama-3.1-70B-Instruct (the weights are gated).
   2. modal secret create huggingface-secret HF_TOKEN=<your HF token>
-  3. modal deploy backend/formalize_worker.py
-  4. Put the printed endpoint URL in backend/.env as MODAL_FORMALIZE_URL.
-Contract: POST {"text": "..."} -> one JSON object (see SYSTEM_PROMPT);
-POST {"texts": [...]} -> a list aligned by index. The model only parses:
-it never returns coordinates. Every failure carries notes + failureCause
-so the verification/geocode step can explain why a row failed.
+  3. modal secret create whofundsit MODAL_API_KEY=$(openssl rand -hex 32)
+  4. modal deploy backend/formalize_worker.py
+  5. Put the printed endpoint URL in backend/.env as MODAL_FORMALIZE_URL
+     and the same key as MODAL_API_KEY.
+Contract: POST {"text": "...", "key": "..."} -> one JSON object (see
+SYSTEM_PROMPT); POST {"texts": [...], "key": "..."} -> a list aligned by
+index. A wrong/missing key, or an unset secret, answers
+{"error": "unauthorized"}. The model only parses: it never returns
+coordinates. Every failure carries notes + failureCause so the
+verification/geocode step can explain why a row failed.
 Never hardcode tokens in this file (ground rules).
 """
 
+import hmac
 import json
+import os
 
 import modal
 
@@ -97,10 +103,26 @@ def _parse(raw: str, original: str) -> dict:
     }
 
 
-@app.function(image=image, timeout=60 * 10)
+def _authorized(payload: dict) -> bool:
+    """Shared-secret gate: MODAL_API_KEY comes from the `whofundsit`
+    Modal secret (container env), matched against payload["key"].
+    Fail-closed — an unset secret denies everything."""
+    expected = os.environ.get("MODAL_API_KEY", "")
+    return bool(expected) and hmac.compare_digest(
+        str(payload.get("key", "")), expected
+    )
+
+
+@app.function(
+    image=image,
+    timeout=60 * 10,
+    secrets=[modal.Secret.from_name("whofundsit")],
+)
 @modal.fastapi_endpoint(method="POST", label="formalize")
 def formalize_endpoint(payload: dict):
     """HTTP webhook: {"text": ...} -> object; {"texts": [...]} -> list."""
+    if not _authorized(payload):
+        return {"error": "unauthorized"}
     worker = FormalizeWorker()
     if isinstance(payload.get("texts"), list):
         texts = [str(t) for t in payload["texts"]]

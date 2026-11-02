@@ -206,16 +206,30 @@ async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null
   if (!url) {
     throw new Error("MODAL_GEOCODE_URL is not set (see backend/.env.example)");
   }
+  const key = process.env.MODAL_API_KEY;
+  if (!key) {
+    throw new Error(
+      "MODAL_API_KEY is not set (same value as the whofundsit Modal secret; see backend/.env.example)",
+    );
+  }
   const unique = [...new Set(texts)];
   apiLog("POST", url);
   const { data } = await modal(() =>
     axios.post(
       url,
-      { texts: unique, userAgent: nominatimUserAgent() },
+      { texts: unique, userAgent: nominatimUserAgent(), key },
       { headers: { "Content-Type": "application/json" }, timeout: 120000 },
     ),
   );
-  if (!Array.isArray(data) || data.length !== unique.length) {
+  if (!Array.isArray(data)) {
+    const errMsg = (data as { error?: unknown } | null)?.error;
+    throw new Error(
+      typeof errMsg === "string"
+        ? `Modal geocoder: ${errMsg}`
+        : "Modal geocoder returned a malformed batch",
+    );
+  }
+  if (data.length !== unique.length) {
     throw new Error("Modal geocoder returned a malformed batch");
   }
   const out = new Map<string, Coords | null>();
@@ -640,11 +654,25 @@ function needsLlama(name: string): boolean {
   return name === name.toUpperCase() || /[^A-Za-z0-9 .,&'-]/.test(name);
 }
 
+let warnedModalKey = false;
+
 async function normalizeWithLlama(
   entity: Pick<Entity, "name" | "rawAddressText">,
 ): Promise<string | null> {
   const url = process.env.MODAL_WEBHOOK_URL;
   if (!url) {
+    return null;
+  }
+  const key = process.env.MODAL_API_KEY;
+  if (!key) {
+    // Best-effort stays best-effort (never throw here), but a missing key
+    // warns once — silent no-op normalization is a misconfig smell.
+    if (!warnedModalKey) {
+      warnedModalKey = true;
+      console.warn(
+        "MODAL_API_KEY is not set — skipping AI normalization (see backend/.env.example)",
+      );
+    }
     return null;
   }
   const input = `${entity.name} (${entity.rawAddressText})`;
@@ -656,7 +684,7 @@ async function normalizeWithLlama(
           apiLog("POST", url);
           const res = await axios.post(
             url,
-            { text: input },
+            { text: input, key },
             { headers: { "Content-Type": "application/json" }, timeout: 60000 },
           );
           return res.data as unknown;
@@ -665,7 +693,12 @@ async function normalizeWithLlama(
     const parsed: unknown =
       typeof data === "string" ? JSON.parse(data) : data;
     if (typeof parsed === "object" && parsed !== null) {
-      const name = (parsed as { canonicalName?: unknown }).canonicalName;
+      const doc = parsed as { canonicalName?: unknown; error?: unknown };
+      if (typeof doc.error === "string") {
+        console.warn(`Modal normalize: ${doc.error}`);
+        return null;
+      }
+      const name = doc.canonicalName;
       return typeof name === "string" && name.length > 0 ? name : null;
     }
     return null;

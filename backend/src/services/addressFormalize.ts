@@ -121,11 +121,17 @@ export function modalFormalizeCaller(): FormalizeCaller {
       "MODAL_FORMALIZE_URL is not set (deploy backend/formalize_worker.py; see backend/.env.example)",
     );
   }
+  const key = process.env.MODAL_API_KEY;
+  if (!key) {
+    throw new Error(
+      "MODAL_API_KEY is not set (same value as the whofundsit Modal secret; see backend/.env.example)",
+    );
+  }
   return async (text: string) => {
     apiLog("POST", url);
     const { data } = await axios.post(
       url,
-      { text },
+      { text, key },
       {
         headers: {
           "Content-Type": "application/json",
@@ -134,6 +140,15 @@ export function modalFormalizeCaller(): FormalizeCaller {
         timeout: 120000,
       },
     );
+    if (
+      data !== null &&
+      typeof data === "object" &&
+      typeof (data as { error?: unknown }).error === "string"
+    ) {
+      // Thrown per-row: formalizeAddresses records it as llm-call-failed,
+      // so a bad key fails loud on every row instead of parsing garbage.
+      throw new Error(`Modal formalize: ${(data as { error: string }).error}`);
+    }
     return data as unknown;
   };
 }
