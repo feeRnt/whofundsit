@@ -114,10 +114,12 @@ function StakesRing({
   stakes,
   entities,
   marketCap,
+  capNote,
 }: {
   stakes: Flow[];
   entities: Entity[];
   marketCap: number | null;
+  capNote?: string | null;
 }) {
   const total = stakes.reduce((a, f) => a + f.amount, 0);
   if (stakes.length === 0 || total <= 0) {
@@ -131,6 +133,9 @@ function StakesRing({
   const shown = stakes.slice(0, 6);
   const rest = stakes.slice(6);
   const restTotal = rest.reduce((a, f) => a + f.amount, 0);
+  const label = (f: Flow) =>
+    entities.find((e) => e.id === f.sourceEntityId)?.tickers[0] ??
+    f.sourceEntity.name;
   const R = 40;
   const C = 2 * Math.PI * R;
   let acc = 0;
@@ -141,21 +146,36 @@ function StakesRing({
       frac,
       offset: acc,
       color: STAKE_COLORS[i % STAKE_COLORS.length],
+      title: `${f.sourceEntity.name} — ${(frac * 100).toFixed(1)}%`,
     };
     acc += frac;
     return arc;
   });
   if (restTotal > 0) {
-    arcs.push({ key: "other", frac: restTotal / base, offset: acc, color: OTHER_COLOR });
+    arcs.push({
+      key: "other",
+      frac: restTotal / base,
+      offset: acc,
+      color: OTHER_COLOR,
+      title: `Other (${rest.length}) — ${((restTotal / base) * 100).toFixed(1)}%`,
+    });
     acc += restTotal / base;
   }
   const publicFrac = trueMode && marketCap !== null ? 1 - total / marketCap : 0;
+  // Untracked is the residual: 100 minus every printed slice. In true-%
+  // mode that is the public float; tracked-relative slices sum to 100,
+  // and overlapping filings (tracked > cap) clamp at ~0, never negative.
+  const untrackedPct = Math.max(0, 100 - (total / base) * 100);
+  const exceeds = marketCap !== null && marketCap > 0 && total > marketCap;
   if (publicFrac > 0) {
-    arcs.push({ key: "public", frac: publicFrac, offset: acc, color: "#334155" });
+    arcs.push({
+      key: "public",
+      frac: publicFrac,
+      offset: acc,
+      color: "#334155",
+      title: `Untracked shares — ${(publicFrac * 100).toFixed(1)}%`,
+    });
   }
-  const label = (f: Flow) =>
-    entities.find((e) => e.id === f.sourceEntityId)?.tickers[0] ??
-    f.sourceEntity.name;
   return (
     <div className="stakes">
       <svg
@@ -176,7 +196,9 @@ function StakesRing({
               strokeWidth="14"
               strokeDasharray={`${Math.max(s.frac * C - 2, 1)} ${C}`}
               strokeDashoffset={-(s.offset * C)}
-            />
+            >
+              <title>{s.title}</title>
+            </circle>
           ))}
         </g>
         <text x="50" y="49" textAnchor="middle" className="stakes-total">
@@ -223,17 +245,20 @@ function StakesRing({
         >
           <span className="swatch swatch-unknown">?</span>
           <span className="stakes-name">
-            {trueMode ? "Untracked shares" : "Untracked funding"}
+            {marketCap !== null ? "Untracked shares" : "Untracked funding"}
           </span>
-          {trueMode && publicFrac > 0 && (
-            <span className="stakes-pct">{(publicFrac * 100).toFixed(1)}%</span>
-          )}
+          <span className="stakes-pct">
+            {exceeds ? "≈" : ""}
+            {untrackedPct.toFixed(1)}%
+          </span>
         </li>
       </ul>
       <p className="stakes-note">
         {trueMode && marketCap !== null
           ? `True % of ~${formatMoney(marketCap)} market cap.`
-          : "Split of tracked 13F $ — true % needs market cap."}
+          : exceeds && marketCap !== null
+            ? `Tracked 13F $ ≥ ~${formatMoney(marketCap)} market cap — overlapping filings.`
+            : (capNote ?? "Split of tracked 13F $ — true % needs market cap.")}
       </p>
     </div>
   );
@@ -319,12 +344,22 @@ export default function EntityPopup({
       : overallCell && overallCell.pctVerified !== null
         ? { cell: overallCell, scope: "overall" }
         : null;
-  // Ring view switch: true market-cap % when the data supports it, else
-  // the tracked-relative 13F funding view. State defaults to real %;
-  // the toggle only renders when both views are actually available.
-  const trackedTotal = stakes.reduce((a, f) => a + f.amount, 0);
-  const canTrue =
-    marketCap !== null && marketCap > 0 && trackedTotal <= marketCap;
+  // Ring view switch: available whenever a market cap exists. When
+  // tracked $ exceeds it (overlapping filings) the ring itself falls
+  // back to tracked-relative and says so — hiding the toggle made
+  // share-% look "gone" (regression in 9f2939a, which also dropped
+  // this missing-input diagnosis).
+  const canTrue = marketCap !== null && marketCap > 0;
+  const capNote =
+    marketCap !== null
+      ? null
+      : !ticker
+        ? "True % needs a live price — no ticker on this row."
+        : !cik
+          ? "True % needs a 10-K share count — no SEC CIK."
+          : shares === null
+            ? "True % needs a 10-K share count — none on file for this CIK."
+            : "True % needs shares + price — quote fetch failed.";
   const [ringTrue, setRingTrue] = useState(true);
   return (
     <div className="entity-popup">
@@ -374,6 +409,7 @@ export default function EntityPopup({
         stakes={stakes}
         entities={entities}
         marketCap={ringTrue ? marketCap : null}
+        capNote={capNote}
       />
       {hasFlows && (
         <button

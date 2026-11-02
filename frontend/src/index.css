@@ -229,7 +229,7 @@ body {
 .stakes {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.3rem;
   align-items: center;
   margin: 0.5rem 0;
 }
