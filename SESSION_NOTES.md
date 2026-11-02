@@ -520,6 +520,4 @@ comment corrected; old note left as history.
 - Arc verdict (ucn.PNG): US→China over the Arctic is CORRECT great
   circle geometry (SLERP + unwrap + wrapLongitude all check out) —
   real flights route that way; Mercator + world copies make it look
-  dramatic. Restyle options offered (rhumb lines on flat map), no
-  change made; awaiting user call. (visual-coding skill loads before
-  any MapGlobe arc edit.)
+  dramatic. User confirmed keep-as-is (no rhumb restyle).
