@@ -480,3 +480,7 @@ comment corrected; old note left as history.
   (censusBatch + pipeline + httpCache), unparseable probe PROBE-OK
   (26/10/1). User blessed to restart coords --all (~9h, retries
   included in that number).
+- apiLog notes now `[for: X]` (were `(X)`, read as part of the query).
+  VERIFIED: tsc/build clean, 7/7 httpCache green. Advised user: yes to
+  Wonder in parallel, fenced to frontend-only on its own branch, no
+  backend scripts or DB writes; review-first per the TODO reminders.

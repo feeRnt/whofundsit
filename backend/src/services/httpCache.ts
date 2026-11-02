@@ -31,7 +31,7 @@ export function redactUrlSecrets(url: string): string {
 // Optional note (e.g. company name) correlates lookups with entities.
 export function apiLog(method: string, url: string, note?: string): void {
   console.log(
-    `[API] ${new Date().toISOString()} ${method} ${redactUrlSecrets(url)}${note ? ` (${note})` : ""}`,
+    `[API] ${new Date().toISOString()} ${method} ${redactUrlSecrets(url)}${note ? ` [for: ${note}]` : ""}`,
   );
 }
 

@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  apiLog,
   green,
   isRetryableHttpStatus,
   red,
@@ -89,6 +90,26 @@ describe("userAgentFromEnv", () => {
     } finally {
       delete process.env[name];
     }
+  });
+});
+
+describe("apiLog", () => {
+  it("marks the note as an annotation, not part of the URL", () => {
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (...args: unknown[]) => {
+      lines.push(args.map(String).join(" "));
+    };
+    try {
+      apiLog("GET", "https://x.test/search?q=addr", "Acme Ltd");
+      apiLog("GET", "https://x.test/search?q=addr");
+    } finally {
+      console.log = orig;
+    }
+    assert.equal(lines.length, 2);
+    assert.ok(lines[0].includes("[for: Acme Ltd]"));
+    assert.ok(!lines[0].includes("(Acme Ltd)"));
+    assert.ok(!lines[1].includes("[for:"));
   });
 });
 
