@@ -7,7 +7,7 @@ import {
   MapLibreOverlay,
   type MapLibreOverlayProps,
 } from "@deck.gl/maplibre";
-import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -79,6 +79,9 @@ const FOCUS_ZOOM = 12;
 // Dot clicks from country/state distance dive to street level; already
 // at street level (or closer) the camera stays put.
 const DOT_STREET_ZOOM = 15;
+// Spiderfy ring spacing: one ring per 34 screen pixels from the stack
+// center (hex-packed 6/12/18… per ring), degrees from zoom at move-end.
+const RING_GAP_PX = 34;
 
 // Trust badge for tooltips: the audit cell's "% verified", or nothing when
 // no snapshot is deployed. Cells are methodology scores, not per-row facts.
@@ -91,6 +94,7 @@ function tooltip(
   { object }: PickingInfo,
   verification: VerificationReport | null,
   pool: Entity[] = [],
+  stackCounts?: Map<string, number>,
 ) {
   if (!object) {
     return null;
@@ -116,6 +120,10 @@ function tooltip(
   const entity = object as Entity;
   const where = displayLocation(entity);
   const badge = verifySuffix(verification, `source=${entity.source}`);
+  const stackN = stackCounts?.get(entity.id);
+  if (stackN) {
+    return `${entity.name} + ${stackN - 1} more here — click to expand (${where})${badge}`;
+  }
   const primary = primaryMetric(entity, pool);
   if (primary.volume === 0 && entity.source !== "openalex") {
     return `${entity.name} — listed company (${where})${badge}`;
@@ -243,6 +251,11 @@ export default function MapGlobe({
   const [contextLost, setContextLost] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [selected, setSelected] = useState<Entity | null>(null);
+  // Expanded coincident stack (ring visible); null collapses all badges.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  // Zoom for spiderfy-ring sizing, snapped on move-end (live-zoom
+  // staleness mid-gesture is invisible; per-frame state is not worth it).
+  const [zoom, setZoom] = useState(HOME.zoom);
   // Last camera, re-applied as initialViewState when the map remounts
   // on projection toggle so the user keeps their view.
   const cameraRef = useRef(HOME);
@@ -261,6 +274,125 @@ export default function MapGlobe({
     });
   }
 
+  // Coincident dots: rows sharing an address geocode to identical coords
+  // (measured 511 multi-company stacks in seeds, up to 212 on one dot).
+  // Every stack renders ONE dot + count badge; clicking expands a ring.
+  const stacks = useMemo(() => {
+    const groups = new globalThis.Map<string, Entity[]>();
+    for (const e of entities) {
+      const key = `${e.lat.toFixed(5)},${e.lng.toFixed(5)}`;
+      const g = groups.get(key);
+      if (g) {
+        g.push(e);
+      } else {
+        groups.set(key, [e]);
+      }
+    }
+    const out = new globalThis.Map<
+      string,
+      { lat: number; lng: number; members: Entity[] }
+    >();
+    for (const [key, members] of groups) {
+      if (members.length < 2) {
+        continue;
+      }
+      members.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      out.set(key, { lat: members[0]!.lat, lng: members[0]!.lng, members });
+    }
+    return out;
+  }, [entities]);
+
+  // entity id -> its stack key (singles absent).
+  const stackOfMember = useMemo(() => {
+    const out = new globalThis.Map<string, string>();
+    for (const [key, s] of stacks) {
+      for (const m of s.members) {
+        out.set(m.id, key);
+      }
+    }
+    return out;
+  }, [stacks]);
+
+  // Rep (first id-sorted member) -> stack key, for badge clicks.
+  const repStacks = useMemo(() => {
+    const out = new globalThis.Map<string, string>();
+    for (const [key, s] of stacks) {
+      out.set(s.members[0]!.id, key);
+    }
+    return out;
+  }, [stacks]);
+
+  // Rep id -> count, UNEXPANDED stacks only (expanded members read normal).
+  const repCounts = useMemo(() => {
+    const out = new globalThis.Map<string, number>();
+    for (const [key, s] of stacks) {
+      if (key !== expandedKey) {
+        out.set(s.members[0]!.id, s.members.length);
+      }
+    }
+    return out;
+  }, [stacks, expandedKey]);
+
+  // Rendered dots: singles + one rep per collapsed stack + every member
+  // of the expanded stack.
+  const dotEntities = useMemo(() => {
+    const out: Entity[] = [];
+    for (const e of entities) {
+      const key = stackOfMember.get(e.id);
+      if (!key || key === expandedKey) {
+        out.push(e);
+      } else if (stacks.get(key)!.members[0]!.id === e.id) {
+        out.push(e);
+      }
+    }
+    return out;
+  }, [entities, stacks, stackOfMember, expandedKey]);
+
+  // Spiderfy ring for the expanded stack: concentric hex-packed rings
+  // (6/12/18… per ring) at a constant SCREEN radius — degrees-per-pixel
+  // from zoom, alternate rings half-stepped for packing. Deterministic:
+  // same members, same layout, every render.
+  const spreadPositions = useMemo(() => {
+    const out = new globalThis.Map<string, [number, number]>();
+    if (!expandedKey) {
+      return out;
+    }
+    const stack = stacks.get(expandedKey);
+    if (!stack) {
+      return out;
+    }
+    const z = Math.min(20, Math.max(2, zoom));
+    const dpp = 360 / (512 * Math.pow(2, z));
+    const latFix = Math.cos((stack.lat * Math.PI) / 180);
+    let i = 0;
+    let ring = 0;
+    while (i < stack.members.length) {
+      ring += 1;
+      const capacity = 6 * ring;
+      for (let j = 0; j < capacity && i < stack.members.length; j += 1, i += 1) {
+        const angle = (2 * Math.PI * (j + ring * 0.5)) / capacity;
+        const px = ring * RING_GAP_PX;
+        out.set(stack.members[i]!.id, [
+          stack.lng + Math.cos(angle) * px * dpp,
+          stack.lat + Math.sin(angle) * px * dpp * latFix,
+        ]);
+      }
+    }
+    return out;
+  }, [stacks, expandedKey, zoom]);
+
+  // Badge labels: one count per collapsed stack.
+  const badgeData = useMemo(() => {
+    const out: { position: [number, number]; text: string }[] = [];
+    for (const [key, s] of stacks) {
+      if (key === expandedKey) {
+        continue;
+      }
+      out.push({ position: [s.lng, s.lat], text: String(s.members.length) });
+    }
+    return out;
+  }, [stacks, expandedKey]);
+
   // Search selection: fly to the company and open its popup. focusTick
   // re-fires the flight when the SAME company is picked twice in a row
   // (React would otherwise bail out on the identical entity object).
@@ -268,6 +400,11 @@ export default function MapGlobe({
     if (focused && mapRef.current) {
       flyToPoint(focused.lat, focused.lng);
       setSelected(focused);
+      // Searched into a stack: expand it so the company is clickable.
+      const key = stackOfMember.get(focused.id);
+      if (key) {
+        setExpandedKey(key);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, focusTick]);
@@ -385,11 +522,11 @@ export default function MapGlobe({
   const layers = useMemo(() => [
     new ScatterplotLayer<Entity>({
       id: "entities-halo",
-      data: entities,
+      data: dotEntities,
       pickable: false,
       filled: true,
       stroked: false,
-      getPosition: (d) => [d.lng, d.lat],
+      getPosition: (d) => spreadPositions.get(d.id) ?? [d.lng, d.lat],
       getRadius: (d) => {
         const base = (8000 + Math.sqrt(radiusVolumes.get(d.id) ?? d.fundsVolume) * 2) / Math.SQRT2;
         return (selected?.id === d.id ? base * 3 : base) * 1.4;
@@ -420,18 +557,22 @@ export default function MapGlobe({
     }),
     new ScatterplotLayer<Entity>({
       id: "entities",
-      data: entities,
+      data: dotEntities,
       pickable: true,
       filled: true,
       stroked: true,
       lineWidthUnits: "pixels",
       getLineWidth: (d) => (selected?.id === d.id ? 2.5 : 0.75),
-      getPosition: (d) => [d.lng, d.lat],
+      getPosition: (d) => spreadPositions.get(d.id) ?? [d.lng, d.lat],
       // Half the area (÷√2 radius); the money×2 multiplier stays.
       // Selected node renders 3x for visibility.
       getRadius: (d) => {
         const base = (8000 + Math.sqrt(radiusVolumes.get(d.id) ?? d.fundsVolume) * 2) / Math.SQRT2;
-        return selected?.id === d.id ? base * 3 : base;
+        // Count badge reads on a bigger dot; selection still wins.
+        if (selected?.id === d.id) {
+          return base * 3;
+        }
+        return repCounts.has(d.id) ? base * 2 : base;
       },
       radiusMinPixels: 3,
       radiusMaxPixels: 11,
@@ -457,11 +598,23 @@ export default function MapGlobe({
       widthMinPixels: 1,
       widthMaxPixels: 3,
     }),
+    new TextLayer<{ position: [number, number]; text: string }>({
+      id: "stack-badges",
+      data: badgeData,
+      pickable: false,
+      getPosition: (d) => d.position,
+      getText: (d) => d.text,
+      getSize: 12,
+      sizeUnits: "pixels",
+      getColor: [255, 255, 255, 235],
+      fontFamily: "system-ui, sans-serif",
+      fontWeight: 700,
+    }),
     // projection/basemap are deps on purpose: the overlay remounts on
     // either toggle, and a fresh overlay needs fresh layer instances
     // (reused ones stay bound to the dead Deck instance and vanish).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [entities, pathFlows, flowEndpoints, selected, projection, basemap, mapTick, radiusVolumes]);
+  ], [dotEntities, spreadPositions, badgeData, repCounts, pathFlows, flowEndpoints, selected, projection, basemap, mapTick, radiusVolumes]);
 
   // Arc ping-pong: first click flies to the funded end, clicking the same
   // arc again flies to the funder; any dot click resets to funded-first.
@@ -474,6 +627,15 @@ export default function MapGlobe({
     if (object && !("flowType" in object)) {
       arcPingPong.current = { id: "", toFunder: false };
       const entity = object as unknown as Entity;
+      const stackKey = repStacks.get(entity.id);
+      if (stackKey && stackKey !== expandedKey) {
+        // Count badge: expand the ring instead of opening a popup.
+        setExpandedKey(stackKey);
+        if (mapRef.current && mapRef.current.getZoom() < DOT_STREET_ZOOM) {
+          flyToPoint(entity.lat, entity.lng, DOT_STREET_ZOOM);
+        }
+        return;
+      }
       // From country/state distance, dive to street level on the dot;
       // already at street level or closer, keep the camera as-is.
       if (mapRef.current && mapRef.current.getZoom() < DOT_STREET_ZOOM) {
@@ -512,6 +674,8 @@ export default function MapGlobe({
         return;
       }
     }
+    // Empty click collapses the ring too.
+    setExpandedKey(null);
     setSelected(null);
   }
 
@@ -533,6 +697,7 @@ export default function MapGlobe({
           zoom: e.viewState.zoom,
         })
       }
+      onMoveEnd={(e) => setZoom(e.viewState.zoom)}
       projection={projection}
       style={{ background: SPACE_BG[basemap] }}
       onLoad={(e) => {
@@ -560,14 +725,14 @@ export default function MapGlobe({
         <DeckGLOverlay
           key={`${projection}-${basemap}-${mapTick}`}
           layers={layers}
-          getTooltip={(info) => tooltip(info, verification, allEntities)}
+          getTooltip={(info) => tooltip(info, verification, allEntities, repCounts)}
           onClick={handleClick}
         />
       )}
       {selected && (
         <Popup
-          longitude={selected.lng}
-          latitude={selected.lat}
+          longitude={spreadPositions.get(selected.id)?.[0] ?? selected.lng}
+          latitude={spreadPositions.get(selected.id)?.[1] ?? selected.lat}
           // No anchor: MapLibre picks the side with room (top/bottom/…)
           // on every move, and the tip follows the same anchor.
           closeButton={true}
@@ -682,6 +847,10 @@ export default function MapGlobe({
             <span className="legend-item">
               <span className="legend-dot" style={{ background: "#fbbf24" }} />
               University
+            </span>
+            <span className="legend-item">
+              <span className="legend-badge">N</span>
+              Stack — click to expand
             </span>
             <span className="legend-item">
               <span className="legend-line" style={{ background: "#fb923c" }} />

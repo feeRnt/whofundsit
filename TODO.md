@@ -119,6 +119,14 @@
 
 ## Frontend globe follow-ups (`frontend/src/components/MapGlobe.tsx`)
 
+- [ ] **Check coincident-dot stacks in the browser.** (Count badges shipped: every
+      stack shows one dot + N, click expands a clickable ring, empty click
+      collapses. Verify: (1) San Francisco 37.78794,-122.40752 — Salesforce +
+      DocuSign share a dot; (2) NYC 40.71273,-74.00602 — Medallion Financial +
+      TG Therapeutics (+210 more). Search the name, look for the badge, click
+      to expand, click individuals. Seeds snapshot — live DB coords may differ
+      slightly; if the badge moved, search the name and look around.)
+
 - [x] **Verify the globe renders clean in the browser.** (Verified by daily use:
       globe/2D toggle, nodes + arcs retained across switches, fresh `Map` per projection. If distortion
       returns, `MapGlobe.tsx` is the first place to look. Note: the worker import must stay in `?url` form —
