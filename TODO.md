@@ -63,6 +63,11 @@
 - [ ] **Tell Muse Wonder about Claude's sleek dark globes (user reminder).**
       Reference: how Claude builds modern, dark, sleek Globe visuals in
       Globular apps — explore similar sleekness for our MapGlobe.
+- [ ] **Unify outbound API helpers (post-demo refactor).** (Per-API modules
+      already share `apiLog`, `createRateLimiter`, `green`/`red`, and the
+      cache helpers; eventually fold request, retry, and audit-trail
+      handling into one global helper to reduce clutter. Census
+      `censusBatch.ts` is the conformance reference.)
 
 ## Beneficial ownership (top individual owners)
 
