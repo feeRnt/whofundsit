@@ -2,6 +2,13 @@
 
 ## ⏳ Not yet built (ordered by demo impact)
 
+- [ ] **User reminder: check whether % shares has the same coverage gaps as the primary metric.**
+      (Primary metric is now Assets everywhere; verify per-company whether a
+      `EntityCommonStockSharesOutstanding` row + live quote exist, so Real %
+      shows. Seed has only ~500 share-count CIKs — NVDA/GOOGL/XOM missing,
+      AAPL/MSFT/AMZN present. Dataset is NOT complete: Other (n) and
+      Untracked % are shares of tracked 13F $ in our files, not of all
+      shares ever issued, unless market cap mode is active.)
 - [ ] **⭐⭐⭐ VERY IMPORTANT — arcs slider must show the true max available arcs, like the dots slider.**
       (Dots slider max/label already reflect the full available count; the arcs slider does not.
       Make arcs behave the same way. Deferred by user 2026-11-02 — do after the demo-critical work.)
