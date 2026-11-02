@@ -187,6 +187,15 @@ funderCoords inline site). New `httpCache.test.ts` (3 tests) registered in
 User runs the full chain next (preflight: `dmesg|tail`, watch for `[config]`
 lines at startup, `tail` logs only).
 
+## 2026-11-02 — CORRECTION: TWSE serves Q3 filings-in-progress, not a new quarter
+
+Cache proof: all 46 `t187ap07_L_ci` rows carry ROC 115 /季別 3 (Q3 2026);
+other 5 industry endpoints returned 1 empty row each. Q3 ended Sept 30 —
+"quarter just started" (old note + code comment) was wrong in every reading.
+True story: Q3 reports file through ~45 days after quarter-end (≈ mid-Nov),
+so Nov 1-2 shows early filers only. Rerunning later in Nov fills it in. Code
+comment corrected; old note left as history.
+
 ## Where things stand
 
 - App healthy: globe/2D toggle, dark popups, accordion menus, focus mode,

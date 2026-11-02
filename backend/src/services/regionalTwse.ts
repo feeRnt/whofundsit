@@ -13,8 +13,9 @@ import { gleifEntity } from "./globalSync.js";
 // depends on global:sync's random company sample covering Taiwan. Values
 // are NTD thousands (verified by magnitude: TSMC row => ~NT$9.4T ~= US$300B).
 // Row ceiling: TWSE_LIMIT (default 2000).
-// NOTE: the endpoints serve the CURRENT quarter only; early in a quarter
-// (e.g. 46 rows on Nov 1) most companies haven't filed yet — rerun later.
+// NOTE: the endpoints serve the latest reported quarter (Q3 2026 as of early
+// Nov: 46 rows and counting). Filings arrive through ~45 days after quarter
+// end, so a thin pull means "filed so far" — rerun later for fuller coverage.
 
 const TWSE = "https://openapi.twse.com.tw/v1/opendata";
 const SPARQL = "https://query.wikidata.org/sparql";
