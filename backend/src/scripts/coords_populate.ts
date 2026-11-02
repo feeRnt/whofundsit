@@ -39,13 +39,25 @@ const args = process.argv.slice(2);
 if (args.includes("--census-failed")) {
   const failed = await countFailedGeocodes();
   console.log(`[coords] census-failed: ${failed} failed rows queued`);
+  // Same paging contract as the --all loop: progress restarts from the top
+  // (placed rows leave the failed set), fruitless runs page past what they
+  // saw — otherwise a zero-yield page spins forever on the same rows.
   let runs = 0;
+  let skip = 0;
   for (;;) {
-    const summary = await runPipeline({ take: 500, censusFailed: true });
+    const summary = await runPipeline({ take: 500, skip, censusFailed: true });
     runs += 1;
     console.log(`[coords] census-failed run ${runs}:`, summary);
     if (summary.scanned === 0 || runs >= 500) {
       break;
+    }
+    if (summary.geocoded === 0) {
+      if (summary.scanned < 500) {
+        break; // tail page: everything seen, nothing placed
+      }
+      skip += summary.scanned;
+    } else {
+      skip = 0;
     }
   }
   process.exit(0);

@@ -17,6 +17,7 @@ import {
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import {
   censusBatchGeocode,
+  isUsShaped,
   parseUsAddress,
   type ParsedUsAddress,
 } from "./censusBatch.js";
@@ -432,6 +433,8 @@ async function geocodeMany(
     const parsed = parseUsAddress(q);
     if (parsed) {
       censusRows.set(q, parsed);
+    } else if (isUsShaped(q)) {
+      console.log(red(`[census] ${q} -> unparseable`));
     }
   }
   const censusHits = new Map<string, Coords>();
@@ -450,10 +453,11 @@ async function geocodeMany(
         `[coords] census batch failed, nominatim covers all (${err instanceof Error ? err.message : String(err)})`,
       );
     }
-    console.log(
-      `[coords] census: ${censusHits.size}/${censusRows.size} us rows placed`,
-    );
   }
+  console.log(
+    `[coords] census: ${censusHits.size}/${censusRows.size} us rows placed` +
+      `${censusRows.size === 0 ? " (no api call)" : ""}`,
+  );
   const remaining = queries.filter((q) => !censusHits.has(q));
   const results: Map<string, Coords | null> =
     remaining.length > 0
@@ -737,6 +741,8 @@ async function runCensusFailedPass(
     const parsed = parseUsAddress(t);
     if (parsed) {
       rows.set(e.id, parsed);
+    } else if (isUsShaped(t)) {
+      console.log(red(`[census] ${t} -> unparseable`));
     }
   }
   let geocoded = 0;
@@ -764,7 +770,7 @@ async function runCensusFailedPass(
   runTotals.skipped += skipped;
   console.log(
     `[coords] census-failed: ${geocoded}/${entities.length} placed ` +
-      `(${rows.size} us-parseable) in ${formatDuration((Date.now() - t0) / 1000)}`,
+      `(${rows.size} us-parseable${rows.size === 0 ? ", no api call" : ""}) in ${formatDuration((Date.now() - t0) / 1000)}`,
   );
   return {
     scanned: entities.length,

@@ -446,3 +446,12 @@ comment corrected; old note left as history.
   UNVERIFIED (run active).
 - US DST ended Sun 2026-11-01 (yesterday), not today. Our logs are
   ISO UTC so unaffected; local times fall back an hour.
+- census-failed loop BUG fixed: zero-yield pages never broke the scan
+  (same 358 rescanned to run 500). Loop now pages past fruitless runs
+  and breaks on a fruitless tail, mirroring --all. Census lines now
+  always print with a "(no api call)" suffix at zero rows, and
+  US-shaped-but-unparseable addresses log red `-> unparseable` each
+  (foreign stays silent; isUsShaped pinned by test). Dead-lines census:
+  0/693 parseable; 26 stateless-US rows are the parser gap (state must
+  come from zip or LLM). UNVERIFIED (spin active) — ctrl-c, verify
+  locally, restart.

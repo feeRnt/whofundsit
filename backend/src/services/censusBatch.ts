@@ -68,6 +68,16 @@ export function parseUsAddress(text: string): ParsedUsAddress | null {
   return { street, city, state, zip };
 }
 
+// US-shaped but rejected by the parser (GLEIF stateless rows, digitless
+// streets): one log line each so parser gaps stay visible. Foreign rows
+// are out-of-scope and stay silent — the count lines cover them.
+export function isUsShaped(text: string): boolean {
+  return (
+    /,\s*usa?\s*$/i.test(text) ||
+    /[A-Z]{2}[, ]+\d{5}(?:-\d{4})?\s*$/.test(text)
+  );
+}
+
 // Minimal quote-aware CSV splitter (double-quote escaping); the Census
 // matched-address and "lon,lat" fields arrive quoted with inner commas.
 export function splitCsvLine(line: string): string[] {

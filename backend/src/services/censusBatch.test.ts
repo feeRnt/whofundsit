@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildCensusCsv,
+  isUsShaped,
   parseCensusResponse,
   parseUsAddress,
   splitCsvLine,
@@ -44,6 +45,22 @@ describe("parseUsAddress", () => {
     assert.equal(parseUsAddress("MAIN STREET, SPRINGFIELD, IL, 62701"), null);
     assert.equal(parseUsAddress("—"), null);
     assert.equal(parseUsAddress(""), null);
+  });
+});
+
+describe("isUsShaped", () => {
+  it("flags US rows the parser rejects, stays silent on foreign", () => {
+    assert.equal(isUsShaped("100 SHOCKOE SLIP FL 2, 23219-4100 RICHMOND, US"), true);
+    assert.equal(
+      isUsShaped("MAIN STREET, SPRINGFIELD, IL, 62701"),
+      true,
+    );
+    assert.equal(
+      isUsShaped("33 CHARTERHOUSE STREET, EC1M 6HA LONDON, GB"),
+      false,
+    );
+    assert.equal(isUsShaped("15125 MAROUSI, GR"), false);
+    assert.equal(isUsShaped("Illinois, United States"), false);
   });
 });
 
