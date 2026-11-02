@@ -50,6 +50,13 @@
 - [ ] **Price sparkline in the company popup** (garnish, not a pivot: free Stooq
       daily closes per selected ticker, cached; answers "up or down?" for a
       holding. Only after rehearsal + euro/asia gap.)
+- [ ] **names:sync scope decision (DEFERRED per user 2026-11-02 — remind later).**
+      Candidates: collisions + inconsistent CIKs (recommended) vs cross-entity
+      matches only vs keep current all-mismatch scope. User will search Exxon
+      in the UI first (they recall names appearing identical there — possibly
+      live DB already unified post-export, or display-layer dedupe). Verbatim
+      source settled: local offline archive (yauzl lazy streaming, no
+      extraction — see bulkLoad `jsonEntries`).
 
 ## Beneficial ownership (top individual owners)
 
