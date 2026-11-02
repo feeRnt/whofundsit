@@ -360,13 +360,13 @@ export default function MapGlobe({
       getPosition: (d) => [d.lng, d.lat],
       getRadius: (d) => {
         const base = (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2;
-        return (selected?.id === d.id ? base * 3 : base) * 1.7;
+        return (selected?.id === d.id ? base * 3 : base) * 1.4;
       },
-      radiusMinPixels: 6,
-      radiusMaxPixels: 18,
+      radiusMinPixels: 5,
+      radiusMaxPixels: 14,
       getFillColor: (d) => {
         const c = dotColor(d);
-        return [c[0], c[1], c[2], 11];
+        return [c[0], c[1], c[2], 6];
       },
     }),
     new PathLayer<Flow & { path: [number, number][] }>({
@@ -379,12 +379,12 @@ export default function MapGlobe({
       getPath: (d) => d.path,
       getColor: (d) => {
         const c = arcColor(d);
-        return [c[0], c[1], c[2], Math.round(c[3] * 0.2)];
+        return [c[0], c[1], c[2], Math.round(c[3] * 0.12)];
       },
-      getWidth: (d) => arcWidth(d) * 1.9,
+      getWidth: (d) => arcWidth(d) * 1.5,
       widthUnits: "pixels",
       widthMinPixels: 2,
-      widthMaxPixels: 6,
+      widthMaxPixels: 5,
     }),
     new ScatterplotLayer<Entity>({
       id: "entities",
@@ -456,6 +456,15 @@ export default function MapGlobe({
         ? flow.sourceEntity
         : flow.targetEntity;
       flyToPoint(dest.lat, dest.lng);
+      // Open the destination's popup too (fundee first click, purple
+      // funder second click) when its full row is loaded; endpoints
+      // outside the entity cap fly only.
+      const destEntity = entities.find((e) => e.id === dest.id);
+      if (destEntity) {
+        setSelected(destEntity);
+        onOpenPopup();
+        return;
+      }
     }
     setSelected(null);
   }
