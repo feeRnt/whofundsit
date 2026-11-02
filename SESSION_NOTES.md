@@ -423,3 +423,10 @@ comment corrected; old note left as history.
   Census probe: Pittsburgh 40.442,-79.995 ✓, DC 38.845,-76.928 ✓,
   bogus row null ✓. Also fixed: node:buffer has no FormData export —
   censusBatch uses the Node globals now.
+- Census pacing + logging (user catch): batched POSTs now share a 1s
+  limiter (both call sites), per-row `[census] addr -> lat,lng|miss`
+  lines join the batch [API] line, interval pinned by test. Takes
+  effect on next restart. tsc/tests UNVERIFIED (a run is active again)
+  — user runs locally. Note: failed queue looks foreign-dominated, so
+  --census-failed yield will be US-slice-only; count line shows the
+  parseable share.

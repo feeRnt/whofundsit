@@ -175,7 +175,11 @@ export async function censusBatchGeocode(
     });
     const parsed = parseCensusResponse(typeof data === "string" ? data : "");
     chunk.forEach(([query], j) => {
-      out.set(query, parsed.get(String(i + j)) ?? null);
+      const coords = parsed.get(String(i + j)) ?? null;
+      out.set(query, coords);
+      console.log(
+        `[census] ${query} -> ${coords ? `${coords.lat},${coords.lng}` : "miss"}`,
+      );
     });
   }
   return out;

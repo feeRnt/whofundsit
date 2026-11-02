@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CENSUS_MIN_INTERVAL_MS,
   createRateLimiter,
   expandLocationText,
   fallbackQueries,
@@ -10,6 +11,12 @@ import {
   pendingWhere,
   shouldSwallowGeoError,
 } from "./pipeline.js";
+
+describe("CENSUS_MIN_INTERVAL_MS", () => {
+  it("paces batched POSTs at a polite 1s", () => {
+    assert.equal(CENSUS_MIN_INTERVAL_MS, 1000);
+  });
+});
 
 describe("formatDuration", () => {
   it("renders seconds, minutes, and hours", () => {

@@ -28,6 +28,9 @@ const MAX_ENTITIES_PER_RUN = 100;
 const MAX_MODAL_CALLS_PER_RUN = 25;
 const NOMINATIM_MIN_INTERVAL_MS = 1100; // Nominatim usage policy: <= 1 req/s
 const MODAL_MIN_INTERVAL_MS = 250;
+// Census batch states no limit (built for bulk); 1s politeness costs ~nothing
+// at <=500 rows per call.
+export const CENSUS_MIN_INTERVAL_MS = 1000;
 
 // Minimal in-memory rate limiter: one outbound call at a time, spaced out.
 // Promise-chained, so it holds under concurrent callers (ToS-safe).
@@ -56,6 +59,7 @@ export function createRateLimiter(minIntervalMs: number) {
 
 const nominatim = createRateLimiter(NOMINATIM_MIN_INTERVAL_MS);
 const modal = createRateLimiter(MODAL_MIN_INTERVAL_MS);
+const census = createRateLimiter(CENSUS_MIN_INTERVAL_MS);
 
 interface Coords {
   lat: number;
@@ -431,7 +435,7 @@ async function geocodeMany(
   const censusHits = new Map<string, Coords>();
   if (censusRows.size > 0) {
     try {
-      const res = await censusBatchGeocode(censusRows);
+      const res = await census(() => censusBatchGeocode(censusRows));
       for (const [q, coords] of res) {
         if (coords) {
           censusHits.set(q, coords);
@@ -734,7 +738,7 @@ async function runCensusFailedPass(
   let geocoded = 0;
   if (rows.size > 0) {
     try {
-      const res = await censusBatchGeocode(rows);
+      const res = await census(() => censusBatchGeocode(rows));
       for (const [id, coords] of res) {
         if (!coords) {
           continue;
