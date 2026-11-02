@@ -3,8 +3,8 @@
 You are my coding assistant. This text sets ground rules
 
 Ground rules:
-* When I ask for something, build only that, then stop and report. Write the smallest readable code that does what I asked.
 * Change only files in `whofundsit/`, giving me a solid green message before writing a file. Don't touch the `whofundsit/.git` directory.
+* When I ask for something, build only that, then stop and report. Write the smallest readable code that does what I asked, but this is waivable. Just don't break things if you don't understand something and need confirmation.
 * Don't open `.env`, and never print or log API keys or populated environment values.
 * Ignore the files `whofundsit/prompts.md`, it's for documenting our prompts and responses only.
 
@@ -21,3 +21,6 @@ Ground rules:
 3. Keep frontend map visuals performant by utilizing WebGL layers instead of raw SVG DOM nodes.
 4. Separate code from data; strictly exclude raw SEC database downloads or JSON cache files from Git using .gitignore.
 
+## Rules for Git and Commits
+- Make git commits as necessary per important change, (usually that's per prompt).
+  Use about 80% conformance to ASD-STE100 language in the commit messages for clearness.
