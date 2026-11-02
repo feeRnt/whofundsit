@@ -179,6 +179,17 @@ Discovery paths untouched (dedicated fetcher). Chain slot: immediately after
 `global:sync`. Red→green, `tsc` clean; `runGlobalIndustry` itself needs a
 live DB (untested here — user runs it).
 
+## 2026-11-02 — Exxon: two CIKs + one inconsistent row (needs human call)
+
+Seed audit: CIK 2115436 has 5 rows under TWO names ('Exxon Mobil
+Corporation' x4 + 'ExxonMobil Holdings Corp' x1, the latter still
+geo-pending); CIK 34088 (XOM parent) has 4 rows as 'EXXON MOBIL CORP'.
+names:sync will unify each CIK to its archive string (uppercase canonical)
+but will NOT merge the two CIKs — that needs dedupe:report review +
+merge:entities. Open question: subsidiary (keep both) vs CIK succession
+(merge 2115436→34088?). Also corrected: archive names are UPPERCASE, so
+names:sync unifies consistency, not title case.
+
 ## 2026-11-02 — OpenFIGI: ToS silent, docs throttle; liberal = at the ceiling
 
 User: keyed OpenFIGI has no limits, be liberal + note it. Verified: legal ToS
