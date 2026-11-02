@@ -530,8 +530,10 @@ export default function App() {
             className="arcs-control"
             title="Max company dots shown, biggest assets first"
           >
-            Dots {shownEntities.length}
-            {shownEntities.length > LAG_WARN_AT ? " — may lag" : ""}
+            <span className="slider-text">
+              Dots {shownEntities.length}
+              {shownEntities.length > LAG_WARN_AT ? " ⚠" : ""}
+            </span>
             <input
               type="range"
               min={0}
@@ -548,8 +550,10 @@ export default function App() {
             className="arcs-control"
             title="Max arcs shown, biggest first"
           >
-            Arcs {anyArcsOn ? visibleFlows.length : 0}/{anyArcsOn ? eligibleFlows.length : 0}
-            {anyArcsOn && flowLimit > LAG_WARN_AT ? " — may lag" : ""}
+            <span className="slider-text">
+              Arcs {anyArcsOn ? visibleFlows.length : 0}/{anyArcsOn ? eligibleFlows.length : 0}
+              {anyArcsOn && flowLimit > LAG_WARN_AT ? " ⚠" : ""}
+            </span>
             <input
               type="range"
               min={0}

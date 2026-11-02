@@ -477,10 +477,23 @@ button.maplibregl-popup-close-button:hover {
 }
 
 .sliders .arcs-control {
+  display: flex;
+  align-items: center;
   width: 100%;
 }
 
+/* Fixed text slot: count length (or 700/700) never moves the input. */
+.slider-text {
+  width: 5.9rem;
+  flex: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .sliders .arcs-control input[type="range"] {
+  width: 3.6rem;
+  flex: none;
   margin-left: auto;
 }
 
