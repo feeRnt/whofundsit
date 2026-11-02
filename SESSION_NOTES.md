@@ -515,3 +515,11 @@ comment corrected; old note left as history.
   say flows + institution noun for education/Funder rows. VERIFIED:
   backend tsc/build clean, 9/9 quota tests; frontend tsc+vite build
   clean, oxlint 6 pre-existing warnings, 0 new. No DB writes.
+- Tile hint moved above the scroll hint (bottom 6rem over 3.5rem).
+  CSS-only, no verification applicable.
+- Arc verdict (ucn.PNG): US→China over the Arctic is CORRECT great
+  circle geometry (SLERP + unwrap + wrapLongitude all check out) —
+  real flights route that way; Mercator + world copies make it look
+  dramatic. Restyle options offered (rhumb lines on flat map), no
+  change made; awaiting user call. (visual-coding skill loads before
+  any MapGlobe arc edit.)

@@ -3,7 +3,7 @@ import { RefreshCw, ZoomIn } from "lucide-react";
 
 // One-shot load hints: appear once the map loads, fade away on their own.
 // Pointer-transparent so they never block map interaction. The tile line
-// sits below the gesture line and names the refresh-map button for when
+// sits above the gesture line and names the refresh-map button for when
 // tiles corrupt (the button itself lives in the map corner controls).
 export default function ZoomHint({ onGone }: { onGone: () => void }) {
   const [fading, setFading] = useState(false);
