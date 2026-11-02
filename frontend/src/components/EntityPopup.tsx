@@ -190,7 +190,6 @@ function StakesRing({
   return (
     <div className="stakes">
       <span className="stakes-ring-wrap">
-        {tip && <span className="ring-tip">{tip}</span>}
       <svg
         viewBox="0 0 100 100"
         className="stakes-ring"
@@ -223,6 +222,7 @@ function StakesRing({
             : "13F Funding"}
         </text>
       </svg>
+        <span className="ring-tip">{tip ?? " "}</span>
       </span>
       <ul className="stakes-legend">
         {shown.map((f, i) => (
