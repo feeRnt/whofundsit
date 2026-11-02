@@ -671,3 +671,191 @@ export async function runGlobalIndustry(): Promise<{
     await prisma.$disconnect();
   }
 }
+
+// Batched LEI -> coordinates lookup. VALUES lists keep these queries tiny
+// (no GROUP/COUNT/ORDER over big sets); ORDER BY makes first-wins stable.
+// Direct P625 (rare, exact) beats the HQ hop (common, city-level).
+export function buildCoordsQuery(leis: string[]): string {
+  const values = leis.map((l) => `"${l}"`).join(" ");
+  return `SELECT ?lei ?coords ?hqCoords WHERE { VALUES ?lei { ${values} } ?company wdt:P1278 ?lei. OPTIONAL { ?company wdt:P625 ?coords. } OPTIONAL { ?company wdt:P159/wdt:P625 ?hqCoords. } } ORDER BY ?lei ?coords ?hqCoords`;
+}
+
+interface CoordsBinding {
+  lei?: { value?: unknown };
+  coords?: { value?: unknown };
+  hqCoords?: { value?: unknown };
+}
+
+export interface WikiCoords {
+  lat: number;
+  lng: number;
+}
+
+// WKT points are LONGITUDE first: "Point(11.575 48.1375)". Out-of-range
+// or malformed literals read as null, never as ocean dots. Pure.
+export function parsePoint(value: unknown): WikiCoords | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const m = /^Point\((-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)\)$/.exec(value.trim());
+  if (!m) {
+    return null;
+  }
+  const lng = Number(m[1]);
+  const lat = Number(m[2]);
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lng) > 180
+  ) {
+    return null;
+  }
+  return { lat, lng };
+}
+
+// Direct coords beat HQ-hop coords per LEI (live: one Vienna-vs-NYC
+// conflict seen); first row wins within each (rows arrive ORDERed).
+// LEIs with neither resolve null. Pure.
+export function parseCoordsBindings(doc: {
+  results?: { bindings?: CoordsBinding[] };
+}): Map<string, WikiCoords | null> {
+  const direct = new Map<string, WikiCoords>();
+  const hop = new Map<string, WikiCoords>();
+  const order: string[] = [];
+  const seen = new Set<string>();
+  for (const b of doc.results?.bindings ?? []) {
+    const lei = str(b.lei?.value);
+    if (!lei) {
+      continue;
+    }
+    if (!seen.has(lei)) {
+      seen.add(lei);
+      order.push(lei);
+    }
+    if (!direct.has(lei)) {
+      const d = parsePoint(b.coords?.value);
+      if (d) {
+        direct.set(lei, d);
+      }
+    }
+    if (!hop.has(lei)) {
+      const h = parsePoint(b.hqCoords?.value);
+      if (h) {
+        hop.set(lei, h);
+      }
+    }
+  }
+  return new Map(
+    order.map((lei) => [lei, direct.get(lei) ?? hop.get(lei) ?? null] as const),
+  );
+}
+
+// Same 429/5xx retry shape as the industry fetcher. Each batch caches by
+// query hash; failures never cache, so reruns retry them.
+async function fetchCoords(
+  leis: string[],
+): Promise<Map<string, WikiCoords | null>> {
+  const query = buildCoordsQuery(leis);
+  const doc = await cachedJson<{ results?: { bindings?: CoordsBinding[] } }>(
+    `global/coords-${cacheKey(query)}.json`,
+    async () => {
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          apiLog("GET", SPARQL);
+          return await sparqlLimit(async () => {
+            const res = await axios.get(SPARQL, {
+              params: { format: "json", query },
+              headers: { "User-Agent": UA },
+              timeout: 120000,
+            });
+            return res.data;
+          });
+        } catch (err) {
+          const status = axios.isAxiosError(err)
+            ? err.response?.status
+            : undefined;
+          const retryable =
+            status === 429 || (status !== undefined && status >= 500);
+          if (!retryable || attempt >= 3) {
+            throw err;
+          }
+          const waitMs = 15000 * attempt;
+          console.warn(
+            `[global] coords batch: HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+          );
+          await sleep(waitMs);
+        }
+      }
+    },
+  );
+  return parseCoordsBindings(doc);
+}
+
+const COORDS_BATCH_SIZE = 100; // LEIs per VALUES query (tiny payloads)
+
+export async function runGlobalCoords(): Promise<{
+  considered: number;
+  updated: number;
+  missing: number;
+  batches: number;
+}> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set (see backend/.env)");
+  }
+  const cap = Math.max(0, Number(process.env.COORDS_GLOBAL_LIMIT ?? 0));
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  const prisma = new PrismaClient({ adapter });
+  try {
+    // Unplaced lei: rows only (failed and address-less included — the join
+    // needs just the LEI), so reruns and resumes never rework placed rows.
+    // Stable id order keeps capped reruns deterministic.
+    const rows = await prisma.entity.findMany({
+      where: { id: { startsWith: "lei:" }, lat: 0, lng: 0 },
+      select: { id: true },
+      ...(cap > 0 ? { take: cap } : {}),
+      orderBy: { id: "asc" },
+    });
+    const leis = sanitizeLeis(rows.map((r) => r.id.slice("lei:".length)));
+    let updated = 0;
+    let missing = 0;
+    let batches = 0;
+    for (let i = 0; i < leis.length; i += COORDS_BATCH_SIZE) {
+      const batch = leis.slice(i, i + COORDS_BATCH_SIZE);
+      batches += 1;
+      let hits: Map<string, WikiCoords | null>;
+      try {
+        hits = await fetchCoords(batch);
+      } catch (err) {
+        // One dead batch (endpoint down after 3 retries) must not kill the
+        // rest: its LEIs stay unplaced and retry next run.
+        console.warn(
+          `[global] coords batch ${batches}: failed, skipping (${err instanceof Error ? err.message : err})`,
+        );
+        missing += batch.length;
+        continue;
+      }
+      for (const lei of batch) {
+        const coords = hits.get(lei) ?? null;
+        if (coords === null) {
+          missing += 1;
+          continue;
+        }
+        await prisma.entity.update({
+          where: { id: `lei:${lei}` },
+          data: { lat: coords.lat, lng: coords.lng, geoStatus: "placed" },
+        });
+        updated += 1;
+      }
+      if (batches % 20 === 0) {
+        console.log(`[global] coords: ${batches} batches, ${updated} placed...`);
+      }
+    }
+    console.log(
+      `[global] coords: ${updated} placed, ${missing} still unplaced (${leis.length} considered, ${batches} batches)`,
+    );
+    return { considered: leis.length, updated, missing, batches };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

@@ -5,12 +5,15 @@ import {
   GLOBAL_REGIONS,
   SPARQL_MIN_INTERVAL_MS,
   buildCompanyQuery,
+  buildCoordsQuery,
   buildIndustryQuery,
   gleifLimit,
   parseCompanyRows,
+  parseCoordsBindings,
   parseGleifAddress,
   parseGleifChildren,
   parseIndustryBindings,
+  parsePoint,
   sanitizeLeis,
   sparqlLimit,
 } from "./globalSync.js";
@@ -193,5 +196,61 @@ describe("parseIndustryBindings", () => {
     assert.equal(out.get("L1"), "clothing industry");
     assert.equal(out.get("L2"), null);
     assert.equal(out.has("L3"), false);
+  });
+});
+
+describe("buildCoordsQuery", () => {
+  it("builds a VALUES batch with direct P625 and HQ-hop lookup", () => {
+    const q = buildCoordsQuery(["5493006W3QUS5LMH6R84", "KY37LUS27QQX7BB93L28"]);
+    assert.ok(
+      q.includes('VALUES ?lei { "5493006W3QUS5LMH6R84" "KY37LUS27QQX7BB93L28" }'),
+    );
+    assert.ok(q.includes("wdt:P1278 ?lei"));
+    assert.ok(q.includes("OPTIONAL { ?company wdt:P625 ?coords. }"));
+    assert.ok(q.includes("OPTIONAL { ?company wdt:P159/wdt:P625 ?hqCoords. }"));
+    assert.ok(q.includes("ORDER BY ?lei ?coords ?hqCoords"));
+  });
+});
+
+describe("parsePoint", () => {
+  it("reads longitude-first WKT and rejects garbage", () => {
+    assert.deepEqual(parsePoint("Point(11.575 48.1375)"), {
+      lat: 48.1375,
+      lng: 11.575,
+    });
+    assert.deepEqual(parsePoint("Point(-0.1275 51.5072)"), {
+      lat: 51.5072,
+      lng: -0.1275,
+    });
+    assert.equal(parsePoint("Point(11.575)"), null);
+    assert.equal(parsePoint("Point(200 48)"), null);
+    assert.equal(parsePoint("Point(11.575 99)"), null);
+    assert.equal(parsePoint("not a point"), null);
+    assert.equal(parsePoint(undefined), null);
+  });
+});
+
+describe("parseCoordsBindings", () => {
+  it("prefers direct coords, then first hop, else null", () => {
+    const out = parseCoordsBindings({
+      results: {
+        bindings: [
+          // Conflict: direct Vienna beats the NYC hop.
+          {
+            lei: { value: "L1" },
+            coords: { value: "Point(16.3713 48.2104)" },
+            hqCoords: { value: "Point(-74.0061 40.7128)" },
+          },
+          // Multi-hop: first HQ wins.
+          { lei: { value: "L2" }, hqCoords: { value: "Point(-0.1275 51.5072)" } },
+          { lei: { value: "L2" }, hqCoords: { value: "Point(-6.2603 53.3497)" } },
+          { lei: { value: "L3" } },
+        ],
+      },
+    });
+    assert.deepEqual(out.get("L1"), { lat: 48.2104, lng: 16.3713 });
+    assert.deepEqual(out.get("L2"), { lat: 51.5072, lng: -0.1275 });
+    assert.equal(out.get("L3"), null);
+    assert.equal(out.has("L4"), false);
   });
 });
