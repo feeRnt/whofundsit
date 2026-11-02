@@ -16,6 +16,7 @@ import {
   parsePoint,
   sanitizeLeis,
   sparqlLimit,
+  sparqlRetryWaitMs,
 } from "./globalSync.js";
 
 describe("parseCompanyRows", () => {
@@ -227,6 +228,20 @@ describe("parsePoint", () => {
     assert.equal(parsePoint("Point(11.575 99)"), null);
     assert.equal(parsePoint("not a point"), null);
     assert.equal(parsePoint(undefined), null);
+  });
+});
+
+describe("sparqlRetryWaitMs", () => {
+  it("honors Retry-After, caps absurd values, steps 15s otherwise", () => {
+    const errWith = (v: unknown) => ({
+      isAxiosError: true,
+      response: { headers: { "retry-after": v } },
+    });
+    assert.equal(sparqlRetryWaitMs(errWith("45"), 1), 45000);
+    assert.equal(sparqlRetryWaitMs(errWith("0"), 1), 15000);
+    assert.equal(sparqlRetryWaitMs(errWith("999"), 2), 30000);
+    assert.equal(sparqlRetryWaitMs(errWith("soon"), 2), 30000);
+    assert.equal(sparqlRetryWaitMs(new Error("boom"), 3), 45000);
   });
 });
 

@@ -554,3 +554,12 @@ comment corrected; old note left as history.
   history keeps old names. VERIFIED: keys resolve, tsc clean. Also
   ticked: coords:p625 phase, transient dead-lines, Wonder reminders,
   dark mode, sparkline (Yahoo daily change %, not Stooq). No DB writes.
+- coords:global 429/502 (user, live): 502 is known endpoint flapping
+  (retries absorb; dead batches skip + retry next run, never cached).
+  429 is throttling despite our 12/min pace — suspects are the
+  placeholder UA (if WIKIDATA_USER_AGENT unset) and the shared cellular
+  IP. Gap fixed: SPARQL fetchers ignored Retry-After (GLEIF honored
+  it) — new sparqlRetryWaitMs helper (cap 120s, 15s steps fallback)
+  wired into region/industry/coords fetchers + test. VERIFIED: tsc
+  clean, 15/15 globalSync tests. User to check [config] UA warning +
+  set WIKIDATA_USER_AGENT. No DB writes.

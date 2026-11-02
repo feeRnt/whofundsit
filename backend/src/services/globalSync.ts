@@ -22,6 +22,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Retry-After honoring: Wikidata sends it on 429s, and retrying before it
+// lapses just earns another 429. Capped at 120s; 15s steps when absent or
+// absurd. Same shape as the GLEIF fetcher. Pure.
+export function sparqlRetryWaitMs(err: unknown, attempt: number): number {
+  const retryAfter = Number(
+    axios.isAxiosError(err) ? err.response?.headers?.["retry-after"] : NaN,
+  );
+  if (Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 120) {
+    return retryAfter * 1000;
+  }
+  return 15000 * attempt;
+}
+
 // Ground-rule-2 gates: every outbound call in this module goes through one.
 // Wikidata requires a descriptive UA + reasonable load (User-Agent policy,
 // no req/s number): 5s is our conservative courtesy posture. GLEIF publishes
@@ -280,7 +293,7 @@ async function sparqlRegion(
           if (!retryable || attempt >= 3) {
             throw err;
           }
-          const waitMs = 15000 * attempt;
+          const waitMs = sparqlRetryWaitMs(err, attempt);
           console.warn(
             `[global] region ${region}: HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
           );
@@ -594,7 +607,7 @@ async function fetchIndustries(
           if (!retryable || attempt >= 3) {
             throw err;
           }
-          const waitMs = 15000 * attempt;
+          const waitMs = sparqlRetryWaitMs(err, attempt);
           console.warn(
             `[global] industry batch: HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
           );
@@ -780,7 +793,7 @@ async function fetchCoords(
           if (!retryable || attempt >= 3) {
             throw err;
           }
-          const waitMs = 15000 * attempt;
+          const waitMs = sparqlRetryWaitMs(err, attempt);
           console.warn(
             `[global] coords batch: HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
           );
