@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Private notes - no need to commit
+HANDOFF_CLEAR.md
+
 # Dependencies & build output
 node_modules/
 **/node_modules/
