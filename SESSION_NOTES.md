@@ -370,3 +370,11 @@ comment corrected; old note left as history.
   Past logs already emitted still hold the real key; rotate the free
   OpenAlex key if any raw log was shared. tsc/test deferred to user
   local run (live DB run owns the CPU).
+- `names:sync` gated: read-only scan prints scanned/CIKs/rows-affected,
+  then a TTY `[y/N]` prompt (default no) approves the rewrites; `--yes`
+  for chains, non-TTY without it aborts. README chain uses `-- --yes`.
+- 13F rerun verdict: YES, once, after coords_populate (chain order).
+  Holdings match against currently placed rows by CUSIP-ticker then
+  name, so the 14.5k new global entities + 1711 new tickers convert
+  old misses into new 13f flows; same-quarter upserts stay idempotent.
+  Filings + CUSIP map are cached, so the rerun is mostly DB matching.

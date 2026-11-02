@@ -86,7 +86,7 @@ npm run bulk            # SEC nightly ZIPs -> base layer (one long run, cached)
 npm run ingest:all      # frames top-up + Nominatim geocoding
 npm run flows:openalex  # grant arcs (OpenAlex, cached)
 npm run flows:13f       # fund arcs (all 13F filers; THIRTEENF_MAX_MANAGERS caps it)
-npm run names:sync      # legal filer names from the local archive
+npm run names:sync -- --yes # legal filer names (asks first without --yes)
 npm run db:export       # snapshot tables into prisma/seed-data/
 ```
 
@@ -239,7 +239,7 @@ npm run bulk            # SEC nightly ZIPs -> base layer (one long run, cached)
 npm run ingest:all      # frames top-up + Nominatim geocoding
 npm run flows:openalex  # grant arcs (OpenAlex, cached)
 npm run flows:13f       # fund arcs (all 13F filers; THIRTEENF_MAX_MANAGERS caps it)
-npm run names:sync      # legal filer names from the local archive
+npm run names:sync -- --yes # legal filer names (asks first without --yes)
 npm run db:export       # snapshot tables into prisma/seed-data/
 ```
 
