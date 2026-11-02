@@ -462,3 +462,9 @@ comment corrected; old note left as history.
   pinned). Every row logs its disposition: green hit, red miss /
   unparseable, plain foreign-skipped. 332/358 were foreign-silent.
   UNVERIFIED (run active).
+- Parser: zip-less US rows now accepted with blank zip (spec allows
+  null components; Boca Raton FL was the live case), PO boxes rejected
+  (street-range engine can't place them; Cayman KY row stays foreign).
+  Malta-MT / Cayman-KY shaped rows may take a free No_Match slot and
+  fall through — documented in code. Tests extended. UNVERIFIED (run
+  active).

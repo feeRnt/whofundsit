@@ -48,6 +48,26 @@ describe("parseUsAddress", () => {
     assert.equal(parseUsAddress("—"), null);
     assert.equal(parseUsAddress(""), null);
   });
+
+  it("accepts zip-less rows with a blank zip, rejects PO boxes", () => {
+    assert.deepEqual(
+      parseUsAddress("3651 FAU BLVD SUITE 400, BOCA RATON, FL"),
+      {
+        street: "3651 FAU BLVD SUITE 400",
+        city: "BOCA RATON",
+        state: "FL",
+        zip: "",
+      },
+    );
+    assert.equal(
+      parseUsAddress("PO BOX 123, SPRINGFIELD, IL, 62701"),
+      null,
+    );
+    assert.equal(
+      parseUsAddress("P.O. BOX 309, UGLAND HOUSE, KY1-1104 GRAND CAYMAN, KY"),
+      null,
+    );
+  });
 });
 
 describe("isUsShaped", () => {
@@ -63,6 +83,11 @@ describe("isUsShaped", () => {
     );
     assert.equal(isUsShaped("15125 MAROUSI, GR"), false);
     assert.equal(isUsShaped("Illinois, United States"), false);
+    // Cayman KY1-1104 is not a US zip: stays foreign-skipped.
+    assert.equal(
+      isUsShaped("P.O. BOX 309, UGLAND HOUSE, KY1-1104 GRAND CAYMAN, KY"),
+      false,
+    );
     // Live false positive: "UR,, 50450" is Kuala Lumpur, not a US tail.
     assert.equal(
       isUsShaped(
@@ -99,6 +124,18 @@ describe("buildCensusCsv", () => {
       },
     ]);
     assert.equal(csv, '0,"600 GRANT ST, ROOM 1500",PITTSBURGH,PA,15219\n');
+    const noZip = buildCensusCsv([
+      {
+        id: "1",
+        addr: {
+          street: "3651 FAU BLVD SUITE 400",
+          city: "BOCA RATON",
+          state: "FL",
+          zip: "",
+        },
+      },
+    ]);
+    assert.equal(noZip, "1,3651 FAU BLVD SUITE 400,BOCA RATON,FL,\n");
   });
 });
 
