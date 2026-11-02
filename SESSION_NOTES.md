@@ -474,3 +474,9 @@ comment corrected; old note left as history.
   rest. Repass rows now keyed by address text (dedupes shared
   addresses; fixes entity ids in the batch log). Tests updated.
   UNVERIFIED (run active again).
+- VERIFIED ef20e77 (window was actually free — pgrep guard kept
+  self-matching its own command line; bracket-trick from now on): tsc
+  clean, build clean, 33/33 focused tests green on fresh dist
+  (censusBatch + pipeline + httpCache), unparseable probe PROBE-OK
+  (26/10/1). User blessed to restart coords --all (~9h, retries
+  included in that number).
