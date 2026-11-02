@@ -558,7 +558,7 @@ export default function App() {
               type="range"
               min={0}
               max={eligibleFlows.length}
-              step={500}
+              step={1}
               value={Math.min(flowLimit, eligibleFlows.length)}
               disabled={!anyArcsOn}
               onChange={(ev) => setFlowLimit(Number(ev.target.value))}
