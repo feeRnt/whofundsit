@@ -2,6 +2,191 @@
 
 Running log for picking work back up. Update when the picture changes.
 
+## 2026-11-02 — post-/clear: skip-and-continue hardening applied (user tests)
+
+All 4 HANDOFF_CLEAR job-1 fixes landed, smallest edits, `tsc --noEmit` clean.
+Unit suite NOT run here: tsx workers need a listenable IPC pipe and the
+sandbox denies it (`EPERM ... /tmp/tsx-*.pipe`) — user runs `npm test`
+locally (expect 68/68; no test file was touched).
+
+1. `backend/src/services/openalexFlows.ts` — funder-geo fetch wrapped in
+   try/catch: geocode miss/transient error logs `[flows] skipping funder …`
+   and returns a zero summary, so the funder loop continues. Nothing cached
+   on the skip path, so reruns retry the geocode and a later FUNDER_LAT/LNG
+   pin still takes effect. `funderCoords` itself untouched.
+   `.env.example` needed NO change: FUNDER_LAT/LNG already documented there.
+2. `backend/src/services/pipeline.ts` — `geocodeLocal` catch handles HTTP 400
+   first: warn + dead-lines entry + memory-null, returns null (never aborts).
+   `shouldSwallowGeoError` untouched (its 4xx-rethrow contract is tested).
+3. `backend/src/services/httpCache.ts` + `thirteenF.ts` — `readCache` retries
+   EIO once, then warns and returns a miss (caller re-fetches/rebuilds);
+   non-EIO errors still throw. `runThirteenF` also guards `readAddressMap()`:
+   unreadable map warns and continues with name-only geocoding + stubs.
+4. `backend/src/services/globalSync.ts` — new `gleifGet` (3 tries, 1s/2s
+   backoff) retries ONLY ECONNRESET/socket-hang-up; anything else throws
+   immediately. `runGlobalSync` skips a failed LEI record (`continue`) and
+   keeps parent-only when a children fetch fails. GLEIF doc shapes factored
+   into `GleifRecordDoc`/`GleifChildrenDoc` (no behavior change).
+
+API-limits posture (user-flagged): all ToS pacing unchanged — Nominatim 1/s
+limiter, SEC ≤10/s, GLEIF ~10/s polite sleeps all intact. GLEIF retries add
+at most 2 extra requests per failed fetch with backoff (bounded, no storm);
+the other three fixes only REMOVE calls (skip/degrade paths). ECONNRESET is
+a TCP-level reset (peer/middlebox hung up, "socket hang up") — transient
+network weather, NOT a 429/403 limit signal; likelier on the user's cellular
+link. No usage-pattern change needed.
+
+Rerun recipe after the night's 4 interruptions (in `whofundsit/backend`):
+`dmesg | tail` first (EIO = only hardware signal); then the full chain in
+order — `ingest`, `GLOBAL_LIMIT=5000 global:sync`, `GLOBAL_LIMIT=5000
+tickers:global`, `flows:openalex`, `coords_populate -- --all`, 13f/500,
+`verify:claims`, `db:export`. Every step resumes from cache/DB (upserts
+idempotent; 13f crashed pre-queue so nothing partial). Skipped OpenAlex
+funder auto-retries next run.
+
+Open follow-ups: per-funder guard ALSO landed in `src/scripts/openalex_flows.ts`
+(any per-funder throw now skips + continues, `skipped` ids in the final log) —
+done under the relaxed 2026-11-02 ground rule (smallest-edits waivable).
+Contradiction to resolve: `DEMO_VIDEO_PLAN.md` header says DO NOT COMMIT but
+HANDOFF_CLEAR job 2 says commit it — user's call.
+
+## 2026-11-02 — global:sync + OpenAlex diagnosis (from disk cache, offline)
+
+OpenAlex crashed on funder 4/12 = Japan Society for the Promotion of Science
+(record cached, geo absent; both Nominatim queries returned []). Stage:
+funder-geo, BEFORE works pull and before any DB write for that funder —
+nothing partial. EC/NSFC/NIH fully done (76 works pages + 290 insts cached);
+Colgate files are from earlier default runs. Rerun replays 1–3 from cache,
+skips JSPS from cached [] with zero API calls, continues 5–12. Pin later via
+FUNDER_LAT/LNG (no CACHE_REFRESH needed — pin bypasses the geo cache).
+
+global:sync fatal = GLEIF ECONNRESET (fixed). The eu/asia Wikidata failures
+are separate + non-fatal (pre-existing skip-region path). Cache proves them
+transient: europe/asia 180-quota queries from the 500-run both succeeded
+full (180/180); the 5k-run 1800-versions left no files. LIMIT applies after
+GROUP BY, so the big queries cost ≈ the same as the proven small ones —
+failure = endpoint load/timeout or network, not query shape. Short counts
+(na 264/500, sa 99/400, africa 43/300, oceania 89/200) are genuine Wikidata
+sparsity, not failures. 499 GLEIF records + 510 children pages banked; rerun
+retries exactly the missing pieces (failures are never cached). Still want
+the two `[global] region … failed, skipping (…)` lines: 429 → add
+inter-region pacing; timeout/503 → just rerun off-peak.
+
+## 2026-11-02 — log verdict: europe 504 + asia 429, both fixed in code
+
+User pasted the 5k-run log: europe → HTTP 504 (Wikidata 60s cap killing the
+1800-row query), asia → HTTP 429 (throttled right after), na/sa/africa/oceania
+passed short-but-real (120/37/22/53 companies), then the tail
+`triggerUncaughtException` = the known GLEIF ECONNRESET fatal. Correction to
+my earlier note: LIMIT DOES scale cost (label service resolves every result
+row), so europe-1800 would 504 again on rerun — paging was required, not
+optional. Fix in `globalSync.ts` (`tsc` clean): quotas ≤500 keep byte-identical
+single queries (all existing caches still hit — the 5k na/sa/africa/oceania
+files replay, zero refetch); quotas above 500 go as ≤500 LIMIT/OFFSET pages
+with a `?lei` tiebreaker (8 fresh eu/asia pages on next rerun, each cached
+separately); 429/5xx retry 3× with 15s/30s backoff inside `sparqlRegion`; 5s
+pause between regions, 10s between pages; cross-page/transcontinental dupes
+now merge exchanges instead of dropping. Q3 verdict: NO database switch —
+sparsity was misdiagnosed, the failure was query cost; post-demo option is
+GLEIF bulk LEI files instead of per-record API. Q1 also closed: skipped
+funders now land in `data/cache/openalex/skipped-funders.json` (id/reason/at,
+first reason wins) via `recordSkippedFunder`, called from both the service
+skip path and the script catch; `FlowSummary.skipped` flags it for the final
+log. Next rerun's only fresh Wikidata cost is the 8 eu/asia pages.
+
+## 2026-11-02 — ToS review + shared limiters on every uncapped path
+
+Primary-source verdicts (user-steered): GLEIF's official API page documents
+NO rate limit (third-party "60/min" claims unconfirmed; zero 429s observed at
+~10/s over hundreds of calls) — page does link Golden Copy/concatenated bulk
+files, supporting the TODO. Wikimedia UA policy requires descriptive UA +
+contact only, no req/s number. OpenFIGI docs DO publish limits (mapping: 25
+req/min x 10 jobs keyless, 250 x 100 keyed, per IP/key, 60s windows) — our
+2500/300ms + 10/100 posture matches exactly, no change. GLEIF never failed on
+a rate limit: only failure on record is ECONNRESET (TCP, no HTTP status).
+Rolled out (red→green, `tsc` clean, 29/29 on touched suites): `sparqlLimit`
+5s + `gleifLimit` 100ms shared gates in `globalSync.ts` (sleeps/caching kept;
+`gleifGet` also gained defensive 429/5xx retry honoring Retry-After),
+`quoteLimit` 1s in `stockQuote.ts` (request-path click-spam guard).
+Maintained tests: `createRateLimiter` contract (serialize/space/recover) +
+interval pins + gate timing in the three suites. Untouched, verified paced:
+SEC, OpenFIGI, OpenAlex, Nominatim, Modal, ESEF (1s+backoff+Retry-After),
+TWSE (500ms), funderCoords (1100ms). Full `npm test` still EPERM-blocked in
+sandbox (tsx IPC); user runs it locally.
+
+## 2026-11-02 — CORRECTION: GLEIF publishes 60 req/min (was: "no cap")
+
+User pasted GLEIF's official API docs (Postman): "Rate limiting is currently
+set at 60 requests, per minute, per user, for all users." My "unconfirmed
+folklore" verdict was wrong — the third-party 60/min claims were right, and
+our 100ms pacing ran 10x over the published cap (never throttled in practice,
+but out of compliance regardless). Fixed same turn (red→green, `tsc` clean,
+29/29): `GLEIF_MIN_INTERVAL_MS` 100→1100 (~55/min with margin), stale
+`sleep(100)` removed (gate owns pacing), `DATASETS.md` terms corrected.
+Verified all GLEIF traffic flows through the one gate (`gleifEntity` incl. the
+`regionalTwse` import, `gleifChildren`). Cost: fresh-data GLEIF phases run
+~10x slower (≈2h worst case for a fully-fresh eu/asia fill at 5k scale);
+cached reruns replay instantly. This strengthens the GLEIF-bulk-files TODO.
+Also noted from the same doc: `filter[entity.legalName]` + `fuzzycompletions`
+exist if name→LEI resolution is ever needed (Wikidata covers us today).
+
+## 2026-11-02 — WDQS query-limits page: no req/s cap, timeouts are the limit
+
+User pasted `Wikidata:SPARQL_query_service/query_limits`. Findings: no
+per-second throttle is documented anywhere — enforcement is the 60s query
+timeout ("Query timeout limit reached") plus result-size cliffs (10^4 rows
+~7s, 10^5 ~23-42s in 2017 numbers; page notes 2026 is much worse: 9s runs
+now time out). Our posture already matches: `/sparql` alias + `format=json`
+exactly as documented, serial + 5s gate + cached + bounded, 500-row pages,
+retry-then-skip. No code change. If europe-500 pages still 504 on rerun,
+rewrite ladder (in order): drop OPTIONAL `?hq` (display fallback only) →
+narrow continent→country chunks → split label resolution out of SPARQL
+(raw QIDs + bulk label lookup) → Blazegraph hand-ordering hints last.
+
+## 2026-11-02 — OpenFIGI: ToS silent, docs throttle; liberal = at the ceiling
+
+User: keyed OpenFIGI has no limits, be liberal + note it. Verified: legal ToS
+(all 7 sections, 2018) says NOTHING about throttling — pure public-domain
+dedication — so the "no limits in terms" reading is true of that document.
+But the API docs publish a technically-enforced throttle (mapping: 25
+req/min x 10 jobs keyless, 250 x 100 keyed, per IP/key, 60s windows, 429s +
+ratelimit-* headers). Liberal-within-limits = run AT the ceiling (~96%),
+never past: keyed 300→250ms (boundary-safe: max 241 starts/60s window vs 250
+cap), keyless stays 2500ms (already 96%), batches already maxed (10/100).
+Also closed a real gap found en route: neither OpenFIGI call site retried
+429s, and a 429 in `resolveCusipTickers` killed the whole 13F run — 13F now
+routes through shared `postMapping`, which retries 429/5xx honoring
+retry-after/ratelimit-reset. Note written above `openfigiLimit` as asked.
+Watch-out recorded there too: keyless cap is per-IP, so carrier-NAT
+neighbors share our 25/min — prefer a free key. Red→green, `tsc` clean,
+20/20 on openfigi+thirteenF suites.
+
+## 2026-11-02 — User-Agent audit: env vars ARE wired (with fallback)
+
+Every outbound call sends `process.env.*_USER_AGENT ?? "WhoFundsIt/0.1
+(contact: dev@example.com)"`: SEC_USER_AGENT (ingest/13f/bulk/verify),
+NOMINATIM_USER_AGENT (coords/funderCoords/verify + forwarded to Modal
+worker), WIKIDATA_USER_AGENT (SPARQL + GLEIF + ESEF + TWSE — one var,
+four hosts), OPENALEX_USER_AGENT→OPENALEX_CONTACT→default, QUOTE_USER_AGENT.
+OpenFIGI correctly sends no UA (X-OPENFIGI-APIKEY instead). Two gaps, both
+open: (1) nothing validates — unset vars or the "Your Name you@example.com"
+example placeholder go out silently, and SEC/Nominatim 403/block those;
+offered a warn-once guard, awaiting user go-ahead. (2) WIKIDATA var reused
+for GLEIF/ESEF/TWSE — functionally fine, just mislabeled.
+
+## 2026-11-02 — warn-guard shipped; user cleared to run the chain
+
+`userAgentFromEnv(name, fallback?)` in `httpCache.ts`: returns the configured
+value, else warns once (`[config] … not set / still the example placeholder`)
+and returns the fallback. Detects unset, empty, and `example.com`. All 11 UA
+sites in 10 services route through it (incl. OpenAlex `||` chain and the
+funderCoords inline site). New `httpCache.test.ts` (3 tests) registered in
+`npm test`. Red→green, `tsc` clean, 81/81 on all affected compiled suites
+(fixtures copied to dist for bulkLoad). Note: unit output now shows
+`[config]` warns (test env has no .env) — harmless noise, tests green.
+User runs the full chain next (preflight: `dmesg|tail`, watch for `[config]`
+lines at startup, `tail` logs only).
+
 ## Where things stand
 
 - App healthy: globe/2D toggle, dark popups, accordion menus, focus mode,

@@ -137,3 +137,10 @@
 
 - [x] **Add `ifrs-full` frames/bulk tags** (SUPERSEDED: international coverage goes through
       Wikidata+GLEIF backbone + regional loaders — ESEF/TWSE phase 1 shipped — instead of us-gaap-style frames.)
+- [ ] **GLEIF bulk files instead of per-record API (post-demo).** (`global:sync`
+      resolves every LEI + children pages over `api.gleif.org`, ~10/s polite
+      sleeps, all cached. GLEIF also publishes daily concatenated full-file
+      dumps of every LEI record: one big download + local join would replace
+      thousands of API calls and retire the ECONNRESET-retry class. Needs:
+      re-verify dump URL + terms at implementation time, streaming parse, and
+      keeping the per-record path for delta/children gaps.)

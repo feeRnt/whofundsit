@@ -65,8 +65,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 
 - **What we take:** per-LEI record (legal name + HQ address) and
   `direct-children` (full child records) via `api.gleif.org`.
-- **Terms:** **CC0**, no key, no stated rate limit; we stay polite
-  (~10 req/s max, everything cached).
+- **Terms:** **CC0**, no key, **60 req/min/user published** (official API
+  docs, Terms & Conditions); we pace ~55/min via an 1100ms shared gate,
+  everything cached. (Our old "~10/s, no stated limit" note was wrong —
+  corrected 2026-11-02 from the official docs.)
 - **Local copies (gitignored):** `backend/data/cache/global/gleif/`,
   `backend/data/cache/global/gleif-children/`.
 - **Committed derivatives:** `lei:*` entities + `ownership` flows in seeds.
