@@ -455,42 +455,6 @@ export default function App() {
             Only {focusName} <X size={14} />
           </button>
         )}
-        <div className="sliders">
-          <label
-            className="arcs-control"
-            title="Max company dots shown, biggest assets first"
-          >
-            Dots {shownEntities.length}
-            {shownEntities.length > LAG_WARN_AT ? " — may lag" : ""}
-            <input
-              type="range"
-              min={0}
-              max={visibleEntities.length}
-              step={500}
-              value={Math.min(dotLimit ?? visibleEntities.length, visibleEntities.length)}
-              onChange={(ev) => {
-                const v = Number(ev.target.value);
-                setDotLimit(v >= visibleEntities.length ? null : v);
-              }}
-            />
-          </label>
-          <label
-            className="arcs-control"
-            title="Max arcs shown, biggest first"
-          >
-            Arcs {anyArcsOn ? visibleFlows.length : 0}
-            {anyArcsOn && flowLimit > LAG_WARN_AT ? " — may lag" : ""}
-            <input
-              type="range"
-              min={0}
-              max={flows.length}
-              step={500}
-              value={Math.min(flowLimit, flows.length)}
-              disabled={!anyArcsOn}
-              onChange={(ev) => setFlowLimit(Number(ev.target.value))}
-            />
-          </label>
-        </div>
         <FlowsDropdown
           title="Hedge-Funds"
           masterLabel="Show funding map"
@@ -562,6 +526,42 @@ export default function App() {
             ))}
           </div>
         </details>
+        <div className="sliders">
+          <label
+            className="arcs-control"
+            title="Max company dots shown, biggest assets first"
+          >
+            Dots {shownEntities.length}
+            {shownEntities.length > LAG_WARN_AT ? " — may lag" : ""}
+            <input
+              type="range"
+              min={0}
+              max={visibleEntities.length}
+              step={500}
+              value={Math.min(dotLimit ?? visibleEntities.length, visibleEntities.length)}
+              onChange={(ev) => {
+                const v = Number(ev.target.value);
+                setDotLimit(v >= visibleEntities.length ? null : v);
+              }}
+            />
+          </label>
+          <label
+            className="arcs-control"
+            title="Max arcs shown, biggest first"
+          >
+            Arcs {anyArcsOn ? visibleFlows.length : 0}
+            {anyArcsOn && flowLimit > LAG_WARN_AT ? " — may lag" : ""}
+            <input
+              type="range"
+              min={0}
+              max={flows.length}
+              step={500}
+              value={Math.min(flowLimit, flows.length)}
+              disabled={!anyArcsOn}
+              onChange={(ev) => setFlowLimit(Number(ev.target.value))}
+            />
+          </label>
+        </div>
       </header>
       <main className="map">{!loading && !error && (
           <MapErrorBoundary>

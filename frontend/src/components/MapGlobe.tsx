@@ -429,7 +429,7 @@ export default function MapGlobe({
     // either toggle, and a fresh overlay needs fresh layer instances
     // (reused ones stay bound to the dead Deck instance and vanish).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [entities, pathFlows, flowEndpoints, selected, projection, basemap]);
+  ], [entities, pathFlows, flowEndpoints, selected, projection, basemap, mapTick]);
 
   // Arc ping-pong: first click flies to the funded end, clicking the same
   // arc again flies to the funder; any dot click resets to funded-first.
@@ -513,7 +513,8 @@ export default function MapGlobe({
         <Popup
           longitude={selected.lng}
           latitude={selected.lat}
-          anchor="top"
+          // No anchor: MapLibre picks the side with room (top/bottom/…)
+          // on every move, and the tip follows the same anchor.
           closeButton={true}
           // react-map-gl defaults to 240px, which clips the ring + legend
           // row (entity-popup allows 280). Give it the full width.

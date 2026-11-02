@@ -406,12 +406,17 @@ div.maplibregl-popup-content {
   overscroll-behavior: contain;
 }
 
-.maplibregl-popup-anchor-top div.maplibregl-popup-tip {
-  border-top-color: #101623;
+/* Tip color follows the anchor MapLibre chose (incl. corner combos). */
+.maplibregl-popup-anchor-top div.maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left div.maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right div.maplibregl-popup-tip {
+  border-bottom-color: #101623;
 }
 
-.maplibregl-popup-anchor-bottom div.maplibregl-popup-tip {
-  border-bottom-color: #101623;
+.maplibregl-popup-anchor-bottom div.maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left div.maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right div.maplibregl-popup-tip {
+  border-top-color: #101623;
 }
 
 .maplibregl-popup-anchor-left div.maplibregl-popup-tip {
@@ -439,15 +444,23 @@ button.maplibregl-popup-close-button:hover {
   min-width: 10rem;
 }
 
-/* Dots over arcs, stacked so the header stays one row tall. */
+/* Dots over arcs at the far right. Fixed width + left-aligned labels:
+   the range input is pinned right, so 4- vs 5-digit counts never
+   shift the sliders. */
 .sliders {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  width: 14rem;
+  flex: none;
+  margin-left: auto;
 }
 
-/* Push the layer menus to the right edge, clear of search + sliders. */
-.sliders + .flows-menu {
+.sliders .arcs-control {
+  width: 100%;
+}
+
+.sliders .arcs-control input[type="range"] {
   margin-left: auto;
 }
 
