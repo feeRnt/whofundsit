@@ -54,6 +54,58 @@ export function formatMoney(amount: number, currency?: string | null): string {
   return `${symbol}${amount.toLocaleString("en-US")}`;
 }
 
+// One primary metric per company, everywhere (hover, popup, dot size):
+// Total assets — the most widely reported concept (5k+ rows, vs ~2k for
+// revenue). Funds (purple 13F filers) show holdings value instead;
+// OpenAlex rows show funded works. Without an Assets sibling the row's
+// own concept is used and honestly labeled.
+export function companyGroupKey(id: string): string {
+  const head = id.split(":")[0] ?? id;
+  return /^\d+$/.test(head) ? head : id;
+}
+
+export interface PrimaryMetric {
+  label: string;
+  text: string;
+  volume: number;
+}
+
+export function primaryMetric(entity: Entity, pool: Entity[]): PrimaryMetric {
+  if (entity.source === "openalex") {
+    return {
+      label: "Funded works",
+      text: entity.fundsVolume.toLocaleString("en-US"),
+      volume: entity.fundsVolume,
+    };
+  }
+  if (entity.type === "Fund") {
+    return {
+      label: "Holdings value",
+      text: formatMoney(entity.fundsVolume, entity.currency),
+      volume: entity.fundsVolume,
+    };
+  }
+  const key = companyGroupKey(entity.id);
+  const assets =
+    entity.conceptTag === "Assets"
+      ? entity
+      : pool.find(
+          (e) => companyGroupKey(e.id) === key && e.conceptTag === "Assets",
+        );
+  if (assets) {
+    return {
+      label: "Total assets",
+      text: formatMoney(assets.fundsVolume, assets.currency),
+      volume: assets.fundsVolume,
+    };
+  }
+  return {
+    label: entity.conceptTag ?? "Reported value",
+    text: formatMoney(entity.fundsVolume, entity.currency),
+    volume: entity.fundsVolume,
+  };
+}
+
 export interface Entity {
   id: string;
   name: string;

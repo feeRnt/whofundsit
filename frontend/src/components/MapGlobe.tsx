@@ -11,8 +11,10 @@ import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
+  companyGroupKey,
   displayLocation,
   formatMoney,
+  primaryMetric,
   verificationCell,
   type Entity,
   type Flow,
@@ -82,7 +84,11 @@ function verifySuffix(report: VerificationReport | null, name: string): string {
   return cell && cell.pctVerified !== null ? ` · ${cell.pctVerified}% verified` : "";
 }
 
-function tooltip({ object }: PickingInfo, verification: VerificationReport | null) {
+function tooltip(
+  { object }: PickingInfo,
+  verification: VerificationReport | null,
+  pool: Entity[] = [],
+) {
   if (!object) {
     return null;
   }
@@ -107,14 +113,11 @@ function tooltip({ object }: PickingInfo, verification: VerificationReport | nul
   const entity = object as Entity;
   const where = displayLocation(entity);
   const badge = verifySuffix(verification, `source=${entity.source}`);
-  if (!entity.conceptTag && entity.fundsVolume === 0) {
+  const primary = primaryMetric(entity, pool);
+  if (primary.volume === 0 && entity.source !== "openalex") {
     return `${entity.name} — listed company (${where})${badge}`;
   }
-  const val =
-    entity.source === "openalex"
-      ? `${entity.fundsVolume.toLocaleString("en-US")} funded works`
-      : formatMoney(entity.fundsVolume, entity.currency);
-  return `${entity.name} — ${val} (${where})${badge}`;
+  return `${entity.name} — ${primary.label}: ${primary.text} (${where})${badge}`;
 }
 
 // Great-circle interpolation in JS: deck interpolates ArcLayer in flat map
@@ -349,6 +352,28 @@ export default function MapGlobe({
         ? [168, 85, 247, 210]
         : [45, 212, 191, 200];
 
+  // Dot size uses the same primary metric as hover/popup (assets, or
+  // holdings for funds), precomputed per row so sibling concept rows at
+  // one address share one radius instead of stacking different sizes.
+  const radiusVolumes = useMemo(() => {
+    const assetsByGroup = new globalThis.Map<string, number>();
+    for (const e of allEntities) {
+      if (e.conceptTag === "Assets") {
+        assetsByGroup.set(companyGroupKey(e.id), e.fundsVolume);
+      }
+    }
+    const out = new globalThis.Map<string, number>();
+    for (const e of entities) {
+      out.set(
+        e.id,
+        e.source === "openalex" || e.type === "Fund"
+          ? e.fundsVolume
+          : (assetsByGroup.get(companyGroupKey(e.id)) ?? e.fundsVolume),
+      );
+    }
+    return out;
+  }, [entities, allEntities]);
+
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
   // funders to grantees, width by works count. Sleek pass: a wide, faint
@@ -363,7 +388,7 @@ export default function MapGlobe({
       stroked: false,
       getPosition: (d) => [d.lng, d.lat],
       getRadius: (d) => {
-        const base = (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2;
+        const base = (8000 + Math.sqrt(radiusVolumes.get(d.id) ?? d.fundsVolume) * 2) / Math.SQRT2;
         return (selected?.id === d.id ? base * 3 : base) * 1.4;
       },
       radiusMinPixels: 5,
@@ -402,7 +427,7 @@ export default function MapGlobe({
       // Half the area (÷√2 radius); the money×2 multiplier stays.
       // Selected node renders 3x for visibility.
       getRadius: (d) => {
-        const base = (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2;
+        const base = (8000 + Math.sqrt(radiusVolumes.get(d.id) ?? d.fundsVolume) * 2) / Math.SQRT2;
         return selected?.id === d.id ? base * 3 : base;
       },
       radiusMinPixels: 3,
@@ -433,7 +458,7 @@ export default function MapGlobe({
     // either toggle, and a fresh overlay needs fresh layer instances
     // (reused ones stay bound to the dead Deck instance and vanish).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [entities, pathFlows, flowEndpoints, selected, projection, basemap, mapTick]);
+  ], [entities, pathFlows, flowEndpoints, selected, projection, basemap, mapTick, radiusVolumes]);
 
   // Arc ping-pong: first click flies to the funded end, clicking the same
   // arc again flies to the funder; any dot click resets to funded-first.
@@ -526,7 +551,7 @@ export default function MapGlobe({
         <DeckGLOverlay
           key={`${projection}-${basemap}-${mapTick}`}
           layers={layers}
-          getTooltip={(info) => tooltip(info, verification)}
+          getTooltip={(info) => tooltip(info, verification, allEntities)}
           onClick={handleClick}
         />
       )}

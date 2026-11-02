@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchQuote, fetchShares, formatMoney, verificationCell, type Entity, type Flow, type Quote, type VerificationReport } from "../api";
+import { fetchQuote, fetchShares, formatMoney, primaryMetric, verificationCell, type Entity, type Flow, type Quote, type VerificationReport } from "../api";
 
 const CONCEPT_LABELS: Record<string, string> = {
   StockholdersEquity: "Stockholders' equity",
@@ -286,18 +286,16 @@ export default function EntityPopup({
   onToggleFocus: () => void;
 }) {
   const siblings = siblingConcepts(entities, entity);
-  const label = entity.conceptTag
-    ? (CONCEPT_LABELS[entity.conceptTag] ?? entity.conceptTag)
-    : entity.source === "openalex"
-      ? "Funded works"
-      : entity.type === "Fund"
-        ? "Holdings value"
-        : "Reported value";
-  const valueText =
-    entity.source === "openalex"
-      ? entity.fundsVolume.toLocaleString("en-US")
-      : formatMoney(entity.fundsVolume, entity.currency);
-  const noFinancials = !entity.conceptTag && entity.fundsVolume === 0;
+  // Bold primary is always the same metric (Total assets; holdings for
+  // funds, funded works for OpenAlex) whichever sibling row was clicked.
+  // Other concepts stay as secondary lines below, minus the primary row.
+  const primary = primaryMetric(entity, entities);
+  const label = primary.label;
+  const valueText = primary.text;
+  const noFinancials = primary.volume === 0 && entity.source !== "openalex";
+  const secondary = siblings.filter(
+    (s) => !(primary.label === "Total assets" && s.conceptTag === "Assets"),
+  );
   const ticker = entity.tickers[0];
   // Numeric-prefix ids ({CIK}:{tag}) are SEC company rows; 13f:/lei:/
   // openalex: rows have no 10-K share count.
@@ -381,7 +379,7 @@ export default function EntityPopup({
           {new Intl.NumberFormat("en-US", { notation: "compact" }).format(shares)}
         </p>
       )}
-      {siblings.map((s) => (
+      {secondary.map((s) => (
         <p key={s.id} className="entity-value sibling">
           {CONCEPT_LABELS[s.conceptTag ?? ""] ?? s.conceptTag}:{" "}
           {formatMoney(s.fundsVolume, s.currency)}
