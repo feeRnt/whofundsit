@@ -386,3 +386,12 @@ comment corrected; old note left as history.
   Tokyo, Swindon, Ottawa, Daejeon, New Delhi); LLM repair passes append
   with source llm. Skip error names the exact F-code to add. Contract
   test in openalexFlows.test.ts; tsc/test still deferred to user local.
+- OpenAlex geo reviewed, no fix needed: funder env->file->Nominatim x2->
+  recorded skip; institutions use ROR geo with no Nominatim fallback by
+  design (spares the shared 1/s budget); 150ms throttle sits inside the
+  10/s keyless budget. Correction: empty Nominatim `[]` IS cached (it is
+  a successful fetch), so reruns replay skips silently instead of
+  re-firing name queries as earlier stated — same outcome, less noise.
+- coords_populate: 18k pending at observed 45s/25 (1.8s each) is ~9h;
+  resumable, cellular-light (tens of MB). Rate can only improve as
+  cached misses replay free.
