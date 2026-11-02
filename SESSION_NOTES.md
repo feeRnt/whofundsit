@@ -143,6 +143,16 @@ rewrite ladder (in order): drop OPTIONAL `?hq` (display fallback only) →
 narrow continent→country chunks → split label resolution out of SPARQL
 (raw QIDs + bulk label lookup) → Blazegraph hand-ordering hints last.
 
+## 2026-11-02 — LIVE: europe pages landing via retry (502 flapping observed)
+
+Rerun watch: europe p1 504→retry→ok (~52s), p2 clean (~59s), p3 attempt 1 fast
+502 (~29s, edge flapping) → retry running. 500-row pages still live at the
+timeout edge — cost is GROUP/COUNT/ORDER + labels, not LIMIT. Banked pages
+stay cached (per-page hashes). Standing plan: change nothing mid-run; if a
+page exhausts 3 retries, first extend 5xx backoff to 60s steps (no cache
+invalidation), then drop OPTIONAL hq (first rewrite rung). Country-chunking
+and label-split stay post-demo options.
+
 ## 2026-11-02 — OpenFIGI: ToS silent, docs throttle; liberal = at the ceiling
 
 User: keyed OpenFIGI has no limits, be liberal + note it. Verified: legal ToS
