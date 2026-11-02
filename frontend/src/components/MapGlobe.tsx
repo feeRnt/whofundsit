@@ -105,7 +105,7 @@ function tooltip(
         flow.sleeves && flow.sleeves > 1
           ? ` · ${flow.sleeves} filing lines`
           : "";
-      return `${flow.sourceEntity.name} → ${flow.targetEntity.name} — ${formatMoney(flow.amount, "USD")}${lines}${badge}`;
+      return `${flow.sourceEntity.name} funds ${flow.targetEntity.name} for ${formatMoney(flow.amount, "USD")}${lines}${badge}`;
     }
     if (flow.flowType === "ownership") {
       return `${flow.sourceEntity.name} owns ${flow.targetEntity.name} (stake qty. n/a)${badge}`;
