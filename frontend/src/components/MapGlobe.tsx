@@ -34,6 +34,38 @@ const MAP_STYLES: Record<Basemap, string> = {
   dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
 };
 
+// Sleek-globe sky (MapLibre sky spec): deep space above, faint blue
+// horizon at the limb so the disc reads against black instead of flat
+// gray. Applied on load; mercator keeps its opaque background layer, so
+// this only shows in globe projection.
+const SKY: Record<Basemap, Parameters<maplibregl.Map["setSky"]>[0]> = {
+  dark: {
+    "sky-color": "#02040a",
+    "horizon-color": "#16233d",
+    "fog-color": "#05080f",
+    "fog-ground-blend": 0.4,
+    "horizon-fog-blend": 0.6,
+    "sky-horizon-blend": 0.7,
+    "atmosphere-blend": 1,
+  },
+  light: {
+    "sky-color": "#0b1e3a",
+    "horizon-color": "#7ea6cf",
+    "fog-color": "#0b1e3a",
+    "fog-ground-blend": 0.4,
+    "horizon-fog-blend": 0.6,
+    "sky-horizon-blend": 0.7,
+    "atmosphere-blend": 1,
+  },
+};
+
+// Deep-space page color behind the canvas: no white flash while tiles
+// stream in, and globe space matches the app chrome (#0b0e14 family).
+const SPACE_BG: Record<Basemap, string> = {
+  dark: "#05070d",
+  light: "#0b1e3a",
+};
+
 // Only systemic tile failure trips the note; isolated tile errors are ignored.
 const TILE_ERROR_BUDGET = 25;
 
@@ -260,10 +292,77 @@ export default function MapGlobe({
     );
   }, [entities, flows]);
 
+  // Great-circle paths are computed once and shared by the glow + core
+  // arc passes, so the sleekness costs no extra geometry.
+  const pathFlows = useMemo(
+    () =>
+      drawableFlows.map((f) => ({
+        ...f,
+        path: greatCirclePath(
+          [f.sourceEntity.lng, f.sourceEntity.lat],
+          [f.targetEntity.lng, f.targetEntity.lat],
+        ),
+      })),
+    [drawableFlows],
+  );
+  const arcColor = (d: Flow): [number, number, number, number] =>
+    d.flowType === "grant"
+      ? [61, 174, 233, 150]
+      : d.flowType === "ownership"
+        ? [239, 68, 68, 90]
+        : [251, 146, 60, 55];
+  const arcWidth = (d: Flow) =>
+    d.flowType === "13f"
+      ? Math.max(1, Math.min(3, Math.log10(d.amount) - 4))
+      : d.flowType === "ownership"
+        ? 1.5
+        : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2));
+  const dotColor = (d: Entity): [number, number, number, number] =>
+    d.type.toLowerCase() === "education"
+      ? [251, 191, 36, 210]
+      : flowEndpoints.has(d.id)
+        ? [168, 85, 247, 210]
+        : [45, 212, 191, 200];
+
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
-  // funders to grantees, width by works count.
+  // funders to grantees, width by works count. Sleek pass: a wide, faint
+  // halo/glow layer sits under each crisp core layer (same geometry, so
+  // dense hubs bloom softly instead of stacking into a solid blob).
   const layers = useMemo(() => [
+    new ScatterplotLayer<Entity>({
+      id: "entities-halo",
+      data: entities,
+      pickable: false,
+      filled: true,
+      stroked: false,
+      getPosition: (d) => [d.lng, d.lat],
+      getRadius: (d) => {
+        const base = (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2;
+        return (selected?.id === d.id ? base * 3 : base) * 2.4;
+      },
+      radiusMinPixels: 7,
+      radiusMaxPixels: 26,
+      getFillColor: (d) => {
+        const c = dotColor(d);
+        return [c[0], c[1], c[2], 26];
+      },
+    }),
+    new PathLayer<Flow & { path: [number, number][] }>({
+      id: "flows-glow",
+      data: pathFlows,
+      pickable: false,
+      wrapLongitude: true,
+      getPath: (d) => d.path,
+      getColor: (d) => {
+        const c = arcColor(d);
+        return [c[0], c[1], c[2], Math.round(c[3] * 0.35)];
+      },
+      getWidth: (d) => arcWidth(d) * 2.6,
+      widthUnits: "pixels",
+      widthMinPixels: 2,
+      widthMaxPixels: 8,
+    }),
     new ScatterplotLayer<Entity>({
       id: "entities",
       data: entities,
@@ -271,7 +370,7 @@ export default function MapGlobe({
       filled: true,
       stroked: true,
       lineWidthUnits: "pixels",
-      getLineWidth: (d) => (selected?.id === d.id ? 9 : 1),
+      getLineWidth: (d) => (selected?.id === d.id ? 2.5 : 0.75),
       getPosition: (d) => [d.lng, d.lat],
       // Half the area (÷√2 radius); the money×2 multiplier stays.
       // Selected node renders 3x for visibility.
@@ -282,24 +381,13 @@ export default function MapGlobe({
       radiusMinPixels: 3,
       radiusMaxPixels: 11,
       // Amber universities, purple flow endpoints, teal everything else.
-      getFillColor: (d) =>
-        d.type.toLowerCase() === "education"
-          ? [251, 191, 36, 210]
-          : flowEndpoints.has(d.id)
-            ? [168, 85, 247, 210]
-            : [45, 212, 191, 200],
+      getFillColor: dotColor,
       getLineColor: (d) =>
-        selected?.id === d.id ? [45, 212, 191, 255] : [255, 255, 255, 140],
+        selected?.id === d.id ? [45, 212, 191, 255] : [255, 255, 255, 90],
     }),
     new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows",
-      data: drawableFlows.map((f) => ({
-        ...f,
-        path: greatCirclePath(
-          [f.sourceEntity.lng, f.sourceEntity.lat],
-          [f.targetEntity.lng, f.targetEntity.lat],
-        ),
-      })),
+      data: pathFlows,
       pickable: true,
       wrapLongitude: true,
       getPath: (d) => d.path,
@@ -307,19 +395,9 @@ export default function MapGlobe({
       // 13F money arcs. 13F arcs run faint + thin: hundreds overlap at
       // funder hubs, so low single-arc alpha lets dense bundles read as
       // glow, not a solid blob.
-      getColor: (d) =>
-        d.flowType === "grant"
-          ? [61, 174, 233, 150]
-          : d.flowType === "ownership"
-            ? [239, 68, 68, 90]
-            : [251, 146, 60, 55],
+      getColor: arcColor,
       // Per-type widths (works-counts vs dollars need different scales).
-      getWidth: (d) =>
-        d.flowType === "13f"
-          ? Math.max(1, Math.min(3, Math.log10(d.amount) - 4))
-          : d.flowType === "ownership"
-            ? 1.5
-            : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2)),
+      getWidth: arcWidth,
       widthUnits: "pixels",
       widthMinPixels: 1,
       widthMaxPixels: 3,
@@ -328,7 +406,7 @@ export default function MapGlobe({
     // either toggle, and a fresh overlay needs fresh layer instances
     // (reused ones stay bound to the dead Deck instance and vanish).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [entities, drawableFlows, flowEndpoints, selected, projection, basemap]);
+  ], [entities, pathFlows, flowEndpoints, selected, projection, basemap]);
 
   // Arc ping-pong: first click flies to the funded end, clicking the same
   // arc again flies to the funder; any dot click resets to funded-first.
@@ -378,8 +456,18 @@ export default function MapGlobe({
         })
       }
       projection={projection}
+      style={{ background: SPACE_BG[basemap] }}
       onLoad={(e) => {
         setMapReady(true);
+        // Deep-space sky + darkened globe void: only visible around the
+        // globe disc (mercator's background layer stays opaque).
+        e.target.setSky(SKY[basemap]);
+        const bg = e.target
+          .getStyle()
+          .layers?.find((l) => l.type === "background");
+        if (bg && basemap === "dark") {
+          e.target.setPaintProperty(bg.id, "background-color", SPACE_BG.dark);
+        }
         e.target.on("webglcontextlost", () => setContextLost(true));
       }}
       onError={() => {
