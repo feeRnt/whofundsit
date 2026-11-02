@@ -3,11 +3,24 @@ import { apiLog, readCache, writeCache } from "./httpCache.js";
 import { createRateLimiter } from "./pipeline.js";
 
 // Shared OpenFIGI client (FIGI symbology is public-domain dedicated; see
-// DATASETS.md). One limiter for every job in the process: the rate cap is
+// DATASETS.md). One limiter for every job in the process: the keyless cap is
 // per-IP, so two limiters would double it. Lookup keys (CUSIPs, ISINs — US
 // ISINs embed a CUSIP) stay in the gitignored cache, never committed.
+//
+// NOTE on limits (verified 2026-11-02): the legal Terms of Service say
+// nothing about throttling (pure public-domain dedication), but the API
+// documentation publishes a technically-enforced throttle — mapping API:
+// 25 req/min x 10 jobs keyless, 250 x 100 with a free key, per IP/key in 60s
+// windows, signaled by 429s + ratelimit-* headers. Liberal reading = run AT
+// the documented ceiling (~96%), never past it: keyless neighbors on a
+// shared (carrier-NAT) IP count against the same 25/min, so prefer a key.
+// postMapping retries 429/5xx below, honoring the reset headers.
+export const OPENFIGI_KEYLESS_INTERVAL_MS = 2500;
+export const OPENFIGI_KEYED_INTERVAL_MS = 250;
 export const openfigiLimit = createRateLimiter(
-  process.env.OPENFIGI_API_KEY ? 300 : 2500,
+  process.env.OPENFIGI_API_KEY
+    ? OPENFIGI_KEYED_INTERVAL_MS
+    : OPENFIGI_KEYLESS_INTERVAL_MS,
 );
 
 const MAPPING_URL = "https://api.openfigi.com/v3/mapping";
@@ -19,21 +32,48 @@ export interface FigiHit {
 }
 
 // One batched mapping POST; results align 1:1 with the request batch.
+// Retries 429/5xx (3 tries), honoring the reset headers — a bare throw here
+// used to kill the whole 13F run.
 export async function postMapping(
   batch: { idType: "ID_CUSIP" | "ID_ISIN"; idValue: string }[],
 ): Promise<FigiHit[][]> {
   const key = process.env.OPENFIGI_API_KEY;
-  apiLog("POST", MAPPING_URL);
-  const { data } = await openfigiLimit(() =>
-    axios.post<{ data?: FigiHit[] }[]>(MAPPING_URL, batch, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(key ? { "X-OPENFIGI-APIKEY": key } : {}),
-      },
-      timeout: 60000,
-    }),
-  );
-  return data.map((r) => r.data ?? []);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      apiLog("POST", MAPPING_URL);
+      const { data } = await openfigiLimit(() =>
+        axios.post<{ data?: FigiHit[] }[]>(MAPPING_URL, batch, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(key ? { "X-OPENFIGI-APIKEY": key } : {}),
+          },
+          timeout: 60000,
+        }),
+      );
+      return data.map((r) => r.data ?? []);
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      const retryable =
+        status === 429 || (status !== undefined && status >= 500);
+      if (!retryable || attempt >= 3) {
+        throw err;
+      }
+      const reset = Number(
+        axios.isAxiosError(err)
+          ? (err.response?.headers?.["retry-after"] ??
+            err.response?.headers?.["ratelimit-reset"])
+          : NaN,
+      );
+      const waitMs =
+        Number.isFinite(reset) && reset > 0 && reset <= 120
+          ? reset * 1000
+          : 15000 * attempt;
+      console.warn(
+        `[openfigi] HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+      );
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
 }
 
 // ISIN listings span every exchange worldwide: prefer common stock anywhere,

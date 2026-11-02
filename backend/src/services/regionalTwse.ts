@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
+import { cachedJson, cacheKey, apiLog, userAgentFromEnv } from "./httpCache.js";
 import { gleifEntity } from "./globalSync.js";
 
 // Taiwan financial facts from TWSE OpenAPI (gov open-data license: use the
@@ -18,8 +18,7 @@ import { gleifEntity } from "./globalSync.js";
 
 const TWSE = "https://openapi.twse.com.tw/v1/opendata";
 const SPARQL = "https://query.wikidata.org/sparql";
-const UA =
-  process.env.WIKIDATA_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+const UA = userAgentFromEnv("WIKIDATA_USER_AGENT");
 
 // ROC year 115 + quarter -> Gregorian quarter-end date.
 export function rocQuarterEnd(rocYear: string, quarter: string): string | null {

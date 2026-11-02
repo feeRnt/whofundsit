@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  createRateLimiter,
   expandLocationText,
   fallbackQueries,
   formatDuration,
@@ -104,5 +105,50 @@ describe("junkAddress", () => {
     assert.equal(junkAddress("Berlin"), false);
     assert.equal(junkAddress("Austin, TX 78701"), false);
     assert.equal(junkAddress("1 Apple Park Way, Cupertino, CA 95014"), false);
+  });
+});
+
+describe("createRateLimiter", () => {
+  it("serializes concurrent calls (no overlap)", async () => {
+    const limit = createRateLimiter(10);
+    let live = 0;
+    let peak = 0;
+    await Promise.all(
+      [1, 2, 3].map(() =>
+        limit(async () => {
+          live += 1;
+          peak = Math.max(peak, live);
+          await new Promise((r) => setTimeout(r, 20));
+          live -= 1;
+        }),
+      ),
+    );
+    assert.equal(peak, 1);
+  });
+
+  it("spaces call starts by the interval", async () => {
+    const limit = createRateLimiter(40);
+    const starts: number[] = [];
+    await Promise.all(
+      [1, 2, 3].map(() =>
+        limit(async () => {
+          starts.push(Date.now());
+        }),
+      ),
+    );
+    assert.equal(starts.length, 3);
+    // 40ms spacing with slack for timer slop (timers fire late, not early).
+    assert.ok(starts[1] - starts[0] >= 30, `gap1 = ${starts[1] - starts[0]}`);
+    assert.ok(starts[2] - starts[1] >= 30, `gap2 = ${starts[2] - starts[1]}`);
+  });
+
+  it("keeps serving after a rejection", async () => {
+    const limit = createRateLimiter(5);
+    await assert.rejects(() =>
+      limit(async () => {
+        throw new Error("boom");
+      }),
+    );
+    assert.equal(await limit(async () => "ok"), "ok");
   });
 });

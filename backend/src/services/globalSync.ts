@@ -1,7 +1,8 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
+import { cachedJson, cacheKey, apiLog, userAgentFromEnv } from "./httpCache.js";
+import { createRateLimiter } from "./pipeline.js";
 
 // International backbone: Wikidata SPARQL lists listed companies worldwide
 // (ISIN + LEI + exchange + HQ, CC0, no key), then GLEIF resolves each LEI to
@@ -15,8 +16,92 @@ import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
 
 const GLEIF = "https://api.gleif.org/api/v1";
 const SPARQL = "https://query.wikidata.org/sparql";
-const UA =
-  process.env.WIKIDATA_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+const UA = userAgentFromEnv("WIKIDATA_USER_AGENT");
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Ground-rule-2 gates: every outbound call in this module goes through one.
+// Wikidata requires a descriptive UA + reasonable load (User-Agent policy,
+// no req/s number): 5s is our conservative courtesy posture. GLEIF publishes
+// 60 req/min/user (official API docs): 1100ms paces ~55/min with margin.
+// Promise-chained: they hold under concurrent callers, where bare sleeps
+// would not. The SPARQL gate coincides with existing pauses; the GLEIF gate
+// sets the pace (≈10x slower than the old 100ms sleep — the price of the
+// published cap; cached reruns are unaffected).
+export const SPARQL_MIN_INTERVAL_MS = 5000;
+export const GLEIF_MIN_INTERVAL_MS = 1100;
+export const sparqlLimit = createRateLimiter(SPARQL_MIN_INTERVAL_MS);
+export const gleifLimit = createRateLimiter(GLEIF_MIN_INTERVAL_MS);
+
+// Flaky-connection detector: GLEIF drops sockets mid-sync (ECONNRESET /
+// "socket hang up"). Only these retry; anything else throws immediately.
+function isConnReset(err: unknown): boolean {
+  return (
+    axios.isAxiosError(err) &&
+    (err.code === "ECONNRESET" || /socket hang up/i.test(err.message))
+  );
+}
+
+// One GLEIF GET: polite pacing plus up to 3 tries with backoff on dropped
+// connections. Only successful responses are cached (by the caller).
+async function gleifGet<T>(url: string, params: Record<string, unknown>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      apiLog("GET", url);
+      return await gleifLimit(async () => {
+        const res = await axios.get<T>(url, {
+          params,
+          headers: { "User-Agent": UA },
+          timeout: 60000,
+        });
+        return res.data;
+      });
+    } catch (err) {
+      // Dropped connections retry fast; a 429/5xx backs off and honors
+      // Retry-After (never observed from GLEIF — defensive). Else throw.
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      const throttled =
+        status === 429 || (status !== undefined && status >= 500);
+      if ((!isConnReset(err) && !throttled) || attempt >= 3) {
+        throw err;
+      }
+      const retryAfter = Number(
+        axios.isAxiosError(err) ? err.response?.headers?.["retry-after"] : NaN,
+      );
+      const waitMs =
+        throttled && Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 120
+          ? retryAfter * 1000
+          : (throttled ? 5000 : 1000) * attempt;
+      const why = throttled ? `HTTP ${status}` : "connection reset";
+      console.warn(
+        `[global] ${url}: ${why}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+      );
+      await sleep(waitMs);
+    }
+  }
+}
+
+interface GleifRecordDoc {
+  data?: {
+    attributes?: { entity?: { legalName?: { name?: unknown } } & Record<
+      string,
+      unknown
+    > };
+  };
+}
+
+interface GleifChildrenDoc {
+  data?: {
+    id?: unknown;
+    attributes?: { entity?: { legalName?: { name?: unknown } } & Record<
+      string,
+      unknown
+    > };
+  }[];
+  meta?: { pagination?: { lastPage?: number } };
+}
 
 export interface GlobalCompany {
   name: string;
@@ -38,16 +123,28 @@ export const GLOBAL_REGIONS: { name: string; qid: string; share: number }[] = [
   { name: "oceania", qid: "Q55643", share: 0.04 },
 ];
 
-export function buildCompanyQuery(limit: number, continentQid?: string): string {
+// Paged calls (offset !== undefined) add a ?lei tiebreaker so page
+// boundaries are deterministic; the unpaged text stays byte-identical,
+// preserving every existing cache entry.
+export function buildCompanyQuery(
+  limit: number,
+  continentQid?: string,
+  offset?: number,
+): string {
   const region = continentQid
     ? `  ?company wdt:P17 ?country.\n  ?country wdt:P30 wd:${continentQid}.\n  FILTER(?country != wd:Q30).\n`
     : "";
+  const order =
+    offset === undefined
+      ? "ORDER BY DESC(?links)"
+      : "ORDER BY DESC(?links) ?lei";
+  const off = offset ? ` OFFSET ${offset}` : "";
   return `SELECT ?companyLabel ?isin ?lei ?exchangeLabel ?hqLabel (COUNT(?sl) AS ?links) WHERE {
   ?company wdt:P946 ?isin; wdt:P1278 ?lei; wdt:P414 ?exchange.
 ${region}  ?sl schema:about ?company.
   OPTIONAL { ?company wdt:P159 ?hq. }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-} GROUP BY ?companyLabel ?isin ?lei ?exchangeLabel ?hqLabel ORDER BY DESC(?links) LIMIT ${limit}`;
+} GROUP BY ?companyLabel ?isin ?lei ?exchangeLabel ?hqLabel ${order} LIMIT ${limit}${off}`;
 }
 
 interface SparqlBinding {
@@ -161,69 +258,116 @@ async function sparqlRegion(
   const doc = await cachedJson<{ results?: { bindings?: SparqlBinding[] } }>(
     `global/wikidata-companies-${region}-${cacheKey(query)}.json`,
     async () => {
-      apiLog("GET", SPARQL);
-      return (
-        await axios.get(SPARQL, {
-          params: { format: "json", query },
-          headers: { "User-Agent": UA },
-          timeout: 120000,
-        })
-      ).data;
+      // Heavy region queries 504/429 under load: 3 tries with backoff.
+      // Only successes cache, so a failed page retries clean next run.
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          apiLog("GET", SPARQL);
+          return await sparqlLimit(async () => {
+            const res = await axios.get(SPARQL, {
+              params: { format: "json", query },
+              headers: { "User-Agent": UA },
+              timeout: 120000,
+            });
+            return res.data;
+          });
+        } catch (err) {
+          const status = axios.isAxiosError(err)
+            ? err.response?.status
+            : undefined;
+          const retryable =
+            status === 429 || (status !== undefined && status >= 500);
+          if (!retryable || attempt >= 3) {
+            throw err;
+          }
+          const waitMs = 15000 * attempt;
+          console.warn(
+            `[global] region ${region}: HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+          );
+          await sleep(waitMs);
+        }
+      }
     },
   );
   return parseCompanyRows(doc);
 }
 
+// Single-query page size: 500-row region queries pass reliably while
+// 1800-row ones 504 inside Wikidata's 60s cap (proven 2026-11-01: europe
+// 504, asia 429 at GLOBAL_LIMIT=5000). Quotas above a page go out as
+// LIMIT/OFFSET chunks, each cached separately.
+const SPARQL_PAGE_SIZE = 500;
+const SPARQL_REGION_PAUSE_MS = 5000; // don't stack six heavy queries back-to-back
+const SPARQL_PAGE_PAUSE_MS = 10000;
+
 export async function sparqlCompanies(limit: number): Promise<GlobalCompany[]> {
-  const out: GlobalCompany[] = [];
-  const seen = new Set<string>();
-  for (const r of GLOBAL_REGIONS) {
+  const byLei = new Map<string, GlobalCompany>();
+  for (const [ri, r] of GLOBAL_REGIONS.entries()) {
     const quota = Math.max(5, Math.round(limit * r.share));
-    // Big quotas (5000+ total) can time out a region inside Wikidata's 60s
-    // cap: skip it with a warning instead of losing the whole run.
+    if (ri > 0) {
+      await sleep(SPARQL_REGION_PAUSE_MS);
+    }
+    // One query when it fits the proven page (byte-identical text, so old
+    // caches still hit); LIMIT/OFFSET chunks above it.
+    const queries =
+      quota <= SPARQL_PAGE_SIZE
+        ? [buildCompanyQuery(quota, r.qid)]
+        : Array.from(
+            { length: Math.ceil(quota / SPARQL_PAGE_SIZE) },
+            (_, p) =>
+              buildCompanyQuery(
+                Math.min(SPARQL_PAGE_SIZE, quota - p * SPARQL_PAGE_SIZE),
+                r.qid,
+                p * SPARQL_PAGE_SIZE,
+              ),
+          );
     let batch: GlobalCompany[];
     try {
-      batch = await sparqlRegion(r.name, buildCompanyQuery(quota, r.qid));
+      batch = [];
+      for (const [pi, q] of queries.entries()) {
+        if (pi > 0) {
+          await sleep(SPARQL_PAGE_PAUSE_MS);
+        }
+        batch.push(...(await sparqlRegion(r.name, q)));
+      }
     } catch (err) {
+      // Retries inside sparqlRegion already failed: skip the region with a
+      // warning instead of losing the whole run. Cached pages survive.
       console.warn(`[global] region ${r.name}: query failed, skipping (${err})`);
       continue;
     }
     let fresh = 0;
     for (const c of batch) {
-      if (seen.has(c.lei)) {
+      const prev = byLei.get(c.lei);
+      if (prev) {
+        // Cross-page or transcontinental dupe: merge, don't drop.
+        for (const ex of c.exchanges) {
+          if (!prev.exchanges.includes(ex)) {
+            prev.exchanges.push(ex);
+          }
+        }
+        prev.hq = prev.hq ?? c.hq;
         continue;
       }
-      seen.add(c.lei);
-      out.push(c);
+      byLei.set(c.lei, c);
       fresh += 1;
     }
     console.log(`[global] region ${r.name}: ${fresh} companies`);
   }
-  return out;
+  return [...byLei.values()];
 }
 
 export async function gleifEntity(lei: string): Promise<{
   name: string;
   address: GleifAddress | null;
 } | null> {
-  const doc = await cachedJson<{
-    data?: {
-      attributes?: { entity?: { legalName?: { name?: unknown } } & Record<
-        string,
-        unknown
-      > };
-    };
-  }>(`global/gleif/${lei}.json`, async () => {
-    await new Promise((r) => setTimeout(r, 100)); // polite, cached anyway
-    apiLog("GET", `${GLEIF}/lei-records/${lei}`);
-    return (
-      await axios.get(`${GLEIF}/lei-records/${lei}`, {
-        params: { "fields[lei-records]": "entity" },
-        headers: { "User-Agent": UA },
-        timeout: 60000,
-      })
-    ).data;
-  });
+  const doc = await cachedJson<GleifRecordDoc>(
+    `global/gleif/${lei}.json`,
+    () =>
+      gleifGet<GleifRecordDoc>(`${GLEIF}/lei-records/${lei}`, {
+        "fields[lei-records]": "entity",
+      }),
+  );
   const entity = doc.data?.attributes?.entity;
   const name = str(entity?.legalName?.name);
   if (!entity || !name) {
@@ -239,30 +383,18 @@ async function gleifChildren(
   const out: GleifChild[] = [];
   let page = 1;
   for (;;) {
-    const doc = await cachedJson<{
-      data?: {
-        id?: unknown;
-        attributes?: { entity?: { legalName?: { name?: unknown } } & Record<
-          string,
-          unknown
-        > };
-      }[];
-      meta?: { pagination?: { lastPage?: number } };
-    }>(`global/gleif-children/${lei}-p${page}.json`, async () => {
-      await new Promise((r) => setTimeout(r, 100));
-      apiLog("GET", `${GLEIF}/lei-records/${lei}/direct-children`);
-      return (
-        await axios.get(`${GLEIF}/lei-records/${lei}/direct-children`, {
-          params: {
+    const doc = await cachedJson<GleifChildrenDoc>(
+      `global/gleif-children/${lei}-p${page}.json`,
+      () =>
+        gleifGet<GleifChildrenDoc>(
+          `${GLEIF}/lei-records/${lei}/direct-children`,
+          {
             "page[size]": 100,
             "page[number]": page,
             "fields[lei-records]": "entity",
           },
-          headers: { "User-Agent": UA },
-          timeout: 60000,
-        })
-      ).data;
-    });
+        ),
+    );
     out.push(...parseGleifChildren(doc));
     const lastPage = doc.meta?.pagination?.lastPage ?? 1;
     if (page >= lastPage || out.length >= maxChildren) {
@@ -299,7 +431,13 @@ export async function runGlobalSync(): Promise<{
   let flows = 0;
   try {
     for (const c of companies) {
-      const g = await gleifEntity(c.lei);
+      let g: { name: string; address: GleifAddress | null } | null;
+      try {
+        g = await gleifEntity(c.lei);
+      } catch (err) {
+        console.warn(`[global] ${c.lei}: record fetch failed, skipping (${err})`);
+        continue;
+      }
       if (!g?.address) {
         skippedNoAddress.push(`${c.name} (${c.lei})`);
         continue;
@@ -328,7 +466,16 @@ export async function runGlobalSync(): Promise<{
         },
       });
       entities += 1;
-      for (const child of await gleifChildren(c.lei, maxChildren)) {
+      let children: GleifChild[];
+      try {
+        children = await gleifChildren(c.lei, maxChildren);
+      } catch (err) {
+        console.warn(
+          `[global] ${c.lei}: children fetch failed, keeping parent only (${err})`,
+        );
+        children = [];
+      }
+      for (const child of children) {
         const childId = `lei:${child.lei}`;
         await prisma.entity.upsert({
           where: { id: childId },

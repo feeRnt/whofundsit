@@ -25,6 +25,30 @@ export function apiLog(method: string, url: string, note?: string): void {
   );
 }
 
+// Warn-once guard for User-Agent variables: an unset var, an empty one, or
+// the "Your Name you@example.com" example placeholder left unfilled can draw
+// SEC 403s and Nominatim blocks. Returns the configured value, else the
+// fallback. Every service routes its UA through here.
+const warnedUA = new Set<string>();
+export function userAgentFromEnv(
+  name: string,
+  fallback = "WhoFundsIt/0.1 (contact: dev@example.com)",
+): string {
+  const v = process.env[name];
+  const bad =
+    v === undefined || v.length === 0 || v.includes("example.com");
+  if (!bad) {
+    return v;
+  }
+  if (!warnedUA.has(name)) {
+    warnedUA.add(name);
+    console.warn(
+      `[config] ${name} is ${v === undefined || v.length === 0 ? "not set" : "still the example placeholder"} — using fallback UA (SEC 403s and Nominatim blocks trace back to this; set it in backend/.env)`,
+    );
+  }
+  return fallback;
+}
+
 export function readCache<T>(relPath: string): T | undefined {
   if (process.env.CACHE_REFRESH) {
     return undefined;
@@ -33,7 +57,21 @@ export function readCache<T>(relPath: string): T | undefined {
   if (!fs.existsSync(dest)) {
     return undefined;
   }
-  return JSON.parse(fs.readFileSync(dest, "utf8")) as T;
+  try {
+    return JSON.parse(fs.readFileSync(dest, "utf8")) as T;
+  } catch (err) {
+    if ((err as { code?: unknown })?.code !== "EIO") {
+      throw err;
+    }
+    // Disk blip: one immediate retry, then treat as a miss (the caller
+    // re-fetches or rebuilds) instead of killing the run.
+    try {
+      return JSON.parse(fs.readFileSync(dest, "utf8")) as T;
+    } catch (retryErr) {
+      console.warn(`[cache] EIO reading ${relPath}, treating as a miss (${retryErr})`);
+      return undefined;
+    }
+  }
 }
 
 export function writeCache(relPath: string, data: unknown): void {

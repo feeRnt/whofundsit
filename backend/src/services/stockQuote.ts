@@ -1,5 +1,6 @@
 import axios from "axios";
-import { apiLog, readCache, writeCache } from "./httpCache.js";
+import { apiLog, readCache, writeCache, userAgentFromEnv } from "./httpCache.js";
+import { createRateLimiter } from "./pipeline.js";
 
 // Day-change quotes via Yahoo's chart API (no key; tiny demo traffic).
 // NOTE — ToS judgment call: Yahoo's terms discourage automated access, but
@@ -10,8 +11,12 @@ import { apiLog, readCache, writeCache } from "./httpCache.js";
 // server-side fetches, so quotes silently vanished.)
 
 const QUOTE_TTL_MS = 24 * 60 * 60 * 1000;
-const UA =
-  process.env.QUOTE_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+const UA = userAgentFromEnv("QUOTE_USER_AGENT");
+
+// Yahoo publishes no per-second cap for the chart endpoint; 1/s keeps
+// click-spam bursts polite on top of the 24h cache (request-path calls).
+export const QUOTE_MIN_INTERVAL_MS = 1000;
+export const quoteLimit = createRateLimiter(QUOTE_MIN_INTERVAL_MS);
 
 export interface Quote {
   changePct: number;
@@ -85,10 +90,12 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`;
   apiLog("GET", url, ticker);
   try {
-    const res = await axios.get(url, {
-      timeout: 10000,
-      headers: { "User-Agent": UA, Accept: "application/json" },
-    });
+    const res = await quoteLimit(() =>
+      axios.get(url, {
+        timeout: 10000,
+        headers: { "User-Agent": UA, Accept: "application/json" },
+      }),
+    );
     const parsed = parseYahooChart(res.data);
     const pct = parsed ? changePct(parsed.previousClose, parsed.price) : null;
     if (!parsed || pct === null) {

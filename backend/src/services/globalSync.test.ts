@@ -1,11 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  GLEIF_MIN_INTERVAL_MS,
   GLOBAL_REGIONS,
+  SPARQL_MIN_INTERVAL_MS,
   buildCompanyQuery,
+  gleifLimit,
   parseCompanyRows,
   parseGleifAddress,
   parseGleifChildren,
+  sparqlLimit,
 } from "./globalSync.js";
 
 describe("parseCompanyRows", () => {
@@ -126,5 +130,24 @@ describe("buildCompanyQuery", () => {
   it("region quotas sum to a full GLOBAL_LIMIT", () => {
     const total = GLOBAL_REGIONS.reduce((n, r) => n + r.share, 0);
     assert.ok(Math.abs(total - 1) < 1e-9, `shares sum to ${total}`);
+  });
+});
+
+describe("api pacing", () => {
+  it("pins limiter intervals to the ToS-derived ceilings", () => {
+    // Wikidata publishes no req/s cap (descriptive UA + reasonable load
+    // only): 5s is our conservative courtesy posture. GLEIF publishes
+    // 60 req/min/user (official API docs): 1100ms paces ~55/min with margin.
+    assert.equal(SPARQL_MIN_INTERVAL_MS, 5000);
+    assert.equal(GLEIF_MIN_INTERVAL_MS, 1100);
+    assert.equal(typeof sparqlLimit, "function");
+    assert.equal(typeof gleifLimit, "function");
+  });
+
+  it("spaces GLEIF calls through the shared limiter", async () => {
+    const t0 = Date.now();
+    await Promise.all([gleifLimit(async () => {}), gleifLimit(async () => {})]);
+    // 1 x 1100ms gap with slack for timer slop.
+    assert.ok(Date.now() - t0 >= 900, "gleif calls unpaced");
   });
 });

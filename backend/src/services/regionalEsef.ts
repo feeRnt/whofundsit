@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, apiLog } from "./httpCache.js";
+import { cachedJson, apiLog, userAgentFromEnv } from "./httpCache.js";
 
 // EU/UK financial facts from the ESEF repository (filings.xbrl.org): per-LEI
 // filing lookup, latest xBRL-JSON facts, Assets preferred, Revenue fallback.
@@ -11,8 +11,7 @@ import { cachedJson, apiLog } from "./httpCache.js";
 // NOTE: repository ToS is unstated (see DATASETS.md) — small-scale use only.
 
 const ESEF = "https://filings.xbrl.org/api";
-const UA =
-  process.env.WIKIDATA_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+const UA = userAgentFromEnv("WIKIDATA_USER_AGENT");
 
 export interface EsefFact {
   value: number;

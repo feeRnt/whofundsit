@@ -10,6 +10,7 @@ import {
   readCache,
   writeCache,
   apiLog,
+  userAgentFromEnv,
 } from "./httpCache.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 
@@ -64,10 +65,8 @@ interface NominatimHit {
 }
 
 function nominatimUserAgent(): string {
-  // Nominatim requires a declared User-Agent. Override via env if needed.
-  return (
-    process.env.NOMINATIM_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)"
-  );
+  // Nominatim requires a declared User-Agent (warns when unconfigured).
+  return userAgentFromEnv("NOMINATIM_USER_AGENT");
 }
 
 // A 5xx or network blip must never kill a multi-hour coords run: it is a
@@ -131,6 +130,16 @@ export async function geocodeLocal(
     );
   } catch (err) {
     const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+    if (status === 400) {
+      // Over-long queries (e.g. multi-line HQ addresses) 400 forever: a
+      // permanent miss, not a run-killer. Dead-lined like any other miss.
+      console.warn(
+        `[coords] Nominatim 400 for ${JSON.stringify(text)} — skipping (query too long?)`,
+      );
+      missLog.add(text);
+      geocodeCache.set(text, null);
+      return null;
+    }
     if (!shouldSwallowGeoError(status)) {
       if (status === 403) {
         throw new Error(

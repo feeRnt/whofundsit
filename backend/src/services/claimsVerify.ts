@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cachedJsonDaily, cacheKey, apiLog } from "./httpCache.js";
+import { cachedJson, cachedJsonDaily, cacheKey, apiLog, userAgentFromEnv } from "./httpCache.js";
 import { infoTableXml, latest13F, parseInfoTable } from "./thirteenF.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
@@ -128,13 +128,11 @@ export function isMajorIndex(tickers: string[]): boolean {
 // --- Live-source fetchers (all cached; all ToS-paced) ---
 
 function secUA(): string {
-  return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+  return userAgentFromEnv("SEC_USER_AGENT");
 }
 
 function nominatimUA(): string {
-  return (
-    process.env.NOMINATIM_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)"
-  );
+  return userAgentFromEnv("NOMINATIM_USER_AGENT");
 }
 
 function limiter(minMs: number): <T>(fn: () => Promise<T>) => Promise<T> {

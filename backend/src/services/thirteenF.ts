@@ -6,15 +6,15 @@ import { fileURLToPath } from "node:url";
 import { XMLParser } from "fast-xml-parser";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cachedJsonDaily, apiLog, readCache, writeCache } from "./httpCache.js";
+import { cachedJson, cachedJsonDaily, apiLog, readCache, writeCache, userAgentFromEnv } from "./httpCache.js";
 import {
   jsonEntries,
   locationTag,
   readAddressMap,
   type BulkAddress,
 } from "./bulkLoad.js";
-// Shared OpenFIGI limiter (one per process: the cap is per-IP).
-import { openfigiLimit } from "./openfigi.js";
+// Shared OpenFIGI mapping client (gated + 429-retried; the cap is per-IP).
+import { postMapping } from "./openfigi.js";
 import {
   createRateLimiter,
   expandLocationText,
@@ -47,7 +47,7 @@ const SEC_MIN_INTERVAL_MS = 150;
 const secLimit = createRateLimiter(SEC_MIN_INTERVAL_MS);
 
 function secUA(): string {
-  return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+  return userAgentFromEnv("SEC_USER_AGENT");
 }
 
 async function secGet<T>(url: string): Promise<T> {
@@ -343,30 +343,14 @@ async function resolveCusipTickers(
   if (missing.length === 0) {
     return map;
   }
-  const key = process.env.OPENFIGI_API_KEY;
-  const batchSize = key ? 100 : 10;
+  const batchSize = process.env.OPENFIGI_API_KEY ? 100 : 10;
   for (let i = 0; i < missing.length; i += batchSize) {
     const batch = missing.slice(i, i + batchSize);
-    apiLog("POST", "https://api.openfigi.com/v3/mapping");
-    const { data } = await openfigiLimit(() =>
-      axios.post<
-        {
-          data?: {
-            ticker?: unknown;
-            exchCode?: unknown;
-            securityType?: unknown;
-          }[];
-        }[]
-      >("https://api.openfigi.com/v3/mapping", batch.map((c) => ({ idType: "ID_CUSIP", idValue: c })), {
-        headers: {
-          "Content-Type": "application/json",
-          ...(key ? { "X-OPENFIGI-APIKEY": key } : {}),
-        },
-        timeout: 60000,
-      }),
+    const pages = await postMapping(
+      batch.map((c) => ({ idType: "ID_CUSIP", idValue: c })),
     );
     batch.forEach((c, j) => {
-      map.set(c, pickTicker(data[j]?.data ?? []));
+      map.set(c, pickTicker(pages[j] ?? []));
     });
   }
   return map;
@@ -564,7 +548,14 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
     } else {
       console.log(`[13f] ${discovered.length} 13F filers (from discovery cache)`);
     }
-    const addrCache = readAddressMap();
+    // The address map is large and lives on disk: an unreadable cache (EIO,
+    // corrupt JSON) degrades to name-only geocoding, never a dead run.
+    let addrCache: Record<string, BulkAddress> | undefined = undefined;
+    try {
+      addrCache = readAddressMap();
+    } catch (err) {
+      console.warn(`[13f] address-map cache unreadable, continuing without it (${err})`);
+    }
     type Job = {
       spec: ManagerSpec;
       filing: { accn: string; filingDate: string; state: string | null } | null;

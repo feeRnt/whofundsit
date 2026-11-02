@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
-import { cachedJson, cachedJsonDaily, apiLog } from "./httpCache.js";
+import { cachedJson, cachedJsonDaily, apiLog, userAgentFromEnv } from "./httpCache.js";
 
 // SEC EDGAR Frames API: one funding-relevant concept per frame, Q2 2026
 // (last fully-filed quarter). Responses are file-cached under gitignored
@@ -124,8 +124,8 @@ function throttleDone(): void {
 }
 
 function userAgent(): string {
-  // SEC requires a declared User-Agent. Override via SEC_USER_AGENT if needed.
-  return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+  // SEC requires a declared User-Agent (warns when unconfigured).
+  return userAgentFromEnv("SEC_USER_AGENT");
 }
 
 function secStatus(err: unknown): number | null {

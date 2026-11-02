@@ -1,7 +1,14 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey, apiLog } from "./httpCache.js";
+import {
+  cachedJson,
+  cacheKey,
+  apiLog,
+  readCache,
+  writeCache,
+  userAgentFromEnv,
+} from "./httpCache.js";
 
 // Grant flows from OpenAlex: funder -> funded works -> grantee institutions.
 // One funder per run (OPENALEX_FUNDER_ID, default Colgate-Palmolive, the parent
@@ -29,10 +36,11 @@ async function throttle(): Promise<void> {
 
 function contact(): string {
   // *_USER_AGENT matches the other services; OPENALEX_CONTACT is legacy.
+  // Empty strings fall through (deliberately ||, not ??).
   return (
-    process.env.OPENALEX_USER_AGENT ??
-    process.env.OPENALEX_CONTACT ??
-    "WhoFundsIt/0.1 (contact: dev@example.com)"
+    process.env.OPENALEX_USER_AGENT ||
+    process.env.OPENALEX_CONTACT ||
+    userAgentFromEnv("OPENALEX_USER_AGENT")
   );
 }
 
@@ -161,9 +169,7 @@ async function funderCoords(name: string): Promise<{ lat: number; lng: number }>
           {
             params: { format: "jsonv2", limit: 1, q },
             headers: {
-              "User-Agent":
-                process.env.NOMINATIM_USER_AGENT ??
-                "WhoFundsIt/0.1 (contact: dev@example.com)",
+              "User-Agent": userAgentFromEnv("NOMINATIM_USER_AGENT"),
               Accept: "application/json",
             },
           },
@@ -181,6 +187,28 @@ async function funderCoords(name: string): Promise<{ lat: number; lng: number }>
   );
 }
 
+export interface SkippedFunder {
+  id: string;
+  reason: string;
+  at: string;
+}
+
+const SKIPPED_FUNDERS_CACHE = "openalex/skipped-funders.json";
+
+// Dead-lines-style work queue for the future LLM repair pass: funders the
+// pipeline skipped (geocode miss, junk payload). Gitignored local cache like
+// geo/dead-lines.json; entries accumulate, first reason wins.
+export function recordSkippedFunder(id: string, reason: string): void {
+  const prev = readCache<SkippedFunder[]>(SKIPPED_FUNDERS_CACHE) ?? [];
+  if (prev.some((s) => s.id === id)) {
+    return;
+  }
+  writeCache(SKIPPED_FUNDERS_CACHE, [
+    ...prev,
+    { id, reason, at: new Date().toISOString() },
+  ]);
+}
+
 export interface FlowSummary {
   funder: string;
   works: number;
@@ -188,6 +216,7 @@ export interface FlowSummary {
   flows: number;
   skippedNoGeo: number;
   costUsd: number;
+  skipped: boolean;
 }
 
 export async function runOpenAlexFlows(
@@ -207,10 +236,29 @@ export async function runOpenAlexFlows(
     );
     assertValidFunder(funder, funderId);
     console.log(`[flows] funder: ${funder.display_name} (${funder.works_count} works)`);
-    const funderAt = await cachedJson(
-      `openalex/funder-geo-${shortId(funderId)}.json`,
-      () => funderCoords(funder.display_name),
-    );
+    // Unplaceable funder (geocode miss, transient Nominatim error): skip it
+    // and let the funder loop continue — one bad funder must not kill the run.
+    // Nothing is cached on this path, so the next run retries the geocode.
+    let funderAt: { lat: number; lng: number };
+    try {
+      funderAt = await cachedJson(
+        `openalex/funder-geo-${shortId(funderId)}.json`,
+        () => funderCoords(funder.display_name),
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.warn(`[flows] skipping funder ${funder.display_name} (${reason})`);
+      recordSkippedFunder(funderId, `${funder.display_name}: ${reason}`);
+      return {
+        funder: funder.display_name,
+        works: 0,
+        institutions: 0,
+        flows: 0,
+        skippedNoGeo: 0,
+        costUsd: 0,
+        skipped: true,
+      };
+    }
     const funderKey = shortId(funder.id);
     const funderRowId = `openalex:${funderKey}`;
 
@@ -373,6 +421,7 @@ export async function runOpenAlexFlows(
       flows,
       skippedNoGeo,
       costUsd,
+      skipped: false,
     };
   } finally {
     await prisma.$disconnect();

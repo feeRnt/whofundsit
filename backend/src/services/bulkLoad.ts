@@ -6,7 +6,7 @@ import { pipeline } from "node:stream/promises";
 import yauzl from "yauzl";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { readCache, writeCache } from "./httpCache.js";
+import { readCache, writeCache, userAgentFromEnv } from "./httpCache.js";
 
 // Bulk base layer: SEC nightly ZIPs parsed locally. Run on good wifi
 // (`npm run bulk`), then use `npm run ingest` (frames API) for incremental
@@ -51,7 +51,7 @@ const MAX_BULK_ROWS = 20000;
 const BULK_MAX_ENTRIES = Math.max(0, Number(process.env.BULK_MAX_ENTRIES ?? 0));
 
 function userAgent(): string {
-  return process.env.SEC_USER_AGENT ?? "WhoFundsIt/0.1 (contact: dev@example.com)";
+  return userAgentFromEnv("SEC_USER_AGENT");
 }
 
 export interface BulkSummary {

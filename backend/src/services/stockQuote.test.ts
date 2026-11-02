@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { changePct, parseYahooChart, yahooSymbol } from "./stockQuote.js";
+import {
+  QUOTE_MIN_INTERVAL_MS,
+  changePct,
+  parseYahooChart,
+  quoteLimit,
+  yahooSymbol,
+} from "./stockQuote.js";
 
 describe("yahooSymbol", () => {
   it("maps tickers to Yahoo symbols", () => {
@@ -57,5 +63,15 @@ describe("changePct", () => {
     assert.ok((changePct(100, 99) ?? 0) < 0);
     assert.equal(changePct(0, 99), null);
     assert.equal(changePct(NaN, 99), null);
+  });
+});
+
+describe("api pacing", () => {
+  it("gates quote fetches at a polite 1/s (no published Yahoo cap)", async () => {
+    assert.equal(QUOTE_MIN_INTERVAL_MS, 1000);
+    assert.equal(typeof quoteLimit, "function");
+    const t0 = Date.now();
+    await Promise.all([quoteLimit(async () => {}), quoteLimit(async () => {})]);
+    assert.ok(Date.now() - t0 >= 800, "quote calls unpaced");
   });
 });
