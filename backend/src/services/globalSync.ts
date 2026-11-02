@@ -1,7 +1,14 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cacheKey, apiLog, userAgentFromEnv } from "./httpCache.js";
+import {
+  cachedJson,
+  cacheKey,
+  apiLog,
+  green,
+  red,
+  userAgentFromEnv,
+} from "./httpCache.js";
 import { createRateLimiter } from "./pipeline.js";
 
 // International backbone: Wikidata SPARQL lists listed companies worldwide
@@ -848,6 +855,7 @@ export async function runGlobalCoords(): Promise<{
         missing += batch.length;
         continue;
       }
+      let placed = 0;
       for (const lei of batch) {
         const coords = hits.get(lei) ?? null;
         if (coords === null) {
@@ -859,10 +867,13 @@ export async function runGlobalCoords(): Promise<{
           data: { lat: coords.lat, lng: coords.lng, geoStatus: "placed" },
         });
         updated += 1;
+        placed += 1;
       }
-      if (batches % 20 === 0) {
-        console.log(`[global] coords: ${batches} batches, ${updated} placed...`);
-      }
+      // Per-batch line, coords:populate-style: red when nothing placed,
+      // green on a full batch, plain otherwise (mixed is the norm).
+      const missed = batch.length - placed;
+      const line = `[global] coords batch ${batches}: ${placed} placed, ${missed} missing`;
+      console.log(placed === 0 ? red(line) : missed === 0 ? green(line) : line);
     }
     console.log(
       `[global] coords: ${updated} placed, ${missing} still unplaced (${leis.length} considered, ${batches} batches)`,
