@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import logoUrl from "./assets/logo.svg";
 import MapGlobe, { type Basemap } from "./components/MapGlobe";
+import MapErrorBoundary from "./components/MapErrorBoundary";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
 import { fetchEntities, fetchFlows, fetchVerification, type Entity, type Flow, type VerificationReport } from "./api";
@@ -561,7 +562,9 @@ export default function App() {
         </label>
       </header>
       <main className="map">{!loading && !error && (
-          <MapGlobe entities={shownEntities} flows={visibleFlows} allFlows={flows} verification={verification} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
+          <MapErrorBoundary>
+            <MapGlobe entities={shownEntities} flows={visibleFlows} allFlows={flows} verification={verification} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
+          </MapErrorBoundary>
         )}</main>
     </div>
   );
