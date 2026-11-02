@@ -404,3 +404,9 @@ comment corrected; old note left as history.
 - Bulk-geo survey given: Census batch for the US slice (10k/call, free,
   pairs with LLM/regex parse), Modal batch endpoint if deployed,
   self-hosted Photon post-demo; commercial batch tiers too small.
+- Census batch BUILT (censusBatch.ts + pipeline pre-pass, user to ctrl-c
+  then restart): US-parseable rows resolve in one POST (locations/
+  addressbatch, Public_AR_Current, response lon-first verified against
+  spec + mirror); misses/outages fall through to Nominatim, never to
+  failed. Tests added + registered; tsc/tests MUST run after ctrl-c
+  before the restart (live run blocked verification).

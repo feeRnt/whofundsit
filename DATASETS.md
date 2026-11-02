@@ -33,10 +33,21 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   © OpenStreetMap attribution visible (see TODO: standalone-cache license).
 - **LLM address repair (adopted approach, 2026-11-02, not yet built):**
   deformed address → open-weight LLM on Modal → structured JSON
-  (house_number/street/city/state/postal) → Nominatim string lookup →
-  lat/lng. The LLM parses, never geocodes: coordinates come only from
-  vetted OSM-backed engines (Nominatim primary; OpenCage/Gisgraphy as
-  alternates).
+  (house_number/street/city/state/postal) → Census batch (US) or Nominatim
+  string lookup (foreign) → lat/lng. The LLM parses, never geocodes:
+  coordinates come only from vetted engines (Census MAF/TIGER for US,
+  OSM-backed Nominatim for the rest; OpenCage/Gisgraphy as alternates).
+
+## US Census batch geocoder (US addresses, bulk)
+
+- **What we take:** `lat`/`lng` for US-parseable rows in one batched POST
+  (SEC-shaped `street, city, ST ZIP`), ahead of Nominatim; misses and
+  outages fall through to the normal path, never to failed.
+- **Terms:** free, no key, US-only (PR + Island Areas included), 10k
+  records per batch, MAF/TIGER source, no stated rate limit (built for
+  bulk). Public-domain US federal data — no attribution burden.
+- **Local copies (gitignored):** hits land in the same
+  `backend/data/cache/geo/` per-query files as Nominatim results.
 
 ## OpenAlex (grants: funders, works, institutions)
 

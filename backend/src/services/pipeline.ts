@@ -13,6 +13,11 @@ import {
   userAgentFromEnv,
 } from "./httpCache.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
+import {
+  censusBatchGeocode,
+  parseUsAddress,
+  type ParsedUsAddress,
+} from "./censusBatch.js";
 
 // Background pipeline: give ingested SEC entities real coordinates, and route
 // shouty/complex names through the Modal Llama worker for normalization.
@@ -409,10 +414,52 @@ async function geocodeMany(
     }
   }
   const queries = [...byQuery.keys()];
-  const results =
-    process.env.GEOCODE_BACKEND === "modal"
-      ? await geocodeRemoteCached(queries)
-      : await geocodeLocalEach(queries, "query", names);
+  // Census pre-pass: US-parseable rows resolve in ONE batch call (free, no
+  // key, 10k/call). Hits skip Nominatim; misses and transport failures flow
+  // into the normal path below, so a dead Census degrades to status quo.
+  const censusRows = new Map<string, ParsedUsAddress>();
+  for (const q of queries) {
+    if (geocodeCache.has(q)) {
+      continue;
+    }
+    if (readCache<Coords | null>(geoPath(q)) !== undefined) {
+      continue;
+    }
+    const parsed = parseUsAddress(q);
+    if (parsed) {
+      censusRows.set(q, parsed);
+    }
+  }
+  const censusHits = new Map<string, Coords>();
+  if (censusRows.size > 0) {
+    try {
+      const res = await censusBatchGeocode(censusRows);
+      for (const [q, coords] of res) {
+        if (coords) {
+          censusHits.set(q, coords);
+          geocodeCache.set(q, coords);
+          writeCache(geoPath(q), coords);
+        }
+      }
+    } catch (err) {
+      console.warn(
+        `[coords] census batch failed, nominatim covers all (${err instanceof Error ? err.message : String(err)})`,
+      );
+    }
+    console.log(
+      `[coords] census: ${censusHits.size}/${censusRows.size} us rows placed`,
+    );
+  }
+  const remaining = queries.filter((q) => !censusHits.has(q));
+  const results: Map<string, Coords | null> =
+    remaining.length > 0
+      ? process.env.GEOCODE_BACKEND === "modal"
+        ? await geocodeRemoteCached(remaining)
+        : await geocodeLocalEach(remaining, "query", names)
+      : new Map();
+  for (const [q, coords] of censusHits) {
+    results.set(q, coords);
+  }
   // No second phase: stripped-address retries rescued ~nothing on GLEIF
   // foreign batches (near-100% primary miss) while tripling query volume,
   // and any centroid hit would skip the LLM queue that places rows exactly.
