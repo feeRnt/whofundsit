@@ -75,6 +75,12 @@
       structured fields → Census batch (US) / Nominatim (foreign) →
       exact coords. Reads full original addresses — verified the queue
       stores pre-retry originals, never stripped fallbacks.)
+- [ ] **Exclude transient queries from the dead-lines flush (post-run).**
+      (Code-confirmed: 5xx/network rows persist to dead-lines and then
+      dead-skip with zero calls on the next process, landing `failed`.
+      Zero occurrences in the current run, so the fix waits: filter
+      `transientTexts` in `flushMissLog` + test. Recovery for any past
+      victims: `CACHE_REFRESH=1` repass with `--retry-failed`.)
 
 ## Beneficial ownership (top individual owners)
 

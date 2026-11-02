@@ -504,5 +504,6 @@ comment corrected; old note left as history.
   preloads dead-lines and dead-skips them with zero calls, then
   nextGeoStatus(false,false) marks them failed — one blip could fail
   a row forever. Fix sketch: exclude transientTexts at flush.
-  User: grep the log for "skipping this run" — zero hits means zero
-  impact so far and the fix waits for post-run.
+  OUTCOME: user reports zero "skipping this run" in this run (no old
+  logs to check) → zero known impact, fix deferred post-run as a
+  TODO item with the CACHE_REFRESH + --retry-failed recovery path.
