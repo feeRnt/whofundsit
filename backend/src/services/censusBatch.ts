@@ -25,6 +25,14 @@ export interface ParsedUsAddress {
 
 const ZIP = /^\d{5}(?:-\d{4})?$/;
 const STATE_ZIP = /^([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/;
+// Valid state/territory codes (Census covers PR + Island Areas too): the
+// tail match alone also catches foreign pairs ("UR,, 50450" Kuala Lumpur),
+// so both the parser and the flag check membership here.
+const US_STATE_CODES = new Set(
+  "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR GU VI AS MP".split(
+    " ",
+  ),
+);
 
 // Splits SEC-shaped one-liners ("600 GRANT ST, PITTSBURGH, PA, 15219-2800")
 // into Census components. Conservative: GLEIF US rows carry no state code
@@ -45,14 +53,14 @@ export function parseUsAddress(text: string): ParsedUsAddress | null {
   let streetParts: string[];
   const tail = parts[parts.length - 1];
   const merged = STATE_ZIP.exec(tail);
-  if (merged && parts.length >= 3) {
+  if (merged && parts.length >= 3 && US_STATE_CODES.has(merged[1])) {
     [, state, zip] = merged;
     city = parts[parts.length - 2];
     streetParts = parts.slice(0, -2);
   } else if (
     ZIP.test(tail) &&
     parts.length >= 4 &&
-    /^[A-Z]{2}$/.test(parts[parts.length - 2])
+    US_STATE_CODES.has(parts[parts.length - 2])
   ) {
     zip = tail;
     state = parts[parts.length - 2];
@@ -69,13 +77,14 @@ export function parseUsAddress(text: string): ParsedUsAddress | null {
 }
 
 // US-shaped but rejected by the parser (GLEIF stateless rows, digitless
-// streets): one log line each so parser gaps stay visible. Foreign rows
-// are out-of-scope and stay silent — the count lines cover them.
+// streets): red unparseable line each. Everything else logs a plain
+// foreign-skipped line, so every row's disposition is visible.
 export function isUsShaped(text: string): boolean {
-  return (
-    /,\s*usa?\s*$/i.test(text) ||
-    /[A-Z]{2}[, ]+\d{5}(?:-\d{4})?\s*$/.test(text)
-  );
+  if (/,\s*usa?\s*$/i.test(text)) {
+    return true;
+  }
+  const m = /([A-Z]{2})[, ]+\d{5}(?:-\d{4})?\s*$/.exec(text);
+  return m !== null && US_STATE_CODES.has(m[1]);
 }
 
 // Minimal quote-aware CSV splitter (double-quote escaping); the Census

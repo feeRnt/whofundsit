@@ -43,6 +43,8 @@ describe("parseUsAddress", () => {
     // State-centroid expansions and digitless streets: not Census-shaped.
     assert.equal(parseUsAddress("Illinois, United States"), null);
     assert.equal(parseUsAddress("MAIN STREET, SPRINGFIELD, IL, 62701"), null);
+    // Bogus state codes never parse, even in the right shape.
+    assert.equal(parseUsAddress("12 RUE X, MAROUSI, GR, 15125"), null);
     assert.equal(parseUsAddress("—"), null);
     assert.equal(parseUsAddress(""), null);
   });
@@ -61,6 +63,13 @@ describe("isUsShaped", () => {
     );
     assert.equal(isUsShaped("15125 MAROUSI, GR"), false);
     assert.equal(isUsShaped("Illinois, United States"), false);
+    // Live false positive: "UR,, 50450" is Kuala Lumpur, not a US tail.
+    assert.equal(
+      isUsShaped(
+        "B-23A-02, G-VESTOR TOWER,, PAVILION EMBASSY, 200 JALAN AMPANG,, 50450 W.P. KUALA LUMPUR,, 50450",
+      ),
+      false,
+    );
   });
 });
 

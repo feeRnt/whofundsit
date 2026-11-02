@@ -435,6 +435,8 @@ async function geocodeMany(
       censusRows.set(q, parsed);
     } else if (isUsShaped(q)) {
       console.log(red(`[census] ${q} -> unparseable`));
+    } else {
+      console.log(`[census] ${q} -> foreign, skipped`);
     }
   }
   const censusHits = new Map<string, Coords>();
@@ -743,6 +745,8 @@ async function runCensusFailedPass(
       rows.set(e.id, parsed);
     } else if (isUsShaped(t)) {
       console.log(red(`[census] ${t} -> unparseable`));
+    } else {
+      console.log(`[census] ${t} -> foreign, skipped`);
     }
   }
   let geocoded = 0;

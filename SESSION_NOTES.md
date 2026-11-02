@@ -455,3 +455,10 @@ comment corrected; old note left as history.
   0/693 parseable; 26 stateless-US rows are the parser gap (state must
   come from zip or LLM). UNVERIFIED (spin active) — ctrl-c, verify
   locally, restart.
+- Repass stops after run 1 BY DESIGN (fruitless-tail break: 358 < 500
+  with 0 placed = whole set seen, no yield). State codes now validated
+  against a real 50+DC+PR+territories set in both parser and flag
+  (kills the "UR,, 50450" Kuala Lumpur false positive; regressions
+  pinned). Every row logs its disposition: green hit, red miss /
+  unparseable, plain foreign-skipped. 332/358 were foreign-silent.
+  UNVERIFIED (run active).
