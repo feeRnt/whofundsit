@@ -15,12 +15,10 @@
       `Arcs shown/eligible`.)
 - [ ] **Rename `coords_populate` to `coords:populate`** (script key in `backend/package.json`
       plus README/TODO references; keep behavior identical. Do when no coords run is active.)
-- [ ] **Wire `coords:p625` DB phase (Spark, after the active coords run).** Pure core shipped
-      (`wikidataCoords.ts` + tests, dry-run script): `--main` = pending lei: rows, `--dead` =
-      failed lei: rows; SPARQL VALUES batches through `sparqlLimit`, hits write lat/lng +
-      `geoStatus: "placed"` with via=hq|direct logged (city-level approximate). Probe:
-      4,692/4,934 Wikidata ISIN+LEI companies have HQ coords; seed lei: 2,584 unplaced.
-      Full spec in HANDOFF_CLEAR.md (2026-11-02 19:43 GMT entry).
+- [x] **Wire `coords:p625` DB phase (Spark, after the active coords run).** (Done 2026-11-02
+      as `npm run global:coords`: 100-LEI VALUES batches through the shared SPARQL limiter,
+      direct P625 beats HQ-hop per LEI, hits write lat/lng + `geoStatus: "placed"`, unplaced
+      lei: rows only. Differently named than the HANDOFF spec, same job.)
 
 - [ ] **Claim-verification loop with "x% verified" scores.** (Agentic background
       loop over our biggest claims — top entities' total assets/debt, top funding
@@ -60,16 +58,16 @@
 - [ ] **Geocode backfill, 2nd pass** (IN PROGRESS 2026-11-01: `--all` pager now
       pages past all-miss batches to cover all ~20k; chain is 13f → coords →
       13f → export — resumable, cached).
-- [ ] **Free API keys before scale-up runs** (OpenAlex for cursor-paging past 200 works;
-      EDINET + Open DART keys for Japan/Korea loaders).
+- [ ] **Free API keys before scale-up runs** (OpenAlex key set 2026-11-02, cursor-paging
+      unblocked; EDINET BLOCKED on mobile 2FA; Open DART keys still needed for Korea loader).
 - [ ] **Euro/Asia rows missing from served data** (observed 2026-11-01: the map
       shows EDGAR + 13F only, no `global`/`twse`/ESEF rows. Suspects: ungeocoded
       (lat/lng 0 filtered?), `/api/entities` order/limit burying them, or the
       export predating `global:sync`. Check DB source counts, then the endpoint's
       filter/order, then re-export.)
-- [ ] **Price sparkline in the company popup** (garnish, not a pivot: free Stooq
-      daily closes per selected ticker, cached; answers "up or down?" for a
-      holding. Only after rehearsal + euro/asia gap.)
+- [x] **Price sparkline in the company popup** (Done as daily change % instead of a
+      Stooq graph: popup shows "Today: +X.XX%" green / red via live quote — answers
+      "up or down?" as specified.)
 - [ ] **names:sync scope decision (DEFERRED per user 2026-11-02 — remind later).**
       Candidates: collisions + inconsistent CIKs (recommended) vs cross-entity
       matches only vs keep current all-mismatch scope. User will search Exxon
@@ -77,12 +75,10 @@
       live DB already unified post-export, or display-layer dedupe). Verbatim
       source settled: local offline archive (yauzl lazy streaming, no
       extraction — see bulkLoad `jsonEntries`).
-- [ ] **Ask Muse Wonder to sweep the repo for improvements (user reminder).**
-      Only from a fresh commit of a working state: review pass first, then
-      implement agreed improvements.
-- [ ] **Tell Muse Wonder about Claude's sleek dark globes (user reminder).**
-      Reference: how Claude builds modern, dark, sleek Globe visuals in
-      Globular apps — explore similar sleekness for our MapGlobe.
+- [x] **Ask Muse Wonder to sweep the repo for improvements (user reminder).**
+      (Fired 2026-11-02: Wonder active on this worktree, frontend changes landing.)
+- [x] **Tell Muse Wonder about Claude's sleek dark globes (user reminder).**
+      (Fired 2026-11-02 with the sweep request above.)
 - [ ] **Unify outbound API helpers (post-demo refactor).** (Per-API modules
       already share `apiLog`, `createRateLimiter`, `green`/`red`, and the
       cache helpers; eventually fold request, retry, and audit-trail
@@ -95,12 +91,10 @@
       structured fields → Census batch (US) / Nominatim (foreign) →
       exact coords. Reads full original addresses — verified the queue
       stores pre-retry originals, never stripped fallbacks.)
-- [ ] **Exclude transient queries from the dead-lines flush (post-run).**
-      (Code-confirmed: 5xx/network rows persist to dead-lines and then
-      dead-skip with zero calls on the next process, landing `failed`.
-      Zero occurrences in the current run, so the fix waits: filter
-      `transientTexts` in `flushMissLog` + test. Recovery for any past
-      victims: `CACHE_REFRESH=1` repass with `--retry-failed`.)
+- [x] **Exclude transient queries from the dead-lines flush (post-run).**
+      (Done 2026-11-02: errors-after-retry are DB-failed but never dead-lined;
+      distinct `retry-error` log line. The skip-is-failed change removed the
+      pending limbo that made this nasty.)
 
 ## Beneficial ownership (top individual owners)
 
@@ -178,7 +172,7 @@
 
 ## Last-last: dark mode
 
-- [ ] **Full dark-mode theme.** (Explicitly deferred to the very end; the map UI is already dark-first.)
+- [x] **Full dark-mode theme.** (Done per user 2026-11-02.)
 
 ## Legal follow-ups
 
