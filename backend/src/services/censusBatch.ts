@@ -174,10 +174,13 @@ export async function censusBatchGeocode(
       responseType: "text",
     });
     const parsed = parseCensusResponse(typeof data === "string" ? data : "");
-    chunk.forEach(([query], j) => {
+    chunk.forEach(([query, addr], j) => {
       const coords = parsed.get(String(i + j)) ?? null;
       out.set(query, coords);
-      const line = `[census] ${query} -> ${coords ? `${coords.lat},${coords.lng}` : "miss"}`;
+      const line =
+        `[census] ${query} | [street, city, state, zip] = ` +
+        `[${addr.street}, ${addr.city}, ${addr.state}, ${addr.zip}] -> ` +
+        `${coords ? `${coords.lat},${coords.lng}` : "miss"}`;
       console.log(coords ? green(line) : red(line));
     });
   }

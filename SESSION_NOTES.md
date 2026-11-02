@@ -440,3 +440,9 @@ comment corrected; old note left as history.
   path (400 on a fallback query) has evidently never fired. DB
   businessAddress likewise untouched on failed rows — LLM pass reads
   full addresses from both sources.
+- Census per-row log now echoes the parse: `[census] <query> |
+  [street, city, state, zip] = [st, c, s, z] -> lat,lng|miss`
+  (green/red kept). Log-line-only change, no test; tsc/tests
+  UNVERIFIED (run active).
+- US DST ended Sun 2026-11-01 (yesterday), not today. Our logs are
+  ISO UTC so unaffected; local times fall back an hour.
