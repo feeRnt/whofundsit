@@ -410,3 +410,16 @@ comment corrected; old note left as history.
   spec + mirror); misses/outages fall through to Nominatim, never to
   failed. Tests added + registered; tsc/tests MUST run after ctrl-c
   before the restart (live run blocked verification).
+- CORRECTION: retry phase RESTORED. The finished batch showed 412
+  primaries (193 hits) + 339 retries (173 hits) — 51% rescue, nearly
+  doubling placement to 89%. The "never works" read mistook query share
+  for rescue rate. Evidence now lives in the code comment; summary line
+  reports census/pre-retry/rescued separately.
+- `--census-failed` added (coords_populate): Census-only repass over
+  geoStatus=failed rows, hits written + marked placed, rest stay failed.
+  Query scoping extracted to testable pendingWhere (3 contract tests).
+- VERIFIED (run ctrl-c'd, CPU free): tsc clean, build clean, 24/24
+  focused tests green (censusBatch + pipeline on dist). Live 3-address
+  Census probe: Pittsburgh 40.442,-79.995 ✓, DC 38.845,-76.928 ✓,
+  bogus row null ✓. Also fixed: node:buffer has no FormData export —
+  censusBatch uses the Node globals now.

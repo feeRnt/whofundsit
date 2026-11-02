@@ -2,7 +2,7 @@ import axios from "axios";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient, type Entity } from "@prisma/client";
+import { PrismaClient, type Entity, type Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   cachedJson,
@@ -218,8 +218,8 @@ const US_STATES: Record<string, string> = {
 };
 
 // Bare company/fund names with no locality are unresolvable by design —
-// Nominatim needs a place, not a registrant. Junking them here saves a
-// paced query each (≈1.1s). Conservative:
+// Nominatim needs a place, not a registrant. Junking them here saves up
+// to 3 paced queries each (primary + 2 fallbacks ≈ 3.3s). Conservative:
 // single short tokens ("Berlin") still query; only obvious registrant
 // names (corporate suffix, or long and digit-free) are junked. Pure.
 export function junkAddress(text: string): boolean {
@@ -351,9 +351,7 @@ export function expandLocationText(text: string): string | null {
 // Nominatim chokes on street lines (PO boxes, suite numbers); the trailing
 // city/state/zip alone often resolves, then the trailing pair. SEC
 // letter-digit country codes (X0, E9, … — 57k addresses carry them) poison
-// every query they touch, so they are dropped first. Coords no longer
-// retries (misses go to the LLM queue); 13F fund geocoding is the only
-// caller left. Pure for testing.
+// every query they touch, so they are dropped first. Pure for testing.
 export function fallbackQueries(address: string): string[] {
   const parts = address
     .split(",")
@@ -460,18 +458,66 @@ async function geocodeMany(
   for (const [q, coords] of censusHits) {
     results.set(q, coords);
   }
-  // No second phase: stripped-address retries rescued ~nothing on GLEIF
-  // foreign batches (near-100% primary miss) while tripling query volume,
-  // and any centroid hit would skip the LLM queue that places rows exactly.
-  // Misses fall through to dead-lines + geoStatus failed below.
+  const preRetryHits = [...results.values()].filter((r) => r !== null).length;
+  // Second phase: missed queries get one cheaper retry each (each
+  // fallback runs once, then fans out to every primary that needs it).
+  // Batch evidence 2026-11-02 (GLEIF foreign rows): 173/339 rescued —
+  // the pass nearly doubles placement and earns its queries.
+  const retry = new Map<string, string[]>();
+  for (const q of queries) {
+    if ((results.get(q) ?? null) !== null) {
+      continue;
+    }
+    console.log(`[coords] pass-miss: ${q}`);
+    for (const f of fallbackQueries(q)) {
+      const known = results.get(f);
+      if (known) {
+        results.set(q, known); // another primary already resolved this
+        break;
+      }
+      if (known === undefined) {
+        const group = retry.get(f);
+        if (group) {
+          group.push(q);
+        } else {
+          retry.set(f, [q]);
+        }
+      }
+      // known === null: fetched and missed; nothing to gain.
+    }
+  }
+  if (retry.size > 0) {
+    // Retry queries inherit the first primary's company name for the log.
+    const retryNames = names
+      ? new Map(
+          [...retry.entries()].flatMap(([f, primaries]) => {
+            const n = names.get(primaries[0] as string);
+            return n ? [[f, n] as [string, string]] : [];
+          }),
+        )
+      : undefined;
+    const second =
+      process.env.GEOCODE_BACKEND === "modal"
+        ? await geocodeRemoteCached([...retry.keys()])
+        : await geocodeLocalEach([...retry.keys()], "retry", retryNames);
+    for (const [f, primaries] of retry) {
+      for (const q of primaries) {
+        if ((results.get(q) ?? null) === null) {
+          results.set(q, second.get(f) ?? null);
+        }
+      }
+    }
+  }
   for (const [q, originals] of byQuery) {
     const r = results.get(q) ?? null;
     if (r === null) {
       missLog.add(q);
-      console.log(`[coords] miss: ${q} (llm queue)`);
-      // Transient queries stay pending (judged per-original below) so a
-      // retry can still place them; genuine misses go failed.
-      const flaky = transientTexts.has(q);
+      console.log(`[coords] retry-miss: ${q}`);
+      // Transience is tracked per-query but judged per-original: if any
+      // query behind this original errored, the original stays pending.
+      const flaky =
+        transientTexts.has(q) ||
+        fallbackQueries(q).some((f) => transientTexts.has(f));
       if (flaky) {
         for (const o of originals) {
           transientTexts.add(o);
@@ -486,7 +532,8 @@ async function geocodeMany(
   // methodology fix knows exactly where the bodies are.
   const hits = [...results.values()].filter((r) => r !== null).length;
   console.log(
-    `[coords] geocode: ${queries.length} queries (${hits} hits), ` +
+    `[coords] geocode: ${queries.length} queries (${censusHits.size} census, ${preRetryHits} pre-retry), ` +
+      `${retry.size} retries (${hits - preRetryHits} rescued), ` +
       `${junkHits - junkBefore} junk, ${deadHits - deadBefore} dead-file`,
   );
   return out;
@@ -619,6 +666,108 @@ export async function countPendingGeocodes(): Promise<number> {
   }
 }
 
+export interface PendingOpts {
+  retryFailed?: boolean;
+  censusFailed?: boolean;
+  indexOnly?: boolean;
+}
+
+// Which unplaced rows a run may touch. Failed rows stay out of reruns (the
+// LLM pass owns them); --retry-failed opts back in after methodology
+// improvements; --census-failed selects ONLY failed rows for the Census
+// repass. Pure for testing.
+export function pendingWhere(opts: PendingOpts): Prisma.EntityWhereInput {
+  return {
+    lat: 0,
+    lng: 0,
+    // Share-count rows are never mapped: their huge count volumes would
+    // sort first and burn Nominatim calls for zero map benefit. The OR
+    // keeps NULL-concept rows (global/openalex/13f): plain `not` would
+    // drop them via three-valued logic.
+    OR: [
+      { conceptTag: null },
+      { conceptTag: { not: "EntityCommonStockSharesOutstanding" } },
+    ],
+    ...(opts.censusFailed
+      ? { geoStatus: "failed" }
+      : opts.retryFailed
+        ? {}
+        : { geoStatus: { not: "failed" } }),
+    ...(opts.indexOnly ? { tickers: { hasSome: NASDAQ100_TICKERS } } : {}),
+  };
+}
+
+export async function countFailedGeocodes(): Promise<number> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set (see backend/.env)");
+  }
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  const prisma = new PrismaClient({ adapter });
+  try {
+    return await prisma.entity.count({
+      where: { lat: 0, lng: 0, geoStatus: "failed" },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// One Census POST over failed rows (the --census-failed repass): no
+// Nominatim, no retries, no renames. Hits are written + marked placed;
+// misses and transport failures stay failed for the LLM queue.
+async function runCensusFailedPass(
+  prisma: PrismaClient,
+  entities: Entity[],
+): Promise<PipelineSummary> {
+  const t0 = Date.now();
+  const rows = new Map<string, ParsedUsAddress>();
+  for (const e of entities) {
+    const t = e.businessAddress ?? e.rawAddressText;
+    if (!t) {
+      continue;
+    }
+    const parsed = parseUsAddress(t);
+    if (parsed) {
+      rows.set(e.id, parsed);
+    }
+  }
+  let geocoded = 0;
+  if (rows.size > 0) {
+    try {
+      const res = await censusBatchGeocode(rows);
+      for (const [id, coords] of res) {
+        if (!coords) {
+          continue;
+        }
+        await prisma.entity.update({
+          where: { id },
+          data: { lat: coords.lat, lng: coords.lng, geoStatus: "placed" },
+        });
+        geocoded += 1;
+      }
+    } catch (err) {
+      console.warn(
+        `[coords] census-failed batch failed, rows stay failed (${err instanceof Error ? err.message : String(err)})`,
+      );
+    }
+  }
+  const skipped = entities.length - geocoded;
+  runTotals.geocoded += geocoded;
+  runTotals.skipped += skipped;
+  console.log(
+    `[coords] census-failed: ${geocoded}/${entities.length} placed ` +
+      `(${rows.size} us-parseable) in ${formatDuration((Date.now() - t0) / 1000)}`,
+  );
+  return {
+    scanned: entities.length,
+    geocoded,
+    normalized: 0,
+    skipped,
+    dead: 0,
+    junk: 0,
+  };
+}
+
 export async function runPipeline(
   opts: {
     normalize?: boolean;
@@ -626,6 +775,7 @@ export async function runPipeline(
     indexOnly?: boolean;
     skip?: number;
     retryFailed?: boolean;
+    censusFailed?: boolean;
   } = {},
 ): Promise<PipelineSummary> {
   if (!process.env.DATABASE_URL) {
@@ -638,28 +788,16 @@ export async function runPipeline(
   try {
     transientTexts.clear();
     const entities = await prisma.entity.findMany({
-      where: {
-        lat: 0,
-        lng: 0,
-        // Share-count rows are never mapped: their huge count volumes would
-        // sort first and burn Nominatim calls for zero map benefit. The OR
-        // keeps NULL-concept rows (global/openalex/13f): plain `not` would
-        // drop them via three-valued logic.
-        OR: [
-          { conceptTag: null },
-          { conceptTag: { not: "EntityCommonStockSharesOutstanding" } },
-        ],
-        // Failed rows stay out of future reruns (the LLM pass owns them);
-        // --retry-failed opts back in after methodology improvements.
-        ...(opts.retryFailed ? {} : { geoStatus: { not: "failed" } }),
-        ...(opts.indexOnly ? { tickers: { hasSome: NASDAQ100_TICKERS } } : {}),
-      },
+      where: pendingWhere(opts),
       take: opts.take ?? MAX_ENTITIES_PER_RUN,
       skip: opts.skip ?? 0,
       // Stable paging: id breaks fundsVolume ties so batch boundaries never
       // shift under the --all loop.
       orderBy: [{ fundsVolume: "desc" }, { id: "asc" }],
     });
+    if (opts.censusFailed) {
+      return await runCensusFailedPass(prisma, entities);
+    }
 
     let geocoded = 0;
     let normalized = 0;

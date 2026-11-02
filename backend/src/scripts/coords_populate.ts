@@ -1,6 +1,7 @@
 import "dotenv/config";
 import readline from "node:readline";
 import {
+  countFailedGeocodes,
   countPendingGeocodes,
   formatDuration,
   runPipeline,
@@ -32,6 +33,23 @@ async function askScope(pending: number): Promise<"all" | "top"> {
 }
 
 const args = process.argv.slice(2);
+// Census repass over LLM-flagged rows only: one batched POST per 500,
+// hits written + marked placed, the rest stay failed. Fast (no paced
+// queries) and safe to run before the main queue resumes.
+if (args.includes("--census-failed")) {
+  const failed = await countFailedGeocodes();
+  console.log(`[coords] census-failed: ${failed} failed rows queued`);
+  let runs = 0;
+  for (;;) {
+    const summary = await runPipeline({ take: 500, censusFailed: true });
+    runs += 1;
+    console.log(`[coords] census-failed run ${runs}:`, summary);
+    if (summary.scanned === 0 || runs >= 500) {
+      break;
+    }
+  }
+  process.exit(0);
+}
 const pending = await countPendingGeocodes();
 let scope: "all" | "top";
 if (args.includes("--all")) {

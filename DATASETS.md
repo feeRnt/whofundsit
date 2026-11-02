@@ -48,6 +48,9 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   bulk). Public-domain US federal data — no attribution burden.
 - **Local copies (gitignored):** hits land in the same
   `backend/data/cache/geo/` per-query files as Nominatim results.
+- **Repass:** `coords_populate -- --census-failed` runs the Census batch
+  over LLM-flagged (`geoStatus: failed`) rows only — no Nominatim, no
+  retries; hits are written + marked placed, the rest stay failed.
 
 ## OpenAlex (grants: funders, works, institutions)
 

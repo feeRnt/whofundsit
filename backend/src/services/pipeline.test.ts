@@ -7,6 +7,7 @@ import {
   formatDuration,
   junkAddress,
   nextGeoStatus,
+  pendingWhere,
   shouldSwallowGeoError,
 } from "./pipeline.js";
 
@@ -38,6 +39,35 @@ describe("expandLocationText", () => {
     assert.equal(expandLocationText("US"), "US");
     assert.equal(expandLocationText("US-XX"), "US-XX");
     assert.equal(expandLocationText("CA"), "CA");
+  });
+});
+
+describe("pendingWhere", () => {
+  const base = {
+    lat: 0,
+    lng: 0,
+    OR: [
+      { conceptTag: null },
+      { conceptTag: { not: "EntityCommonStockSharesOutstanding" } },
+    ],
+  };
+
+  it("excludes failed rows by default", () => {
+    assert.deepEqual(pendingWhere({}), {
+      ...base,
+      geoStatus: { not: "failed" },
+    });
+  });
+
+  it("opts everything back in with retryFailed", () => {
+    assert.deepEqual(pendingWhere({ retryFailed: true }), { ...base });
+  });
+
+  it("selects only failed rows for censusFailed", () => {
+    assert.deepEqual(pendingWhere({ censusFailed: true }), {
+      ...base,
+      geoStatus: "failed",
+    });
   });
 });
 
