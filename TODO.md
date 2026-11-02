@@ -15,6 +15,12 @@
       `Arcs shown/eligible`.)
 - [ ] **Rename `coords_populate` to `coords:populate`** (script key in `backend/package.json`
       plus README/TODO references; keep behavior identical. Do when no coords run is active.)
+- [ ] **Wire `coords:p625` DB phase (Spark, after the active coords run).** Pure core shipped
+      (`wikidataCoords.ts` + tests, dry-run script): `--main` = pending lei: rows, `--dead` =
+      failed lei: rows; SPARQL VALUES batches through `sparqlLimit`, hits write lat/lng +
+      `geoStatus: "placed"` with via=hq|direct logged (city-level approximate). Probe:
+      4,692/4,934 Wikidata ISIN+LEI companies have HQ coords; seed lei: 2,584 unplaced.
+      Full spec in HANDOFF_CLEAR.md (2026-11-02 19:43 GMT entry).
 
 - [ ] **Claim-verification loop with "x% verified" scores.** (Agentic background
       loop over our biggest claims — top entities' total assets/debt, top funding
