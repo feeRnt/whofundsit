@@ -5,7 +5,7 @@ import { cachedJson, apiLog, userAgentFromEnv } from "./httpCache.js";
 
 // EU/UK financial facts from the ESEF repository (filings.xbrl.org): per-LEI
 // filing lookup, latest xBRL-JSON facts, Assets preferred, Revenue fallback.
-// LEI-native, so it joins global:sync rows directly. No key; the host 429s
+// LEI-native, so it joins sync:global rows directly. No key; the host 429s
 // past a few req/s, so 1s pacing + backoff retries (esefGet), cached anyway.
 // Row ceiling: ESEF_LIMIT (default 500).
 // NOTE: repository ToS is unstated (see DATASETS.md) — small-scale use only.
@@ -189,7 +189,7 @@ export async function runRegionalEsef(): Promise<{
       take: limit,
     });
     if (rows.length === 0) {
-      throw new Error("[esef] no lei: entities — run npm run global:sync first");
+      throw new Error("[esef] no lei: entities — run npm run sync:global first");
     }
     let done = 0;
     for (const row of rows) {

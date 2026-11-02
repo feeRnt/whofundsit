@@ -104,7 +104,7 @@ const transientTexts = new Set<string>();
 // Next geoStatus after an attempt: placed on coords, failed on anything
 // else. No pending limbo — misses are deterministic, and errors already
 // survived 3 in-run retries. The only ways out of failed are the LLM
-// pass, global:coords (P625), and --census-failed. Pure — the LLM repair
+// pass, coords:global (P625), and --census-failed. Pure — the LLM repair
 // pass will query geoStatus = "failed".
 export function nextGeoStatus(found: boolean): string {
   return found ? "placed" : "failed";
@@ -897,7 +897,7 @@ export async function runPipeline(
 
       // Skip IS failed: every scanned row without coords is marked
       // failed — junk and errors-after-retry included. The only ways out
-      // are the LLM pass, global:coords (P625), and --census-failed, so
+      // are the LLM pass, coords:global (P625), and --census-failed, so
       // plain reruns only ever see genuinely new rows.
       const status = nextGeoStatus(coords !== null);
 

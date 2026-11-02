@@ -48,7 +48,7 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   bulk). Public-domain US federal data — no attribution burden.
 - **Local copies (gitignored):** hits land in the same
   `backend/data/cache/geo/` per-query files as Nominatim results.
-- **Repass:** `coords_populate -- --census-failed` runs the Census batch
+- **Repass:** `coords:populate -- --census-failed` runs the Census batch
   over LLM-flagged (`geoStatus: failed`) rows only — no Nominatim, no
   retries; hits are written + marked placed, the rest stay failed.
 
@@ -75,8 +75,8 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 ## Wikidata SPARQL (international company list)
 
 - **What we take:** bulk company crosswalk — name, ISIN, LEI, exchange,
-  HQ — via `query.wikidata.org/sparql` (`npm run global:sync`), plus
-  industry labels via P452 VALUES batches (`npm run global:industry`).
+  HQ — via `query.wikidata.org/sparql` (`npm run sync:global`), plus
+  industry labels via P452 VALUES batches (`npm run industry:global`).
 - **Terms:** **CC0** (public domain dedication). Courtesy rules: send a
   descriptive `User-Agent` (`WIKIDATA_USER_AGENT`) and keep queries
   bounded (`GLOBAL_LIMIT`).

@@ -9,8 +9,8 @@ import { gleifEntity } from "./globalSync.js";
 // sheets per industry -> Assets onto lei: entities, joined TWSE-code -> LEI
 // through Wikidata (ticker + LEI + TWSE/TPEx listing). Ticker-joined LEIs
 // missing from the DB are created via GLEIF (legal name + HQ address, same
-// cache global:sync uses), so this loader is self-sufficient — it never
-// depends on global:sync's random company sample covering Taiwan. Values
+// cache sync:global uses), so this loader is self-sufficient — it never
+// depends on sync:global's random company sample covering Taiwan. Values
 // are NTD thousands (verified by magnitude: TSMC row => ~NT$9.4T ~= US$300B).
 // Row ceiling: TWSE_LIMIT (default 2000).
 // NOTE: the endpoints serve the latest reported quarter (Q3 2026 as of early
@@ -135,8 +135,8 @@ async function twseCodeToLei(): Promise<Map<string, string>> {
 }
 
 // Ticker-joined LEIs are Wikidata-attested, so a DB miss is safe to create
-// (GLEIF legal name + HQ address; coords_populate places it later, exactly
-// like global:sync rows). GLEIF misses stay missing.
+// (GLEIF legal name + HQ address; coords:populate places it later, exactly
+// like sync:global rows). GLEIF misses stay missing.
 async function ensureLeiEntity(
   prisma: PrismaClient,
   lei: string,
@@ -198,7 +198,7 @@ export async function runRegionalTwse(): Promise<{
       select: { id: true, name: true },
     });
     if (leiRows.length === 0) {
-      throw new Error("[twse] no lei: entities — run npm run global:sync first");
+      throw new Error("[twse] no lei: entities — run npm run sync:global first");
     }
     const tickerToLei = await twseCodeToLei();
     const nameToLei = new Map(
@@ -228,7 +228,7 @@ export async function runRegionalTwse(): Promise<{
           break;
         }
         // Name joins always hit (built from DB rows); ticker joins may name
-        // LEIs global:sync never created — create those via GLEIF.
+        // LEIs sync:global never created — create those via GLEIF.
         if (join.via === "ticker") {
           const state = await ensureLeiEntity(prisma, join.lei, row.code);
           if (state === "missing") {

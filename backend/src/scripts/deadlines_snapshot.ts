@@ -19,7 +19,7 @@ const cacheFile = path.join(
 );
 const seedFile = path.join(here, "..", "data", "dead-lines.json");
 if (!fs.existsSync(cacheFile)) {
-  throw new Error("no local dead-lines yet — run coords_populate first");
+  throw new Error("no local dead-lines yet — run coords:populate first");
 }
 const lines = JSON.parse(fs.readFileSync(cacheFile, "utf8")) as unknown;
 if (!Array.isArray(lines)) {

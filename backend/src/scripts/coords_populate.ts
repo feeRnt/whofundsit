@@ -7,7 +7,7 @@ import {
   runPipeline,
 } from "../services/pipeline.js";
 
-// Coordinates only, no AI cost: `npm run coords_populate [--all|--top]`
+// Coordinates only, no AI cost: `npm run coords:populate [--all|--top]`
 // geocodes pending entities via GEOCODE_BACKEND ("local" default, or "modal").
 // Interactive when a TTY: all N addresses (~hours at 1 req/s) vs the biggest
 // Nasdaq-100 (~2 minutes). Non-interactive defaults to top (safe).

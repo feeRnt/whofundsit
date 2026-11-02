@@ -13,10 +13,12 @@
       (Done 2026-11-02: slider max + label denominator are now `eligibleFlows` — arcs passing
       every toggle/funder/focus filter, exactly like dots use `visibleEntities`. Label reads
       `Arcs shown/eligible`.)
-- [ ] **Rename `coords_populate` to `coords:populate`** (script key in `backend/package.json`
-      plus README/TODO references; keep behavior identical. Do when no coords run is active.)
+- [x] **Rename `coords_populate` to `coords:populate`** (Done 2026-11-02 right after the
+      run stopped, plus the `global:*` flips in the same pass: `sync:global`,
+      `industry:global`, `coords:global`. Filenames keep underscores; run-log
+      history in SESSION_NOTES/HANDOFF keeps old names.)
 - [x] **Wire `coords:p625` DB phase (Spark, after the active coords run).** (Done 2026-11-02
-      as `npm run global:coords`: 100-LEI VALUES batches through the shared SPARQL limiter,
+      as `npm run coords:global`: 100-LEI VALUES batches through the shared SPARQL limiter,
       direct P625 beats HQ-hop per LEI, hits write lat/lng + `geoStatus: "placed"`, unplaced
       lei: rows only. Differently named than the HANDOFF spec, same job.)
 
@@ -63,11 +65,11 @@
 - [ ] **Euro/Asia rows missing from served data** (observed 2026-11-01: the map
       shows EDGAR + 13F only, no `global`/`twse`/ESEF rows. Suspects: ungeocoded
       (lat/lng 0 filtered?), `/api/entities` order/limit burying them, or the
-      export predating `global:sync`. Check DB source counts, then the endpoint's
+      export predating `sync:global`. Check DB source counts, then the endpoint's
       filter/order, then re-export.)
-- [x] **Price sparkline in the company popup** (Done as daily change % instead of a
-      Stooq graph: popup shows "Today: +X.XX%" green / red via live quote — answers
-      "up or down?" as specified.)
+- [x] **Price sparkline in the company popup** (Done as daily change % via a Yahoo
+      Finance chart call instead of a Stooq graph: popup shows "Today: +X.XX%"
+      green / red via live quote — answers "up or down?" as specified.)
 - [ ] **names:sync scope decision (DEFERRED per user 2026-11-02 — remind later).**
       Candidates: collisions + inconsistent CIKs (recommended) vs cross-entity
       matches only vs keep current all-mismatch scope. User will search Exxon
@@ -183,7 +185,7 @@
 
 - [x] **Add `ifrs-full` frames/bulk tags** (SUPERSEDED: international coverage goes through
       Wikidata+GLEIF backbone + regional loaders — ESEF/TWSE phase 1 shipped — instead of us-gaap-style frames.)
-- [ ] **GLEIF bulk files instead of per-record API (post-demo).** (`global:sync`
+- [ ] **GLEIF bulk files instead of per-record API (post-demo).** (`sync:global`
       resolves every LEI + children pages over `api.gleif.org`, ~10/s polite
       sleeps, all cached. GLEIF also publishes daily concatenated full-file
       dumps of every LEI record: one big download + local join would replace

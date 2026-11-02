@@ -623,7 +623,7 @@ export async function runGlobalIndustry(): Promise<{
   try {
     // DB-first, never re-discovers: every lei: row still lacking industry
     // (discovery companies, children, TWSE-created rows alike) — i.e. the
-    // output rows of global:sync itself, read back with zero new Wikidata
+    // output rows of sync:global itself, read back with zero new Wikidata
     // discovery cost. Stable id order keeps capped reruns deterministic.
     const rows = await prisma.entity.findMany({
       where: { id: { startsWith: "lei:" }, industry: null },

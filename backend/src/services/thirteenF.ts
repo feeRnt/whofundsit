@@ -678,7 +678,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
         });
         return;
       }
-      // A previous run may have stubbed this fund and coords_populate may
+      // A previous run may have stubbed this fund and coords:populate may
       // have placed it since: trust the DB before spending geocode calls.
       const existing = await prisma.entity.findUnique({
         where: { id: fundId },
@@ -689,7 +689,7 @@ export async function runThirteenF(): Promise<ThirteenFSummary> {
           ? { lat: existing.lat, lng: existing.lng }
           : await geocodeFund(spec, cikNum, addrCache);
       if (!at) {
-        // Stub, don't drop: coords_populate retries the bulk address (with
+        // Stub, don't drop: coords:populate retries the bulk address (with
         // its own fallbacks) and the next 13f run converts via the lookup
         // above. Stubs are invisible: the API filters lat/lng 0. The update
         // branch never touches coords, so a placed row is never clobbered.

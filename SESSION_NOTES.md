@@ -546,3 +546,11 @@ comment corrected; old note left as history.
   pipeline+censusBatch focused tests (failing-first on new
   expectations). TODO added: prompts.md update (Wonder's prompts +
   /clear losses, from session logs). No DB writes.
+- RENAMED 2026-11-02 (user, right after ctrl-c): coords_populate ->
+  coords:populate, global:sync -> sync:global, global:industry ->
+  industry:global, global:coords -> coords:global (tickers:global already
+  fit). Keys + ingest:all ref + error strings + comments + README/TODO/
+  DATASETS/.env.example refs; filenames keep underscores, run-log
+  history keeps old names. VERIFIED: keys resolve, tsc clean. Also
+  ticked: coords:p625 phase, transient dead-lines, Wonder reminders,
+  dark mode, sparkline (Yahoo daily change %, not Stooq). No DB writes.

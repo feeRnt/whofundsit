@@ -5,7 +5,7 @@
 // fallback), writes lat/lng + geoStatus "placed" per hit, and logs
 // via=hq|direct per row (city-level, approximate — see wikidataCoords.ts).
 //
-// STATUS 2026-11-02: DRY-RUN ONLY. A Nominatim coords_populate run owns
+// STATUS 2026-11-02: DRY-RUN ONLY. A Nominatim coords:populate run owns
 // the DB; this script must not write concurrently. It validates the
 // mode and prints the contract, then exits. Spark: wire the DB phase
 // per HANDOFF_CLEAR.md (read targets with selectP625Leis, VALUES-batch
