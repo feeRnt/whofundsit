@@ -66,17 +66,12 @@ export function parseUsAddress(text: string): ParsedUsAddress | null {
     state = parts[parts.length - 2];
     city = parts[parts.length - 3];
     streetParts = parts.slice(0, -3);
-  } else if (parts.length >= 3 && US_STATE_CODES.has(tail)) {
-    // Zip-less US rows ("3651 FAU BLVD SUITE 400, BOCA RATON, FL"): the
-    // spec allows blank components, and street+city+state usually still
-    // matches. Caveat: stateless foreign tails colliding with state codes
-    // (Malta MT, Cayman KY) also parse — they No_Match safely and fall
-    // through to Nominatim, costing one free batch slot each.
-    zip = "";
-    state = tail;
-    city = parts[parts.length - 2];
-    streetParts = parts.slice(0, -2);
   } else {
+    // No zip-less branch: a bare "CITY, XX" tail cannot tell a US state
+    // from a country code (live: Canadian CA, German DE, Israeli IL all
+    // mis-parsed as states), and the false positives outnumber the hits.
+    // The zip is the disambiguator; zipless rows belong to the LLM pass,
+    // which reads semantics instead of shapes.
     return null;
   }
   const street = streetParts.join(", ");

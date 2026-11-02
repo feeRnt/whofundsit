@@ -735,6 +735,7 @@ async function runCensusFailedPass(
 ): Promise<PipelineSummary> {
   const t0 = Date.now();
   const rows = new Map<string, ParsedUsAddress>();
+  const idsOf = new Map<string, string[]>();
   for (const e of entities) {
     const t = e.businessAddress ?? e.rawAddressText;
     if (!t) {
@@ -742,7 +743,16 @@ async function runCensusFailedPass(
     }
     const parsed = parseUsAddress(t);
     if (parsed) {
-      rows.set(e.id, parsed);
+      // Keyed by address text (dedupes shared addresses, and the batch
+      // log shows addresses instead of entity ids); ids ride along for
+      // the updates below.
+      rows.set(t, parsed);
+      const group = idsOf.get(t);
+      if (group) {
+        group.push(e.id);
+      } else {
+        idsOf.set(t, [e.id]);
+      }
     } else if (isUsShaped(t)) {
       console.log(red(`[census] ${t} -> unparseable`));
     } else {
@@ -753,15 +763,17 @@ async function runCensusFailedPass(
   if (rows.size > 0) {
     try {
       const res = await census(() => censusBatchGeocode(rows));
-      for (const [id, coords] of res) {
+      for (const [addr, coords] of res) {
         if (!coords) {
           continue;
         }
-        await prisma.entity.update({
-          where: { id },
-          data: { lat: coords.lat, lng: coords.lng, geoStatus: "placed" },
-        });
-        geocoded += 1;
+        for (const id of idsOf.get(addr) ?? []) {
+          await prisma.entity.update({
+            where: { id },
+            data: { lat: coords.lat, lng: coords.lng, geoStatus: "placed" },
+          });
+          geocoded += 1;
+        }
       }
     } catch (err) {
       console.warn(

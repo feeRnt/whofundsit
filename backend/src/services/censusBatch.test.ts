@@ -49,15 +49,12 @@ describe("parseUsAddress", () => {
     assert.equal(parseUsAddress(""), null);
   });
 
-  it("accepts zip-less rows with a blank zip, rejects PO boxes", () => {
-    assert.deepEqual(
+  it("rejects zip-less tails as ambiguous, rejects PO boxes", () => {
+    // "CITY, XX" cannot tell state from country (live: Canadian CA,
+    // German DE, Israeli IL all mis-parsed) — the zip disambiguates.
+    assert.equal(
       parseUsAddress("3651 FAU BLVD SUITE 400, BOCA RATON, FL"),
-      {
-        street: "3651 FAU BLVD SUITE 400",
-        city: "BOCA RATON",
-        state: "FL",
-        zip: "",
-      },
+      null,
     );
     assert.equal(
       parseUsAddress("PO BOX 123, SPRINGFIELD, IL, 62701"),

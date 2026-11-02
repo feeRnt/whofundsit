@@ -468,3 +468,9 @@ comment corrected; old note left as history.
   Malta-MT / Cayman-KY shaped rows may take a free No_Match slot and
   fall through — documented in code. Tests extended. UNVERIFIED (run
   active).
+- REVERTED the zip-less branch (user call, correct): live CA/DE/IL rows
+  all mis-parsed as states, false positives outnumbering hits. Shape
+  alone can't split state from country — zip anchors, LLM owns the
+  rest. Repass rows now keyed by address text (dedupes shared
+  addresses; fixes entity ids in the batch log). Tests updated.
+  UNVERIFIED (run active again).
