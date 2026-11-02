@@ -213,8 +213,8 @@ const US_STATES: Record<string, string> = {
 };
 
 // Bare company/fund names with no locality are unresolvable by design —
-// Nominatim needs a place, not a registrant. Junking them here saves up
-// to 3 paced queries each (primary + 2 fallbacks ≈ 3.3s). Conservative:
+// Nominatim needs a place, not a registrant. Junking them here saves a
+// paced query each (≈1.1s). Conservative:
 // single short tokens ("Berlin") still query; only obvious registrant
 // names (corporate suffix, or long and digit-free) are junked. Pure.
 export function junkAddress(text: string): boolean {
@@ -346,7 +346,9 @@ export function expandLocationText(text: string): string | null {
 // Nominatim chokes on street lines (PO boxes, suite numbers); the trailing
 // city/state/zip alone often resolves, then the trailing pair. SEC
 // letter-digit country codes (X0, E9, … — 57k addresses carry them) poison
-// every query they touch, so they are dropped first. Pure for testing.
+// every query they touch, so they are dropped first. Coords no longer
+// retries (misses go to the LLM queue); 13F fund geocoding is the only
+// caller left. Pure for testing.
 export function fallbackQueries(address: string): string[] {
   const parts = address
     .split(",")
@@ -411,64 +413,18 @@ async function geocodeMany(
     process.env.GEOCODE_BACKEND === "modal"
       ? await geocodeRemoteCached(queries)
       : await geocodeLocalEach(queries, "query", names);
-  const primaryHits = [...results.values()].filter((r) => r !== null).length;
-  // Second phase: missed queries get one cheaper retry each (each
-  // fallback runs once, then fans out to every primary that needs it).
-  const retry = new Map<string, string[]>();
-  for (const q of queries) {
-    if ((results.get(q) ?? null) !== null) {
-      continue;
-    }
-    console.log(`[coords] pass-miss: ${q}`);
-    for (const f of fallbackQueries(q)) {
-      const known = results.get(f);
-      if (known) {
-        results.set(q, known); // another primary already resolved this
-        break;
-      }
-      if (known === undefined) {
-        const group = retry.get(f);
-        if (group) {
-          group.push(q);
-        } else {
-          retry.set(f, [q]);
-        }
-      }
-      // known === null: fetched and missed; nothing to gain.
-    }
-  }
-  if (retry.size > 0) {
-    // Retry queries inherit the first primary's company name for the log.
-    const retryNames = names
-      ? new Map(
-          [...retry.entries()].flatMap(([f, primaries]) => {
-            const n = names.get(primaries[0] as string);
-            return n ? [[f, n] as [string, string]] : [];
-          }),
-        )
-      : undefined;
-    const second =
-      process.env.GEOCODE_BACKEND === "modal"
-        ? await geocodeRemoteCached([...retry.keys()])
-        : await geocodeLocalEach([...retry.keys()], "retry", retryNames);
-    for (const [f, primaries] of retry) {
-      for (const q of primaries) {
-        if ((results.get(q) ?? null) === null) {
-          results.set(q, second.get(f) ?? null);
-        }
-      }
-    }
-  }
+  // No second phase: stripped-address retries rescued ~nothing on GLEIF
+  // foreign batches (near-100% primary miss) while tripling query volume,
+  // and any centroid hit would skip the LLM queue that places rows exactly.
+  // Misses fall through to dead-lines + geoStatus failed below.
   for (const [q, originals] of byQuery) {
     const r = results.get(q) ?? null;
     if (r === null) {
       missLog.add(q);
-      console.log(`[coords] retry-miss: ${q}`);
-      // Transience is tracked per-query but judged per-original: if any
-      // query behind this original errored, the original stays pending.
-      const flaky =
-        transientTexts.has(q) ||
-        fallbackQueries(q).some((f) => transientTexts.has(f));
+      console.log(`[coords] miss: ${q} (llm queue)`);
+      // Transient queries stay pending (judged per-original below) so a
+      // retry can still place them; genuine misses go failed.
+      const flaky = transientTexts.has(q);
       if (flaky) {
         for (const o of originals) {
           transientTexts.add(o);
@@ -483,8 +439,7 @@ async function geocodeMany(
   // methodology fix knows exactly where the bodies are.
   const hits = [...results.values()].filter((r) => r !== null).length;
   console.log(
-    `[coords] geocode: ${queries.length} primaries (${primaryHits} hits), ` +
-      `${retry.size} retries (${hits - primaryHits} hits), ` +
+    `[coords] geocode: ${queries.length} queries (${hits} hits), ` +
       `${junkHits - junkBefore} junk, ${deadHits - deadBefore} dead-file`,
   );
   return out;

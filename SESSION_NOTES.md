@@ -395,3 +395,12 @@ comment corrected; old note left as history.
 - coords_populate: 18k pending at observed 45s/25 (1.8s each) is ~9h;
   resumable, cellular-light (tens of MB). Rate can only improve as
   cached misses replay free.
+- Coords retry phase REMOVED (user-verified: near-100% primary miss on
+  GLEIF foreign batches, retries were ~2/3 of all queries). Misses now go
+  straight to dead-lines + geoStatus failed (the LLM queue); no centroid
+  hits to pollute exact placement. fallbackQueries kept (13F fund
+  geocoding still calls it) with its tests. Live run unaffected until
+  restart (old code loaded); tsc/tests deferred to user local.
+- Bulk-geo survey given: Census batch for the US slice (10k/call, free,
+  pairs with LLM/regex parse), Modal batch endpoint if deployed,
+  self-hosted Photon post-demo; commercial batch tiers too small.
