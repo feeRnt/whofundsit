@@ -136,8 +136,9 @@
       with 1 work. All reliable Hill's grant data sits under the parent `F4320307808`.)
 - [x] **Label arc amounts as funded-works counts, never dollars.** (In-app wording shipped
       in tooltips/popups; OpenAlex exposes no reliable grant amounts. Demo-slide wording still yours.)
-- [ ] **Get a free OpenAlex API key before the demo.** (Keyless shares a $0.10/day IP pool — observed 0
-      requests remaining during probing; cursor-paging past 200 works needs a key anyway.)
+- [x] **Get a free OpenAlex API key before the demo.** (Done 2026-11-02: `OPENALEX_API_KEY` set in
+      `backend/.env` (verified present, value not printed); keyless shared-pool limit no longer applies.
+      Cursor-paging past 200 works is now unblocked — see scale-up item below.)
 
 ## OpenAlex scale-up (after the demo works)
 
