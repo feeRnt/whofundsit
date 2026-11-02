@@ -451,7 +451,7 @@ button.maplibregl-popup-close-button:hover {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  width: 12.75rem;
+  width: 10rem;
   flex: none;
   margin-left: auto;
 }

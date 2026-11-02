@@ -192,6 +192,7 @@ function DeckGLOverlay(props: MapLibreOverlayProps) {
 
 export default function MapGlobe({
   entities,
+  allEntities,
   flows,
   allFlows,
   verification,
@@ -209,6 +210,9 @@ export default function MapGlobe({
   onToggleBasemap,
 }: {
   entities: Entity[];
+  // Every fetched entity (uncapped): arc-click popup lookup must find
+  // endpoints the dots slider filtered out of `entities`.
+  allEntities: Entity[];
   flows: Flow[];
   // Full flow list (uncapped): the popup's ownership ring needs every
   // stake, not just the slider-capped drawable subset.
@@ -447,19 +451,27 @@ export default function MapGlobe({
     }
     if (object && "flowType" in object) {
       const flow = object as unknown as Flow;
-      if (arcPingPong.current.id === flow.id) {
+      // Toggle off the endpoint already showing: in a bundle the picked
+      // flow id changes click to click, so the ref alone lost the beat
+      // and the popup "sometimes" never switched to the funder.
+      let toFunder: boolean;
+      if (selected?.id === flow.targetEntityId) {
+        toFunder = true;
+      } else if (selected?.id === flow.sourceEntityId) {
+        toFunder = false;
+      } else if (arcPingPong.current.id === flow.id) {
         arcPingPong.current.toFunder = !arcPingPong.current.toFunder;
+        toFunder = arcPingPong.current.toFunder;
       } else {
-        arcPingPong.current = { id: flow.id, toFunder: false };
+        toFunder = false;
       }
-      const dest = arcPingPong.current.toFunder
-        ? flow.sourceEntity
-        : flow.targetEntity;
+      arcPingPong.current = { id: flow.id, toFunder };
+      const dest = toFunder ? flow.sourceEntity : flow.targetEntity;
       flyToPoint(dest.lat, dest.lng);
-      // Open the destination's popup too (fundee first click, purple
-      // funder second click) when its full row is loaded; endpoints
-      // outside the entity cap fly only.
-      const destEntity = entities.find((e) => e.id === dest.id);
+      // Open the destination's popup too (fundee first, purple funder
+      // second), looked up in the full entity list — the visible-dots
+      // subset misses endpoints the slider filtered out.
+      const destEntity = allEntities.find((e) => e.id === dest.id);
       if (destEntity) {
         setSelected(destEntity);
         onOpenPopup();
