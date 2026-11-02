@@ -240,6 +240,28 @@ body {
   flex: none;
 }
 
+.stakes-ring-wrap {
+  position: relative;
+  flex: none;
+}
+
+.ring-tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  color: #e5e7eb;
+  background: #101623;
+  border: 1px solid #2b3449;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  z-index: 5;
+}
+
 .stakes-total {
   fill: #f1f5f9;
   font-size: 13px;

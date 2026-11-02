@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchQuote, fetchShares, formatMoney, primaryMetric, verificationCell, type Entity, type Flow, type Quote, type VerificationReport } from "../api";
 
 const CONCEPT_LABELS: Record<string, string> = {
@@ -121,6 +121,17 @@ function StakesRing({
   marketCap: number | null;
   capNote?: string | null;
 }) {
+  // Slice hover name after 0.1s (native <title> was far slower).
+  const [tip, setTip] = useState<string | null>(null);
+  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showTip = (text: string) => {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    tipTimer.current = setTimeout(() => setTip(text), 100);
+  };
+  const hideTip = () => {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    setTip(null);
+  };
   const total = stakes.reduce((a, f) => a + f.amount, 0);
   if (stakes.length === 0 || total <= 0) {
     return null;
@@ -178,6 +189,8 @@ function StakesRing({
   }
   return (
     <div className="stakes">
+      <span className="stakes-ring-wrap">
+        {tip && <span className="ring-tip">{tip}</span>}
       <svg
         viewBox="0 0 100 100"
         className="stakes-ring"
@@ -196,9 +209,9 @@ function StakesRing({
               strokeWidth="14"
               strokeDasharray={`${Math.max(s.frac * C - 2, 1)} ${C}`}
               strokeDashoffset={-(s.offset * C)}
-            >
-              <title>{s.title}</title>
-            </circle>
+              onMouseEnter={() => showTip(s.title)}
+              onMouseLeave={hideTip}
+            />
           ))}
         </g>
         <text x="50" y="49" textAnchor="middle" className="stakes-total">
@@ -210,6 +223,7 @@ function StakesRing({
             : "13F Funding"}
         </text>
       </svg>
+      </span>
       <ul className="stakes-legend">
         {shown.map((f, i) => (
           <li
