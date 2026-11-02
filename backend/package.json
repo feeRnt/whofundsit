@@ -24,6 +24,7 @@
     "names:sync": "tsx src/scripts/names_sync.ts",
     "industry:sync": "tsx src/scripts/industry_sync.ts",
     "global:sync": "tsx src/scripts/global_sync.ts",
+    "global:industry": "tsx src/scripts/global_industry.ts",
     "tickers:global": "tsx src/scripts/tickers_global.ts",
     "regional:esef": "tsx src/scripts/regional_esef.ts",
     "regional:twse": "tsx src/scripts/regional_twse.ts",

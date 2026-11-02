@@ -55,7 +55,8 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 ## Wikidata SPARQL (international company list)
 
 - **What we take:** bulk company crosswalk — name, ISIN, LEI, exchange,
-  HQ — via `query.wikidata.org/sparql` (`npm run global:sync`).
+  HQ — via `query.wikidata.org/sparql` (`npm run global:sync`), plus
+  industry labels via P452 VALUES batches (`npm run global:industry`).
 - **Terms:** **CC0** (public domain dedication). Courtesy rules: send a
   descriptive `User-Agent` (`WIKIDATA_USER_AGENT`) and keep queries
   bounded (`GLOBAL_LIMIT`).

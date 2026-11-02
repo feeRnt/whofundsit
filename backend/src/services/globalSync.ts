@@ -528,3 +528,135 @@ export async function runGlobalSync(): Promise<{
     await prisma.$disconnect();
   }
 }
+
+// --- Global industry backfill (Wikidata P452) ---
+
+// LEI syntax guard: DB-sourced, but the query interpolates them.
+export function sanitizeLeis(leis: string[]): string[] {
+  return leis.filter((l) => /^[0-9A-Z]{20}$/.test(l));
+}
+
+// Batched LEI -> industry lookup. VALUES lists keep these queries tiny (no
+// GROUP/COUNT/ORDER over big sets); ORDER makes first-label-wins stable.
+export function buildIndustryQuery(leis: string[]): string {
+  const values = leis.map((l) => `"${l}"`).join(" ");
+  return `SELECT ?lei ?indLabel WHERE { VALUES ?lei { ${values} } ?company wdt:P1278 ?lei. OPTIONAL { ?company wdt:P452 ?ind. } SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } ORDER BY ?lei ?indLabel`;
+}
+
+interface IndustryBinding {
+  lei?: { value?: unknown };
+  indLabel?: { value?: unknown };
+}
+
+// First English label per LEI wins (rows arrive ?lei/?indLabel-ordered);
+// LEIs with no P452 resolve null. Pure.
+export function parseIndustryBindings(doc: {
+  results?: { bindings?: IndustryBinding[] };
+}): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  for (const b of doc.results?.bindings ?? []) {
+    const lei = str(b.lei?.value);
+    if (!lei || out.has(lei)) {
+      continue;
+    }
+    const label = b.indLabel?.value;
+    out.set(lei, typeof label === "string" && label.length > 0 ? label : null);
+  }
+  return out;
+}
+
+// Same 429/5xx retry shape as the discovery fetcher, kept separate so the
+// proven discovery path stays untouched. Each batch caches by query hash.
+async function fetchIndustries(
+  leis: string[],
+): Promise<Map<string, string | null>> {
+  const query = buildIndustryQuery(leis);
+  const doc = await cachedJson<{ results?: { bindings?: IndustryBinding[] } }>(
+    `global/industry-${cacheKey(query)}.json`,
+    async () => {
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          apiLog("GET", SPARQL);
+          return await sparqlLimit(async () => {
+            const res = await axios.get(SPARQL, {
+              params: { format: "json", query },
+              headers: { "User-Agent": UA },
+              timeout: 120000,
+            });
+            return res.data;
+          });
+        } catch (err) {
+          const status = axios.isAxiosError(err)
+            ? err.response?.status
+            : undefined;
+          const retryable =
+            status === 429 || (status !== undefined && status >= 500);
+          if (!retryable || attempt >= 3) {
+            throw err;
+          }
+          const waitMs = 15000 * attempt;
+          console.warn(
+            `[global] industry batch: HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+          );
+          await sleep(waitMs);
+        }
+      }
+    },
+  );
+  return parseIndustryBindings(doc);
+}
+
+const INDUSTRY_BATCH_SIZE = 100; // LEIs per VALUES query (tiny payloads)
+
+export async function runGlobalIndustry(): Promise<{
+  considered: number;
+  updated: number;
+  missing: number;
+  batches: number;
+}> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set (see backend/.env)");
+  }
+  const cap = Math.max(0, Number(process.env.INDUSTRY_GLOBAL_LIMIT ?? 0));
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  const prisma = new PrismaClient({ adapter });
+  try {
+    // DB-first, never re-discovers: every lei: row still lacking industry
+    // (discovery companies, children, TWSE-created rows alike) — i.e. the
+    // output rows of global:sync itself, read back with zero new Wikidata
+    // discovery cost. Stable id order keeps capped reruns deterministic.
+    const rows = await prisma.entity.findMany({
+      where: { id: { startsWith: "lei:" }, industry: null },
+      select: { id: true },
+      ...(cap > 0 ? { take: cap } : {}),
+      orderBy: { id: "asc" },
+    });
+    const leis = sanitizeLeis(rows.map((r) => r.id.slice("lei:".length)));
+    let updated = 0;
+    let missing = 0;
+    let batches = 0;
+    for (let i = 0; i < leis.length; i += INDUSTRY_BATCH_SIZE) {
+      const batch = leis.slice(i, i + INDUSTRY_BATCH_SIZE);
+      const hits = await fetchIndustries(batch);
+      batches += 1;
+      for (const lei of batch) {
+        const industry = hits.get(lei) ?? null;
+        if (industry === null) {
+          missing += 1;
+          continue;
+        }
+        await prisma.entity.update({
+          where: { id: `lei:${lei}` },
+          data: { industry },
+        });
+        updated += 1;
+      }
+    }
+    console.log(
+      `[global] industry: ${updated} placed, ${missing} without P452 (${leis.length} considered, ${batches} batches)`,
+    );
+    return { considered: leis.length, updated, missing, batches };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

@@ -5,10 +5,13 @@ import {
   GLOBAL_REGIONS,
   SPARQL_MIN_INTERVAL_MS,
   buildCompanyQuery,
+  buildIndustryQuery,
   gleifLimit,
   parseCompanyRows,
   parseGleifAddress,
   parseGleifChildren,
+  parseIndustryBindings,
+  sanitizeLeis,
   sparqlLimit,
 } from "./globalSync.js";
 
@@ -149,5 +152,46 @@ describe("api pacing", () => {
     await Promise.all([gleifLimit(async () => {}), gleifLimit(async () => {})]);
     // 1 x 1100ms gap with slack for timer slop.
     assert.ok(Date.now() - t0 >= 900, "gleif calls unpaced");
+  });
+});
+
+describe("buildIndustryQuery", () => {
+  it("builds a VALUES batch with P452 lookup and stable order", () => {
+    const q = buildIndustryQuery(["5493006W3QUS5LMH6R84", "KY37LUS27QQX7BB93L28"]);
+    assert.ok(
+      q.includes('VALUES ?lei { "5493006W3QUS5LMH6R84" "KY37LUS27QQX7BB93L28" }'),
+    );
+    assert.ok(q.includes("wdt:P1278 ?lei"));
+    assert.ok(q.includes("OPTIONAL { ?company wdt:P452 ?ind. }"));
+    assert.ok(q.includes("ORDER BY ?lei ?indLabel"));
+  });
+
+  it("drops malformed LEIs before they reach the query", () => {
+    assert.deepEqual(
+      sanitizeLeis([
+        "5493006W3QUS5LMH6R84",
+        "nope",
+        '5493006W3QUS5LMH6R84" OR 1=1',
+        "short",
+      ]),
+      ["5493006W3QUS5LMH6R84"],
+    );
+  });
+});
+
+describe("parseIndustryBindings", () => {
+  it("takes the first label per LEI, null when P452 is absent", () => {
+    const out = parseIndustryBindings({
+      results: {
+        bindings: [
+          { lei: { value: "L1" }, indLabel: { value: "clothing industry" } },
+          { lei: { value: "L1" }, indLabel: { value: "fashion" } },
+          { lei: { value: "L2" } },
+        ],
+      },
+    });
+    assert.equal(out.get("L1"), "clothing industry");
+    assert.equal(out.get("L2"), null);
+    assert.equal(out.has("L3"), false);
   });
 });

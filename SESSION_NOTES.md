@@ -167,6 +167,18 @@ db:push, before export); names:sync status unknown (cheap, offline — rerun
 safe); deadlines:snapshot never ran (no seed file); Colgate merge DONE
 (verified in seeds); regionals thin-Q3 (rerun later); keys still pending.
 
+## 2026-11-02 — built `global:industry` (Wikidata P452 backfill)
+
+`npm run global:industry` fills `Entity.industry` on `lei:` rows lacking it:
+batched VALUES queries (100 LEIs, ORDER-stabilized, first-label-wins),
+cached per batch under `global/`, gated by `sparqlLimit`, 429/5xx retried.
+DB-first: reads global:sync's output rows (discovery + children + TWSE),
+never re-runs discovery (region caches carry no P452 — verified); creates
+nothing, updates in place. Ceiling: `INDUSTRY_GLOBAL_LIMIT` (0 = all).
+Discovery paths untouched (dedicated fetcher). Chain slot: immediately after
+`global:sync`. Red→green, `tsc` clean; `runGlobalIndustry` itself needs a
+live DB (untested here — user runs it).
+
 ## 2026-11-02 — OpenFIGI: ToS silent, docs throttle; liberal = at the ceiling
 
 User: keyed OpenFIGI has no limits, be liberal + note it. Verified: legal ToS
