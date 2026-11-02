@@ -81,25 +81,37 @@ function nominatimUserAgent(): string {
   return userAgentFromEnv("NOMINATIM_USER_AGENT");
 }
 
-// A 5xx or network blip must never kill a multi-hour coords run: it is a
-// miss for THIS run (never cached, retried next time). 4xx still throws —
-// a 403 means our usage is the problem and must be heard. Pure.
+// SPARQL-shaped retry for Nominatim: 429/5xx/network errors retry in-run
+// (3 attempts, 15s steps). What still fails is failed, not pending — a
+// rerun would fail the same way. Pure.
+export function isRetryableGeoStatus(status: number | undefined): boolean {
+  return status === undefined || status === 429 || status >= 500;
+}
+
+// Terminal decision after retries are spent: a 5xx or network blip must
+// never kill a multi-hour coords run (row failed, run continues). 4xx
+// still throws — a 403/429 means our usage is the problem and must be
+// heard. Pure.
 export function shouldSwallowGeoError(status: number | undefined): boolean {
   return status === undefined || status >= 500;
 }
 
-// Queries that errored transiently (5xx/network) this run: retryable, so
-// they must NOT be marked failed. Cleared per runPipeline call.
+// Queries that errored after full retry this run: still DB-failed (skip
+// IS failed), but NEVER dead-lined — a 5xx is not a miss, and dead-lines
+// must mean "known-bad address". Cleared per runPipeline call.
 const transientTexts = new Set<string>();
 
-// Next geoStatus after an attempt: placed on coords, failed on a genuine
-// miss, null (leave pending) when the attempt never really happened.
-// Pure — the LLM repair pass will query geoStatus = "failed".
-export function nextGeoStatus(found: boolean, transient: boolean): string | null {
-  if (found) {
-    return "placed";
-  }
-  return transient ? null : "failed";
+// Next geoStatus after an attempt: placed on coords, failed on anything
+// else. No pending limbo — misses are deterministic, and errors already
+// survived 3 in-run retries. The only ways out of failed are the LLM
+// pass, global:coords (P625), and --census-failed. Pure — the LLM repair
+// pass will query geoStatus = "failed".
+export function nextGeoStatus(found: boolean): string {
+  return found ? "placed" : "failed";
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Direct Nominatim calls from this machine: memory, then file cache, then
@@ -118,28 +130,45 @@ export async function geocodeLocal(
   }
   let result: Coords | null;
   try {
-    result = await cachedJson<Coords | null>(geoPath(text), () =>
-      nominatim(async () => {
-      apiLog(
-        "GET",
-        `https://nominatim.openstreetmap.org/search?q=${text}`,
-        note,
-      );
-      const { data } = await axios.get<NominatimHit[]>(
-        "https://nominatim.openstreetmap.org/search",
-        {
-          params: { format: "jsonv2", limit: 1, q: text },
-          headers: {
-            "User-Agent": nominatimUserAgent(),
-            Accept: "application/json",
-            "Accept-Encoding": "gzip, deflate",
-          },
-        },
-      );
-      const hit = data[0];
-      return hit ? { lat: Number(hit.lat), lng: Number(hit.lon) } : null;
-    }),
-    );
+    result = await cachedJson<Coords | null>(geoPath(text), async () => {
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          return await nominatim(async () => {
+            apiLog(
+              "GET",
+              `https://nominatim.openstreetmap.org/search?q=${text}`,
+              note,
+            );
+            const { data } = await axios.get<NominatimHit[]>(
+              "https://nominatim.openstreetmap.org/search",
+              {
+                params: { format: "jsonv2", limit: 1, q: text },
+                headers: {
+                  "User-Agent": nominatimUserAgent(),
+                  Accept: "application/json",
+                  "Accept-Encoding": "gzip, deflate",
+                },
+              },
+            );
+            const hit = data[0];
+            return hit ? { lat: Number(hit.lat), lng: Number(hit.lon) } : null;
+          });
+        } catch (err) {
+          const status = axios.isAxiosError(err)
+            ? err.response?.status
+            : undefined;
+          if (isRetryableGeoStatus(status) && attempt < 3) {
+            const waitMs = 15000 * attempt;
+            console.warn(
+              `[coords] Nominatim HTTP ${status ?? "network"} for ${JSON.stringify(text)}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+            );
+            await sleep(waitMs);
+            continue;
+          }
+          throw err;
+        }
+      }
+    });
   } catch (err) {
     const status = axios.isAxiosError(err) ? err.response?.status : undefined;
     if (status === 400) {
@@ -153,16 +182,16 @@ export async function geocodeLocal(
       return null;
     }
     if (!shouldSwallowGeoError(status)) {
-      if (status === 403) {
+      if (status === 403 || status === 429) {
         throw new Error(
-          "[coords] Nominatim denied access (HTTP 403) — IP blocked or over limit. " +
+          `[coords] Nominatim denied access (HTTP ${status}) — IP blocked or over limit. ` +
             "Pause all runs and manual queries for an hour or two, then retry.",
         );
       }
       throw err;
     }
     console.warn(
-      `[coords] Nominatim ${status ?? "network"} error for ${JSON.stringify(text)} — skipping this run`,
+      `[coords] Nominatim ${status ?? "network"} error for ${JSON.stringify(text)} — marking failed (3 attempts spent)`,
     );
     transientTexts.add(text);
     return null;
@@ -262,7 +291,7 @@ let deadHits = 0;
 let junkHits = 0;
 // Running totals across runPipeline batches in this process (coords --all
 // calls it repeatedly), so every progress line shows the run so far.
-const runTotals = { geocoded: 0, failed: 0, skipped: 0 };
+const runTotals = { geocoded: 0, failed: 0 };
 
 // Committed coords seed (geo:snapshot output): preloaded into the memory
 // cache so fresh clones resolve known addresses with zero API calls.
@@ -523,17 +552,17 @@ async function geocodeMany(
   for (const [q, originals] of byQuery) {
     const r = results.get(q) ?? null;
     if (r === null) {
-      missLog.add(q);
-      console.log(red(`[coords] retry-miss: ${q}`));
-      // Transience is tracked per-query but judged per-original: if any
-      // query behind this original errored, the original stays pending.
+      // Errors are failed but never dead-lined: a 5xx is not a miss, and
+      // dead-lines must mean "known-bad address" (a retry with fresh
+      // methodology must still re-query it).
       const flaky =
         transientTexts.has(q) ||
         fallbackQueries(q).some((f) => transientTexts.has(f));
       if (flaky) {
-        for (const o of originals) {
-          transientTexts.add(o);
-        }
+        console.log(red(`[coords] retry-error: ${q} (failed, not dead-lined)`));
+      } else {
+        missLog.add(q);
+        console.log(red(`[coords] retry-miss: ${q}`));
       }
     } else {
       console.log(green(`[coords] hit: ${q} -> ${r.lat},${r.lng}`));
@@ -568,7 +597,7 @@ async function geocodeLocalEach(
       const remain = Math.round(((queries.length - i) * 1100) / 1000);
       console.log(
         `[coords] ${tag} ${i}/${queries.length}, ~${formatDuration(remain)} left ` +
-          `| run: ${runTotals.geocoded} placed, ${runTotals.failed} failed, ${runTotals.skipped} skipped`,
+          `| run: ${runTotals.geocoded} placed, ${runTotals.failed} failed`,
       );
     }
   }
@@ -647,11 +676,11 @@ async function normalizeWithLlama(
 
 export interface PipelineSummary {
   scanned: number; // entities considered (<= take)
-  geocoded: number; // rows updated with real lat/lng
+  geocoded: number; // rows placed with real lat/lng (scanned = geocoded + failed)
+  failed: number; // rows marked failed: misses, junk, errors-after-retry
   normalized: number; // rows renamed by the Llama worker
-  skipped: number; // no coordinates and no rename (scanned = updated + skipped)
-  dead: number; // skipped via the dead-lines file, zero API calls
-  junk: number; // skipped by the registrant-name pre-filter, zero API calls
+  dead: number; // of failed: hit the dead-lines file, zero API calls
+  junk: number; // of failed: registrant-name pre-filter, zero API calls
 }
 
 export function formatDuration(totalSeconds: number): string {
@@ -781,9 +810,9 @@ async function runCensusFailedPass(
       );
     }
   }
-  const skipped = entities.length - geocoded;
+  const failed = entities.length - geocoded;
   runTotals.geocoded += geocoded;
-  runTotals.skipped += skipped;
+  runTotals.failed += failed;
   console.log(
     `[coords] census-failed: ${geocoded}/${entities.length} placed ` +
       `(${rows.size} us-parseable${rows.size === 0 ? ", no api call" : ""}) in ${formatDuration((Date.now() - t0) / 1000)}`,
@@ -791,8 +820,8 @@ async function runCensusFailedPass(
   return {
     scanned: entities.length,
     geocoded,
+    failed,
     normalized: 0,
-    skipped,
     dead: 0,
     junk: 0,
   };
@@ -831,7 +860,6 @@ export async function runPipeline(
 
     let geocoded = 0;
     let normalized = 0;
-    let skipped = 0;
     let failed = 0;
     let modalCalls = 0;
     deadHits = 0;
@@ -867,17 +895,11 @@ export async function runPipeline(
         canonicalName = await normalizeWithLlama(entity);
       }
 
-      // Failed rows get marked (the LLM pass's work queue); transient
-      // errors and junk stay pending so a retry can still place them.
-      // Junk is dead-lines-listed but never DB-failed: it was never tried.
-      const status = junkAddress(addrText)
-        ? null
-        : nextGeoStatus(coords !== null, transientTexts.has(addrText));
-
-      if (!coords && !canonicalName && !status) {
-        skipped += 1;
-        continue;
-      }
+      // Skip IS failed: every scanned row without coords is marked
+      // failed — junk and errors-after-retry included. The only ways out
+      // are the LLM pass, global:coords (P625), and --census-failed, so
+      // plain reruns only ever see genuinely new rows.
+      const status = nextGeoStatus(coords !== null);
 
       if (status === "failed") {
         console.log(red(`[coords] llm-queue: ${entity.id} (${entity.name})`));
@@ -893,8 +915,6 @@ export async function runPipeline(
       });
       if (coords) {
         geocoded += 1;
-      } else {
-        skipped += 1;
       }
       if (canonicalName) {
         normalized += 1;
@@ -904,15 +924,14 @@ export async function runPipeline(
     flushMissLog(); // persist dead lines next to the geocode cache
     runTotals.geocoded += geocoded;
     runTotals.failed += failed;
-    runTotals.skipped += skipped;
     console.log(
       `[coords] batch: ${entities.length} scanned in ${formatDuration((Date.now() - t0) / 1000)}`,
     );
     return {
       scanned: entities.length,
       geocoded,
+      failed,
       normalized,
-      skipped,
       dead: deadHits,
       junk: junkHits,
     };

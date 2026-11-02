@@ -532,3 +532,17 @@ comment corrected; old note left as history.
   batches like industry, ~22min SPARQL, no schema change, city-level
   authoritative dots, ~2h Nominatim saved) — offered, awaiting call.
   No DB writes made; probes were 1 read-only SPARQL GET.
+- SKIP IS FAILED (user: reruns fail the same way, no pending limbo).
+  nextGeoStatus(found) -> placed/failed; junk + errors-after-retry now
+  DB-failed, outs are LLM pass / global:coords / --census-failed only.
+  PipelineSummary + runTotals + progress line dropped `skipped` for
+  `failed` (dead/junk stay as zero-API-call sub-counts). Nominatim got
+  the SPARQL shape: shared 1.1s limiter (kept), apiLog (kept), 3x/15s
+  retry on 429/5xx/network (new); persistent 429 throws like 403
+  (usage problem, must be heard). Census batch POST: same 3x/15s
+  retry, still throws spent (callers degrade, never fail). Errors are
+  failed but NEVER dead-lined (distinct retry-error line) — fixes the
+  deferred transient-to-dead-lines bug. VERIFIED: tsc clean, 28/28
+  pipeline+censusBatch focused tests (failing-first on new
+  expectations). TODO added: prompts.md update (Wonder's prompts +
+  /clear losses, from session logs). No DB writes.

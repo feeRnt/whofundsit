@@ -196,3 +196,9 @@
       thousands of API calls and retire the ECONNRESET-retry class. Needs:
       re-verify dump URL + terms at implementation time, streaming parse, and
       keeping the per-record path for delta/children gaps.)
+
+## Prompts file update
+
+- [ ] **Update prompts.md with the missing prompts.** (Include Muse Wonder's
+      prompts, then the prompts deleted by the accidental `/clear` before
+      export — recover both from session logs.)

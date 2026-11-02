@@ -181,9 +181,14 @@ export function parseCensusResponse(
   return out;
 }
 
-// One POST per 10k rows (our batches are <=500: always one call). Throws
-// on transport errors — the caller degrades to Nominatim, never to
-// failed. Per-row No_Match/Tie read as null (same fallback).
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// One POST per 10k rows (our batches are <=500: always one call).
+// SPARQL-shaped retry (3 attempts, 15s steps) on 429/5xx/network; still
+// throws when spent — the caller degrades to Nominatim, never to failed.
+// Per-row No_Match/Tie read as null (same fallback).
 export async function censusBatchGeocode(
   rows: Map<string, ParsedUsAddress>,
 ): Promise<Map<string, { lat: number; lng: number } | null>> {
@@ -197,12 +202,33 @@ export async function censusBatchGeocode(
     const form = new FormData();
     form.append("addressFile", new Blob([csv], { type: "text/csv" }), "batch.csv");
     form.append("benchmark", BENCHMARK);
-    apiLog("POST", BATCH_URL, `${chunk.length} addresses`);
-    const { data } = await axios.post<string>(BATCH_URL, form, {
-      timeout: 180000,
-      responseType: "text",
-    });
-    const parsed = parseCensusResponse(typeof data === "string" ? data : "");
+    let data = "";
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        apiLog("POST", BATCH_URL, `${chunk.length} addresses`);
+        const res = await axios.post<string>(BATCH_URL, form, {
+          timeout: 180000,
+          responseType: "text",
+        });
+        data = typeof res.data === "string" ? res.data : "";
+        break;
+      } catch (err) {
+        const status = axios.isAxiosError(err)
+          ? err.response?.status
+          : undefined;
+        const retryable =
+          status === undefined || status === 429 || status >= 500;
+        if (!retryable || attempt >= 3) {
+          throw err;
+        }
+        const waitMs = 15000 * attempt;
+        console.warn(
+          `[census] batch: HTTP ${status ?? "network"}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+        );
+        await sleep(waitMs);
+      }
+    }
+    const parsed = parseCensusResponse(data);
     chunk.forEach(([query, addr], j) => {
       const coords = parsed.get(String(i + j)) ?? null;
       out.set(query, coords);

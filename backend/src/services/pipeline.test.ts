@@ -6,6 +6,7 @@ import {
   expandLocationText,
   fallbackQueries,
   formatDuration,
+  isRetryableGeoStatus,
   junkAddress,
   nextGeoStatus,
   pendingWhere,
@@ -119,17 +120,26 @@ describe("junkAddress", () => {
     ]);
   });
 
-  it("marks placed/failed, leaves transient pending", () => {
-    assert.equal(nextGeoStatus(true, false), "placed");
-    assert.equal(nextGeoStatus(true, true), "placed");
-    assert.equal(nextGeoStatus(false, false), "failed");
-    assert.equal(nextGeoStatus(false, true), null);
+  it("marks placed/failed with no pending limbo: skip IS failed", () => {
+    assert.equal(nextGeoStatus(true), "placed");
+    assert.equal(nextGeoStatus(false), "failed");
   });
 
-  it("swallows 5xx/network geo errors, rethrows 4xx", () => {
+  it("retries 429/5xx/network in-run, never 4xx", () => {
+    assert.equal(isRetryableGeoStatus(undefined), true);
+    assert.equal(isRetryableGeoStatus(429), true);
+    assert.equal(isRetryableGeoStatus(500), true);
+    assert.equal(isRetryableGeoStatus(503), true);
+    assert.equal(isRetryableGeoStatus(400), false);
+    assert.equal(isRetryableGeoStatus(403), false);
+    assert.equal(isRetryableGeoStatus(404), false);
+  });
+
+  it("swallows 5xx/network geo errors, rethrows 4xx and persistent 429", () => {
     assert.equal(shouldSwallowGeoError(503), true);
     assert.equal(shouldSwallowGeoError(500), true);
     assert.equal(shouldSwallowGeoError(undefined), true);
+    assert.equal(shouldSwallowGeoError(429), false);
     assert.equal(shouldSwallowGeoError(403), false);
     assert.equal(shouldSwallowGeoError(404), false);
   });
