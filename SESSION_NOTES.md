@@ -587,3 +587,9 @@ comment corrected; old note left as history.
   (no frontend test runner — visual check is the TODO item). Check
   examples in TODO: SF Salesforce+DocuSign, NYC Medallion+TG Therapeutics.
   No DB writes.
+- BADGE RECOUNT 14388d2 (user: Dynavax showed 13 = same-company rows).
+  Badges now count companies via companyGroupKey (Assets row reps),
+  not rows: single-company groups render one dot, no badge, click
+  selects; rings fan companies. Names rejected as identity (same-CIK
+  punctuation variants vs same-name distinct LEIs). VERIFIED: frontend
+  build clean, oxlint 6 pre-existing. No DB writes.
