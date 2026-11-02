@@ -521,3 +521,14 @@ comment corrected; old note left as history.
   circle geometry (SLERP + unwrap + wrapLongitude all check out) —
   real flights route that way; Mercator + world copies make it look
   dramatic. User confirmed keep-as-is (no rhumb restyle).
+- P625 ASSESSMENT (user hoped -80% non-US geocode): measured ~15%,
+  not 80%. One 31-LEI probe: 28/31 coords (96% notable slice, 4/6 of
+  item-having obscure; direct P625 rare x2, rest HQ-hop city-level).
+  Hard ceiling: industry files show only ~2817/16279 lei: rows have
+  ANY item (2069 hits + 748 nulls) — 83% item-less can't join P1278
+  at all. Implementation rules found: direct beats hop (1 Vienna-vs-
+  NYC conflict seen), ORDER BY first-wins for multi-HQ (1 triple:
+  London/Dublin/Jersey). Still worth a global:coords script (VALUES
+  batches like industry, ~22min SPARQL, no schema change, city-level
+  authoritative dots, ~2h Nominatim saved) — offered, awaiting call.
+  No DB writes made; probes were 1 read-only SPARQL GET.
