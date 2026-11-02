@@ -190,6 +190,9 @@ merge:entities. Open question: subsidiary (keep both) vs CIK succession
 (merge 2115436→34088?). Also corrected: archive names are UPPERCASE, so
 names:sync unifies consistency, not title case.
 
+Resolution (user): keep both — 2115436 is the Holdings subsidiary, not a
+duplicate. No merge action; no code change.
+
 ## 2026-11-02 — OpenFIGI: ToS silent, docs throttle; liberal = at the ceiling
 
 User: keyed OpenFIGI has no limits, be liberal + note it. Verified: legal ToS
