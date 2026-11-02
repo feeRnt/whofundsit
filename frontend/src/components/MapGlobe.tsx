@@ -122,7 +122,7 @@ function tooltip(
   const badge = verifySuffix(verification, `source=${entity.source}`);
   const stackN = stackCounts?.get(entity.id);
   if (stackN) {
-    return `${entity.name} + ${stackN - 1} more here — click to expand (${where})${badge}`;
+    return `${entity.name} + ${stackN - 1} more companies here — click to expand (${where})${badge}`;
   }
   const primary = primaryMetric(entity, pool);
   if (primary.volume === 0 && entity.source !== "openalex") {
@@ -276,7 +276,11 @@ export default function MapGlobe({
 
   // Coincident dots: rows sharing an address geocode to identical coords
   // (measured 511 multi-company stacks in seeds, up to 212 on one dot).
-  // Every stack renders ONE dot + count badge; clicking expands a ring.
+  // Badges count COMPANIES, not rows: one company's concept rows (same
+  // numeric id head) collapse to a single dot with no badge. Names can't
+  // do this — same-CIK rows differ by punctuation ("INC" vs "INC."),
+  // while different LEIs can share a name (two "KONE INC."s) — so the
+  // id head (companyGroupKey) is the identity, Assets row the rep.
   const stacks = useMemo(() => {
     const groups = new globalThis.Map<string, Entity[]>();
     for (const e of entities) {
@@ -290,14 +294,33 @@ export default function MapGlobe({
     }
     const out = new globalThis.Map<
       string,
-      { lat: number; lng: number; members: Entity[] }
+      { lat: number; lng: number; members: Entity[]; companies: Entity[] }
     >();
     for (const [key, members] of groups) {
       if (members.length < 2) {
         continue;
       }
       members.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-      out.set(key, { lat: members[0]!.lat, lng: members[0]!.lng, members });
+      const byCompany = new globalThis.Map<string, Entity[]>();
+      for (const m of members) {
+        const g = companyGroupKey(m.id);
+        const arr = byCompany.get(g);
+        if (arr) {
+          arr.push(m);
+        } else {
+          byCompany.set(g, [m]);
+        }
+      }
+      const companies = Array.from(byCompany.values()).map(
+        (rows) => rows.find((r) => r.conceptTag === "Assets") ?? rows[0]!,
+      );
+      companies.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      out.set(key, {
+        lat: members[0]!.lat,
+        lng: members[0]!.lng,
+        members,
+        companies,
+      });
     }
     return out;
   }, [entities]);
@@ -313,35 +336,50 @@ export default function MapGlobe({
     return out;
   }, [stacks]);
 
-  // Rep (first id-sorted member) -> stack key, for badge clicks.
+  // Rep (first company) -> stack key, for badge clicks. Single-company
+  // groups have no badge: their rep clicks straight through to select.
   const repStacks = useMemo(() => {
     const out = new globalThis.Map<string, string>();
     for (const [key, s] of stacks) {
-      out.set(s.members[0]!.id, key);
+      if (s.companies.length > 1) {
+        out.set(s.companies[0]!.id, key);
+      }
     }
     return out;
   }, [stacks]);
 
-  // Rep id -> count, UNEXPANDED stacks only (expanded members read normal).
+  // Rep id -> company count, UNEXPANDED multi-company stacks only
+  // (expanded members read normal tooltips).
   const repCounts = useMemo(() => {
     const out = new globalThis.Map<string, number>();
     for (const [key, s] of stacks) {
-      if (key !== expandedKey) {
-        out.set(s.members[0]!.id, s.members.length);
+      if (key !== expandedKey && s.companies.length > 1) {
+        out.set(s.companies[0]!.id, s.companies.length);
       }
     }
     return out;
   }, [stacks, expandedKey]);
 
-  // Rendered dots: singles + one rep per collapsed stack + every member
-  // of the expanded stack.
+  // Rendered dots: singles + one rep per single-company group + (one rep
+  // per collapsed multi-company stack | every company when expanded).
   const dotEntities = useMemo(() => {
     const out: Entity[] = [];
     for (const e of entities) {
       const key = stackOfMember.get(e.id);
-      if (!key || key === expandedKey) {
+      if (!key) {
         out.push(e);
-      } else if (stacks.get(key)!.members[0]!.id === e.id) {
+        continue;
+      }
+      const s = stacks.get(key)!;
+      if (s.companies.length < 2) {
+        if (s.companies[0]!.id === e.id) {
+          out.push(e);
+        }
+      } else if (key === expandedKey) {
+        if (s.companies.some((c) => c.id === e.id)) {
+          out.push(e);
+        }
+      } else if (s.companies[0]!.id === e.id) {
         out.push(e);
       }
     }
@@ -366,13 +404,13 @@ export default function MapGlobe({
     const latFix = Math.cos((stack.lat * Math.PI) / 180);
     let i = 0;
     let ring = 0;
-    while (i < stack.members.length) {
+    while (i < stack.companies.length) {
       ring += 1;
       const capacity = 6 * ring;
-      for (let j = 0; j < capacity && i < stack.members.length; j += 1, i += 1) {
+      for (let j = 0; j < capacity && i < stack.companies.length; j += 1, i += 1) {
         const angle = (2 * Math.PI * (j + ring * 0.5)) / capacity;
         const px = ring * RING_GAP_PX;
-        out.set(stack.members[i]!.id, [
+        out.set(stack.companies[i]!.id, [
           stack.lng + Math.cos(angle) * px * dpp,
           stack.lat + Math.sin(angle) * px * dpp * latFix,
         ]);
@@ -381,14 +419,14 @@ export default function MapGlobe({
     return out;
   }, [stacks, expandedKey, zoom]);
 
-  // Badge labels: one count per collapsed stack.
+  // Badge labels: one company-count per collapsed multi-company stack.
   const badgeData = useMemo(() => {
     const out: { position: [number, number]; text: string }[] = [];
     for (const [key, s] of stacks) {
-      if (key === expandedKey) {
+      if (key === expandedKey || s.companies.length < 2) {
         continue;
       }
-      out.push({ position: [s.lng, s.lat], text: String(s.members.length) });
+      out.push({ position: [s.lng, s.lat], text: String(s.companies.length) });
     }
     return out;
   }, [stacks, expandedKey]);
@@ -400,9 +438,10 @@ export default function MapGlobe({
     if (focused && mapRef.current) {
       flyToPoint(focused.lat, focused.lng);
       setSelected(focused);
-      // Searched into a stack: expand it so the company is clickable.
+      // Searched into a multi-company stack: expand it so the company
+      // is clickable (single-company groups already show their rep).
       const key = stackOfMember.get(focused.id);
-      if (key) {
+      if (key && (stacks.get(key)?.companies.length ?? 0) > 1) {
         setExpandedKey(key);
       }
     }
