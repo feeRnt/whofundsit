@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { ZoomIn } from "lucide-react";
+import { RefreshCw, ZoomIn } from "lucide-react";
 
-// One-shot zoom gesture hint: appears once the map loads, fades away on
-// its own. Pointer-transparent so it never blocks map interaction.
+// One-shot load hints: appear once the map loads, fade away on their own.
+// Pointer-transparent so they never block map interaction. The tile line
+// sits below the gesture line and names the refresh-map button for when
+// tiles corrupt (the button itself lives in the map corner controls).
 export default function ZoomHint({ onGone }: { onGone: () => void }) {
   const [fading, setFading] = useState(false);
   const [gone, setGone] = useState(false);
@@ -20,10 +22,17 @@ export default function ZoomHint({ onGone }: { onGone: () => void }) {
   if (gone) {
     return null;
   }
+  const cls = `zoom-hint${fading ? " fading" : ""}`;
   return (
-    <div className={`zoom-hint${fading ? " fading" : ""}`} aria-hidden="true">
-      <ZoomIn size={14} />
-      <span>Scroll to zoom · two-finger scroll on trackpads</span>
-    </div>
+    <>
+      <div className={cls} aria-hidden="true">
+        <ZoomIn size={14} />
+        <span>Scroll to zoom · two-finger scroll on trackpads</span>
+      </div>
+      <div className={`${cls} tile-hint`} aria-hidden="true">
+        <RefreshCw size={14} />
+        <span>Tiles corrupted? Press the refresh-map button to reload them</span>
+      </div>
+    </>
   );
 }

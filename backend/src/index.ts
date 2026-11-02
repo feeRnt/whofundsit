@@ -47,7 +47,8 @@ app.get("/api/entities", async (req, res) => {
     // Share-count rows stay out: count units would top every volume sort
     // and quota floor. The popup fetches them lazily via /api/shares.
     // Equal per-region floors (shortfall to Europe) so international rows
-    // survive the volume sort instead of being buried under SEC giants.
+    // survive the volume sort instead of being buried under SEC giants, plus
+    // a university carve-out (works counts can't contest dollar volumes).
     const placed = await prisma.entity.findMany({
       where: {
         lat: { not: 0 },

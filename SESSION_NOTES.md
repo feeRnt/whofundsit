@@ -507,3 +507,11 @@ comment corrected; old note left as history.
   OUTCOME: user reports zero "skipping this run" in this run (no old
   logs to check) → zero known impact, fix deferred post-run as a
   TODO item with the CACHE_REFRESH + --retry-failed recovery path.
+- Handoff 2026-11-02 19:46 GMT confirmed (Wonder branch
+  wonder/globe-sleek; working there per user). Built: (1) tile-refresh
+  hint line under ZoomHint (same one-shot fade, refresh button already
+  existed); (2) university quota in allocateRegionQuotas (~8%, min 2,
+  backfilled, type-gated so old callers unaffected); (3) popup toggles
+  say flows + institution noun for education/Funder rows. VERIFIED:
+  backend tsc/build clean, 9/9 quota tests; frontend tsc+vite build
+  clean, oxlint 6 pre-existing warnings, 0 new. No DB writes.

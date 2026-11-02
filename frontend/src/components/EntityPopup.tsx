@@ -311,6 +311,13 @@ export default function EntityPopup({
     (s) => !(primary.label === "Total assets" && s.conceptTag === "Assets"),
   );
   const ticker = entity.tickers[0];
+  // Unis and their granters are institutions, not companies.
+  const noun =
+    entity.type.toLowerCase() === "education" ||
+    entity.type.toLowerCase() === "funder"
+      ? "institution"
+      : "company";
+  const nounPlural = noun === "institution" ? "institutions'" : "companies'";
   // Numeric-prefix ids ({CIK}:{tag}) are SEC company rows; 13f:/lei:/
   // openalex: rows have no 10-K share count.
   const cik = /^\d+$/.test(entity.id.split(":")[0] ?? "") ? (entity.id.split(":")[0] as string) : null;
@@ -429,7 +436,7 @@ export default function EntityPopup({
           className="flow-toggle"
           onClick={onToggleFlows}
         >
-          {flowsOn ? "Hide this company's flows" : "Show this company's flows"}
+          {flowsOn ? `Hide this ${noun}'s flows` : `Show this ${noun}'s flows`}
         </button>
       )}
       {hasFlows && (
@@ -438,7 +445,7 @@ export default function EntityPopup({
           className="flow-toggle"
           onClick={onToggleFocus}
         >
-          {focused ? "Show all companies' arcs" : "Only this company's arcs"}
+          {focused ? `Show all ${nounPlural} flows` : `Only this ${noun}'s flows`}
         </button>
       )}
       {entity.mergedFrom && entity.mergedFrom.length > 0 && (

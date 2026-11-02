@@ -2,7 +2,10 @@
 // six continent buckets (classified from coordinates, no text parsing), so
 // small international rows survive the fundsVolume sort instead of being
 // buried under SEC giants. Regions that can't fill their floor carry their
-// shortfall to Europe; unknown rows ride with Europe too. Output stays
+// shortfall to Europe; unknown rows ride with Europe too. Universities
+// (type "education") carry works-count volumes that lose every dollar
+// contest, so they get a carved quota of their own (shortfall back to the
+// regions) instead of hiding behind the slider max. Output stays
 // volume-desc so sliders keep biggest-first semantics. Boxes are rough
 // (border towns may misbucket); check order resolves overlaps.
 
@@ -47,6 +50,38 @@ const FLOOR_REGIONS: Region[] = [
 ];
 
 export function allocateRegionQuotas<
+  T extends { fundsVolume: number; lat: number; lng: number; type?: string },
+>(rows: T[], limit: number): T[] {
+  if (limit < FLOOR_REGIONS.length) {
+    return [...rows].sort((a, b) => b.fundsVolume - a.fundsVolume).slice(0, limit);
+  }
+  // University carve-out (~8%, min 2): forced top-N by works count, never a
+  // volume contest they can't win. Rows without a type are never counted,
+  // keeping this a no-op for old callers; unfilled quota flows back to the
+  // regional pool via the remainder limit.
+  const isUni = (r: T): boolean =>
+    typeof r.type === "string" && r.type.toLowerCase() === "education";
+  const unis = rows.filter(isUni).sort((a, b) => b.fundsVolume - a.fundsVolume);
+  const rest = rows.filter((r) => !isUni(r));
+  const picked = unis.slice(
+    0,
+    Math.min(unis.length, limit, Math.max(2, Math.floor(limit / 12))),
+  );
+  const regional = allocateRegions(rest, limit - picked.length);
+  const out = [...picked, ...regional];
+  if (out.length < limit) {
+    // Backfill never lets the quota under-fill: leftovers return in
+    // volume order (unis included — floors are minimums, not maximums).
+    const seen = new Set(out);
+    const leftovers = rows
+      .filter((r) => !seen.has(r))
+      .sort((a, b) => b.fundsVolume - a.fundsVolume);
+    out.push(...leftovers.slice(0, limit - out.length));
+  }
+  return out.sort((a, b) => b.fundsVolume - a.fundsVolume).slice(0, limit);
+}
+
+function allocateRegions<
   T extends { fundsVolume: number; lat: number; lng: number },
 >(rows: T[], limit: number): T[] {
   if (limit < FLOOR_REGIONS.length) {

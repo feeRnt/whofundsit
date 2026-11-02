@@ -173,6 +173,12 @@ body {
   opacity: 0;
 }
 
+/* Tile-refresh line: same dark pill, stacked below the gesture hint. Never
+   collides with .map-note: the hint only shows when there is no map error. */
+.zoom-hint.tile-hint {
+  bottom: 1rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .zoom-hint {
     transition: none;

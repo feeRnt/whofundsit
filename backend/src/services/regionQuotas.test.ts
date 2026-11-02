@@ -31,11 +31,18 @@ describe("regionOf", () => {
 });
 
 describe("allocateRegionQuotas", () => {
-  const row = (id: string, lat: number, lng: number, fundsVolume: number) => ({
+  const row = (
+    id: string,
+    lat: number,
+    lng: number,
+    fundsVolume: number,
+    type?: string,
+  ) => ({
     id,
     lat,
     lng,
     fundsVolume,
+    type,
   });
   // NYC, London, Tokyo, Sydney, Sao Paulo, Cairo.
   const spots: [number, number][] = [
@@ -95,5 +102,35 @@ describe("allocateRegionQuotas", () => {
       allocateRegionQuotas(rows, 2).map((r) => r.id),
       ["b", "c"],
     );
+  });
+
+  it("reserves a university quota despite tiny volumes", () => {
+    const rows = spots.flatMap(([lat, lng], r) => [
+      row(`co-${r}-0`, lat, lng, 100000 + r),
+      row(`co-${r}-1`, lat, lng, 10000 + r),
+      row(`co-${r}-2`, lat, lng, 1000 + r),
+      row(`uni-${r}`, lat, lng, 10 + r, "education"),
+    ]);
+    const out = allocateRegionQuotas(rows, 12);
+    assert.equal(out.length, 12);
+    // Quota is 2 at limit 12: the top-2 unis by works count survive, and
+    // backfill takes higher-volume companies before more unis.
+    const unis = out.filter((r) => r.id.startsWith("uni-"));
+    assert.equal(unis.length, 2);
+    assert.ok(unis.some((r) => r.id === "uni-5"));
+    assert.ok(unis.some((r) => r.id === "uni-4"));
+  });
+
+  it("returns unfilled university quota to the regions", () => {
+    const rows = [
+      row("uni-0", 40.7, -74, 5, "education"),
+      ...spots.flatMap(([lat, lng], r) => [
+        row(`co-${r}-0`, lat, lng, 1000 + r),
+        row(`co-${r}-1`, lat, lng, 100 + r),
+      ]),
+    ];
+    const out = allocateRegionQuotas(rows, 12);
+    assert.equal(out.length, 12);
+    assert.ok(out.some((r) => r.id === "uni-0"));
   });
 });
