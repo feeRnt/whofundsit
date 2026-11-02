@@ -153,6 +153,20 @@ page exhausts 3 retries, first extend 5xx backoff to 60s steps (no cache
 invalidation), then drop OPTIONAL hq (first rewrite rung). Country-chunking
 and label-split stay post-demo options.
 
+## 2026-11-02 — industry sources: Wikidata P452 yes, GLEIF/OpenFIGI no
+
+GLEIF: no industry field (all 499 cached records scanned; `category` is
+GENERAL/FUND = legal-entity kind; "industr" hits are name/address
+substrings). OpenFIGI: no industry in mapping schema (sector fields are
+asset-class only). Wikidata P452: proven live on 5 cached LEIs (4/5 hit,
+incl. multi-value PVH; easyJet missing) via a cheap VALUES query — the
+viable path. Proposed `industry:global` backfill (batched LEI→P452, cached,
+gated, first-label-wins) awaits user go; frontend + seed round-trip already
+support `industry`. Forgotten-runs audit: industry:sync never ran (run after
+db:push, before export); names:sync status unknown (cheap, offline — rerun
+safe); deadlines:snapshot never ran (no seed file); Colgate merge DONE
+(verified in seeds); regionals thin-Q3 (rerun later); keys still pending.
+
 ## 2026-11-02 — OpenFIGI: ToS silent, docs throttle; liberal = at the ceiling
 
 User: keyed OpenFIGI has no limits, be liberal + note it. Verified: legal ToS
