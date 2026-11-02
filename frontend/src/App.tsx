@@ -195,8 +195,11 @@ export default function App() {
     return ids;
   }, [focusCompany, focusFunders, enabledFunders, funderOverrides]);
 
-  const visibleFlows = useMemo(() => {
-      const filtered = flows.filter(
+  // Arcs eligible under every toggle (the slider's true max, like the
+  // dots slider uses visibleEntities.length); visibleFlows caps these.
+  const eligibleFlows = useMemo(
+    () =>
+      flows.filter(
         (f) =>
           ((f.flowType === "13f" && showFlows) ||
             (f.flowType === "grant" && showGrants) ||
@@ -209,7 +212,14 @@ export default function App() {
           (!focusCompany ||
             f.sourceEntityId === focusCompany ||
             f.targetEntityId === focusCompany),
-      );
+      ),
+    // isEndpointHidden is derived from entityById + disabledSources.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flows, showFlows, showGrants, showOwnership, effectiveFunders, disabledCompanies, disabledSources, entityById, focusCompany],
+  );
+
+  const visibleFlows = useMemo(() => {
+      const filtered = eligibleFlows;
       // Round-robin across flow types so small-unit types (ownership stakes
       // are 0/undisclosed, grants are work counts) get a fair share of the
       // cap instead of being buried under dollar amounts.
@@ -236,18 +246,7 @@ export default function App() {
       }
       return out;
     },
-    [
-      flows,
-      flowLimit,
-      showFlows,
-      showGrants,
-      showOwnership,
-      effectiveFunders,
-      disabledCompanies,
-      disabledSources,
-      entityById,
-      focusCompany,
-    ],
+    [eligibleFlows, flowLimit],
   );
 
   // The Arcs slider is global: live whenever ANY arc type is on, not just
@@ -549,14 +548,14 @@ export default function App() {
             className="arcs-control"
             title="Max arcs shown, biggest first"
           >
-            Arcs {anyArcsOn ? visibleFlows.length : 0}
+            Arcs {anyArcsOn ? visibleFlows.length : 0}/{anyArcsOn ? eligibleFlows.length : 0}
             {anyArcsOn && flowLimit > LAG_WARN_AT ? " — may lag" : ""}
             <input
               type="range"
               min={0}
-              max={flows.length}
+              max={eligibleFlows.length}
               step={500}
-              value={Math.min(flowLimit, flows.length)}
+              value={Math.min(flowLimit, eligibleFlows.length)}
               disabled={!anyArcsOn}
               onChange={(ev) => setFlowLimit(Number(ev.target.value))}
             />

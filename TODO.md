@@ -9,9 +9,12 @@
       AAPL/MSFT/AMZN present. Dataset is NOT complete: Other (n) and
       Untracked % are shares of tracked 13F $ in our files, not of all
       shares ever issued, unless market cap mode is active.)
-- [ ] **⭐⭐⭐ VERY IMPORTANT — arcs slider must show the true max available arcs, like the dots slider.**
-      (Dots slider max/label already reflect the full available count; the arcs slider does not.
-      Make arcs behave the same way. Deferred by user 2026-11-02 — do after the demo-critical work.)
+- [x] **⭐⭐⭐ VERY IMPORTANT — arcs slider must show the true max available arcs, like the dots slider.**
+      (Done 2026-11-02: slider max + label denominator are now `eligibleFlows` — arcs passing
+      every toggle/funder/focus filter, exactly like dots use `visibleEntities`. Label reads
+      `Arcs shown/eligible`.)
+- [ ] **Rename `coords_populate` to `coords:populate`** (script key in `backend/package.json`
+      plus README/TODO references; keep behavior identical. Do when no coords run is active.)
 
 - [ ] **Claim-verification loop with "x% verified" scores.** (Agentic background
       loop over our biggest claims — top entities' total assets/debt, top funding
