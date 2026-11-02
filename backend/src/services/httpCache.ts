@@ -28,7 +28,8 @@ export function redactUrlSecrets(url: string): string {
 
 // Audit trail for ToS conformity: one timestamped line per real outbound
 // call (cache hits stay silent by design). Call at every axios site.
-// Optional note (e.g. company name) correlates lookups with entities.
+// Optional note (e.g. company name) correlates lookups with entities and
+// prints as [for: X] — never parentheses, which read as part of the URL.
 export function apiLog(method: string, url: string, note?: string): void {
   console.log(
     `[API] ${new Date().toISOString()} ${method} ${redactUrlSecrets(url)}${note ? ` [for: ${note}]` : ""}`,

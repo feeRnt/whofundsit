@@ -484,3 +484,25 @@ comment corrected; old note left as history.
   VERIFIED: tsc/build clean, 7/7 httpCache green. Advised user: yes to
   Wonder in parallel, fenced to frontend-only on its own branch, no
   backend scripts or DB writes; review-first per the TODO reminders.
+- Doc sweep 2026-11-02 PM (nothing left unnoted): build now ships
+  src/data JSON seeds into dist/data (tsc emits code only; without the
+  copy, dist runs missed funder-coords AND geo-mapping — committed as
+  3eb5345 with no notes entry until now).
+- ROR idea (not built): funders carry ids.ror and ROR records hold
+  real addresses — following funder→ROR→coords would replace fuzzy
+  Nominatim name search deterministically. Cheaper than LLM per
+  funder; file pins cover the 5 skips meanwhile.
+- Retry-miss diagnosis, batch 409q/88% (0 census, 182 pre-retry, 353
+  retries/178 rescued, +49 dead-lines): miss classes are PO boxes
+  (unplaceable, correct), floor/suite/unit prefixes (2nd Floor, STE,
+  601/701), building/campus names (The Point, business parks), rural
+  qualifiers (NR.), tiny territories (Gibraltar), digits-in-street
+  (FR), and stateless-US (Census gap → LLM queue, correct). Cheapest
+  future win: strip C/O + floor/suite/unit prefixes pre-query.
+- SUSPECTED BUG (code-read, needs log evidence): transient 5xx rows
+  are added to missLog and flushMissLog persists them; next run
+  preloads dead-lines and dead-skips them with zero calls, then
+  nextGeoStatus(false,false) marks them failed — one blip could fail
+  a row forever. Fix sketch: exclude transientTexts at flush.
+  User: grep the log for "skipping this run" — zero hits means zero
+  impact so far and the fix waits for post-run.

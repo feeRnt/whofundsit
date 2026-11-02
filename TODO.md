@@ -68,6 +68,13 @@
       cache helpers; eventually fold request, retry, and audit-trail
       handling into one global helper to reduce clutter. Census
       `censusBatch.ts` is the conformance reference.)
+- [ ] **Build the LLM address-repair pass (dead-lines consumer).**
+      (Everything feeds it: `geo/dead-lines.json` (742+), `geoStatus:
+      failed` rows, 26 stateless-US, funder-coords `llm` rows. Approach
+      adopted in DATASETS: deformed address → Modal open-weight LLM →
+      structured fields → Census batch (US) / Nominatim (foreign) →
+      exact coords. Reads full original addresses — verified the queue
+      stores pre-retry originals, never stripped fallbacks.)
 
 ## Beneficial ownership (top individual owners)
 
