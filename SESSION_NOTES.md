@@ -378,3 +378,11 @@ comment corrected; old note left as history.
   name, so the 14.5k new global entities + 1711 new tickers convert
   old misses into new 13f flows; same-quarter upserts stay idempotent.
   Filings + CUSIP map are cached, so the rerun is mostly DB matching.
+- Skip list lives at backend/data/cache/openalex/skipped-funders.json (not
+  backend/data root) — 5 entries verified; 5th skip is DST India
+  (F4320320719). Same worktree as user confirmed via run cache.
+- Funder geocode is now env pin -> src/data/funder-coords.json -> Nominatim
+  x2 -> skip. File seeded with the 5 skipped HQs (city-level manual-hq:
+  Tokyo, Swindon, Ottawa, Daejeon, New Delhi); LLM repair passes append
+  with source llm. Skip error names the exact F-code to add. Contract
+  test in openalexFlows.test.ts; tsc/test still deferred to user local.

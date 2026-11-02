@@ -1,0 +1,35 @@
+{
+  "_note": "Funder HQ coords for flows:openalex. funderCoords lookup order: FUNDER_LAT/FUNDER_LNG env pin, this file, then Nominatim name search. Keys are bare F-codes (full https://openalex.org/F... URLs work too). Rows need finite lat/lng; label/source are free text. LLM repair passes append here with source llm.",
+  "mapping": {
+    "F4320334764": {
+      "lat": 35.6762,
+      "lng": 139.6503,
+      "label": "Japan Society for the Promotion of Science, Tokyo",
+      "source": "manual-hq"
+    },
+    "F4320334627": {
+      "lat": 51.5558,
+      "lng": -1.7797,
+      "label": "Engineering and Physical Sciences Research Council, Swindon",
+      "source": "manual-hq"
+    },
+    "F4320334593": {
+      "lat": 45.4215,
+      "lng": -75.6972,
+      "label": "Natural Sciences and Engineering Research Council of Canada, Ottawa",
+      "source": "manual-hq"
+    },
+    "F4320322120": {
+      "lat": 36.3504,
+      "lng": 127.3845,
+      "label": "National Research Foundation of Korea, Daejeon",
+      "source": "manual-hq"
+    },
+    "F4320320719": {
+      "lat": 28.6139,
+      "lng": 77.209,
+      "label": "Department of Science and Technology, Ministry of Science and Technology, India, New Delhi",
+      "source": "manual-hq"
+    }
+  }
+}

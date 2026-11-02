@@ -1,4 +1,7 @@
 import axios from "axios";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
@@ -173,14 +176,55 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// The funder needs map coordinates for arcs. Env pin wins; otherwise Nominatim
-// gets two tries (headquarters query first). Throws when unplaceable — dead
-// arcs help nobody.
-async function funderCoords(name: string): Promise<{ lat: number; lng: number }> {
+// LLM-repair target for unplaceable funders: src/data/funder-coords.json maps
+// funder ids (bare F-code or full URL) to { lat, lng }. Missing file means no
+// rows, not a crash; an unparseable file throws loud (fail fast, fix once).
+// Bad-lat/lng rows warn and fall through to Nominatim.
+const FUNDER_COORDS_FILE = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "data",
+  "funder-coords.json",
+);
+
+export function readFunderCoords(): Map<string, { lat: number; lng: number }> {
+  const map = new Map<string, { lat: number; lng: number }>();
+  if (!fs.existsSync(FUNDER_COORDS_FILE)) {
+    return map;
+  }
+  const doc = JSON.parse(fs.readFileSync(FUNDER_COORDS_FILE, "utf8")) as {
+    mapping?: Record<string, { lat: unknown; lng: unknown }>;
+  };
+  for (const [key, row] of Object.entries(doc.mapping ?? {})) {
+    const lat = Number(row?.lat);
+    const lng = Number(row?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn(`[flows] funder-coords.json: skipping ${key} (bad lat/lng)`);
+      continue;
+    }
+    map.set(shortId(key), { lat, lng });
+  }
+  return map;
+}
+
+// The funder needs map coordinates for arcs. Env pin wins, then the coords
+// file above, otherwise Nominatim gets two tries (headquarters query first).
+// Throws when unplaceable — dead arcs help nobody.
+async function funderCoords(
+  funderId: string,
+  name: string,
+): Promise<{ lat: number; lng: number }> {
   const lat = process.env.FUNDER_LAT;
   const lng = process.env.FUNDER_LNG;
   if (lat !== undefined && lng !== undefined) {
     return { lat: Number(lat), lng: Number(lng) };
+  }
+  const pinned = readFunderCoords().get(shortId(funderId));
+  if (pinned) {
+    console.log(
+      `[flows] funder coords from file: ${name} (${pinned.lat}, ${pinned.lng})`,
+    );
+    return pinned;
   }
   for (const q of [`${name} headquarters`, name]) {
     const data = await cachedJson<{ lat: string; lon: string }[]>(
@@ -206,7 +250,7 @@ async function funderCoords(name: string): Promise<{ lat: number; lng: number }>
     await sleep(1100);
   }
   throw new Error(
-    `could not geocode funder "${name}" — set FUNDER_LAT/FUNDER_LNG in backend/.env`,
+    `could not geocode funder "${name}" — add ${shortId(funderId)} to backend/src/data/funder-coords.json (or set FUNDER_LAT/FUNDER_LNG in backend/.env)`,
   );
 }
 
@@ -266,7 +310,7 @@ export async function runOpenAlexFlows(
     try {
       funderAt = await cachedJson(
         `openalex/funder-geo-${shortId(funderId)}.json`,
-        () => funderCoords(funder.display_name),
+        () => funderCoords(funderId, funder.display_name),
       );
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);

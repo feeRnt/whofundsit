@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   apiUrl,
   assertValidFunder,
+  readFunderCoords,
   resolveFunderId,
   resolveFunderIds,
   type Funder,
@@ -66,6 +67,25 @@ describe("assertValidFunder", () => {
         DEFAULT_FUNDER,
       ),
     );
+  });
+});
+
+describe("readFunderCoords", () => {
+  it("resolves the skipped funders to finite in-range coords", () => {
+    const map = readFunderCoords();
+    for (const id of [
+      "F4320334764", // JSPS
+      "F4320334627", // EPSRC
+      "F4320334593", // NSERC
+      "F4320322120", // NRF Korea
+      "F4320320719", // DST India
+    ]) {
+      const at = map.get(id);
+      assert.ok(at, `seed row missing for ${id}`);
+      assert.ok(Number.isFinite(at.lat) && Math.abs(at.lat) <= 90);
+      assert.ok(Number.isFinite(at.lng) && Math.abs(at.lng) <= 180);
+    }
+    assert.equal(map.get("F0000000000"), undefined);
   });
 });
 
