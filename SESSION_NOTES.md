@@ -353,3 +353,20 @@ comment corrected; old note left as history.
 - 13F: CUSIP matching, worker pool, core-scaled workers, stale-filer skip.
 - Focus mode (single-company arcs), green grant arcs, ownership layer.
 - Demo packaging, DATASETS.md, script reference, geo LICENSE.txt.
+
+## 2026-11-02 (afternoon, live chain running)
+
+- Chain healthy: `global:sync` 1882 companies (1175 EU / 502 Asia),
+  14570 entities / 12688 flows; `global:industry` 2069 placed in
+  163 batches; `tickers:global` 1711/1882; `flows:openalex` streaming
+  (CNPq: 5000 works of 499911 -> 5252 institutions, top 100, $0.0025).
+- OpenAlex skips are geocode misses, not API failures: JSPS, EPSRC,
+  NSERC Canada, NRF Korea all failed Nominatim lookup. Next fix is a
+  per-funder coords map (FUNDER_LAT/FUNDER_LNG covers one pair only).
+  Suggested HQs: JSPS Tokyo 35.68,139.76; EPSRC Swindon 51.56,-1.78;
+  NSERC Ottawa 45.42,-75.70; NRF Daejeon 36.35,127.38.
+- `apiLog` now masks credential query params (`redactUrlSecrets` in
+  httpCache.ts) — `api_key=***` in terminal history and pasted logs.
+  Past logs already emitted still hold the real key; rotate the free
+  OpenAlex key if any raw log was shared. tsc/test deferred to user
+  local run (live DB run owns the CPU).

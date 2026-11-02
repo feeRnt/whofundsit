@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isRetryableHttpStatus, userAgentFromEnv } from "./httpCache.js";
+import {
+  isRetryableHttpStatus,
+  redactUrlSecrets,
+  userAgentFromEnv,
+} from "./httpCache.js";
 
 describe("userAgentFromEnv", () => {
   function withWarnCapture(fn: () => void): string[] {
@@ -83,6 +87,25 @@ describe("userAgentFromEnv", () => {
     } finally {
       delete process.env[name];
     }
+  });
+});
+
+describe("redactUrlSecrets", () => {
+  it("masks credential params but keeps the rest of the URL", () => {
+    assert.equal(
+      redactUrlSecrets(
+        "https://api.openalex.org/funders/F1?api_key=KEY123",
+      ),
+      "https://api.openalex.org/funders/F1?api_key=***",
+    );
+    assert.equal(
+      redactUrlSecrets("https://x.test/a?b=1&token=sekret&c=2"),
+      "https://x.test/a?b=1&token=***&c=2",
+    );
+    assert.equal(
+      redactUrlSecrets("https://query.wikidata.org/sparql?query=SELECT"),
+      "https://query.wikidata.org/sparql?query=SELECT",
+    );
   });
 });
 

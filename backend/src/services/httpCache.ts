@@ -16,12 +16,22 @@ export function cacheKey(text: string): string {
   return crypto.createHash("sha1").update(text).digest("hex");
 }
 
+// Credential scrubber for the audit trail: query params that carry secrets
+// (OpenAlex api_key today; token/secret shapes tomorrow) are masked before
+// the URL hits the log, so terminal history and pasted logs stay safe.
+export function redactUrlSecrets(url: string): string {
+  return url.replace(
+    /([?&](?:api_key|apikey|key|token|access_token|auth_token|secret|client_secret|password)=)[^&]*/g,
+    "$1***",
+  );
+}
+
 // Audit trail for ToS conformity: one timestamped line per real outbound
 // call (cache hits stay silent by design). Call at every axios site.
 // Optional note (e.g. company name) correlates lookups with entities.
 export function apiLog(method: string, url: string, note?: string): void {
   console.log(
-    `[API] ${new Date().toISOString()} ${method} ${url}${note ? ` (${note})` : ""}`,
+    `[API] ${new Date().toISOString()} ${method} ${redactUrlSecrets(url)}${note ? ` (${note})` : ""}`,
   );
 }
 
