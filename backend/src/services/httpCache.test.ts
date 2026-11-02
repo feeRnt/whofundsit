@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { userAgentFromEnv } from "./httpCache.js";
+import { isRetryableHttpStatus, userAgentFromEnv } from "./httpCache.js";
 
 describe("userAgentFromEnv", () => {
   function withWarnCapture(fn: () => void): string[] {
@@ -83,5 +83,18 @@ describe("userAgentFromEnv", () => {
     } finally {
       delete process.env[name];
     }
+  });
+});
+
+describe("isRetryableHttpStatus", () => {
+  it("retries 429 and 5xx, throws everything else immediately", () => {
+    assert.equal(isRetryableHttpStatus(429), true);
+    assert.equal(isRetryableHttpStatus(500), true);
+    assert.equal(isRetryableHttpStatus(502), true);
+    assert.equal(isRetryableHttpStatus(504), true);
+    assert.equal(isRetryableHttpStatus(400), false);
+    assert.equal(isRetryableHttpStatus(403), false);
+    assert.equal(isRetryableHttpStatus(404), false);
+    assert.equal(isRetryableHttpStatus(undefined), false);
   });
 });

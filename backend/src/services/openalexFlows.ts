@@ -5,6 +5,7 @@ import {
   cachedJson,
   cacheKey,
   apiLog,
+  isRetryableHttpStatus,
   readCache,
   writeCache,
   userAgentFromEnv,
@@ -74,12 +75,34 @@ export function apiUrl(pathOrUrl: string, params: Record<string, string>): strin
 }
 
 async function oaGet<T>(url: string): Promise<T> {
-  await throttle();
-  apiLog("GET", url);
-  const { data } = await axios.get<T>(url, {
-    headers: { "User-Agent": contact(), Accept: "application/json" },
-  });
-  return data;
+  // 3 tries on 429/5xx (15s steps, Retry-After honored): one transient
+  // blip must not cost a whole funder.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await throttle();
+      apiLog("GET", url);
+      const { data } = await axios.get<T>(url, {
+        headers: { "User-Agent": contact(), Accept: "application/json" },
+      });
+      return data;
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (!isRetryableHttpStatus(status) || attempt >= 3) {
+        throw err;
+      }
+      const retryAfter = Number(
+        axios.isAxiosError(err) ? err.response?.headers?.["retry-after"] : NaN,
+      );
+      const waitMs =
+        Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 120
+          ? retryAfter * 1000
+          : 15000 * attempt;
+      console.warn(
+        `[openalex] HTTP ${status}, retry ${attempt}/3 in ${waitMs / 1000}s`,
+      );
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
 }
 
 const shortId = (url: string): string => url.replace("https://openalex.org/", "");

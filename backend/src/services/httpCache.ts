@@ -25,6 +25,13 @@ export function apiLog(method: string, url: string, note?: string): void {
   );
 }
 
+// Retryable HTTP statuses, shared by every API fetcher: 429 (throttled)
+// and 5xx (server trouble). Everything else (4xx, network errors without
+// a status) throws immediately.
+export function isRetryableHttpStatus(status: number | undefined): boolean {
+  return status === 429 || (status !== undefined && status >= 500);
+}
+
 // Warn-once guard for User-Agent variables: an unset var, an empty one, or
 // the "Your Name you@example.com" example placeholder left unfilled can draw
 // SEC 403s and Nominatim blocks. Returns the configured value, else the
