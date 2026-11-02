@@ -76,6 +76,9 @@ const HOME = { longitude: -98, latitude: 39, zoom: 2.5 };
 
 // Flight tuning (one place): search picks and arc clicks dive to FOCUS_ZOOM.
 const FOCUS_ZOOM = 12;
+// Dot clicks from country/state distance dive to street level; already
+// at street level (or closer) the camera stays put.
+const DOT_STREET_ZOOM = 15;
 
 // Trust badge for tooltips: the audit cell's "% verified", or nothing when
 // no snapshot is deployed. Cells are methodology scores, not per-row facts.
@@ -248,13 +251,13 @@ export default function MapGlobe({
 
   // Search flight: dive to the company, keeping your zoom if you are
   // already deeper. Far picks get flyTo's natural out-then-in curve.
-  function flyToPoint(lat: number, lng: number) {
+  function flyToPoint(lat: number, lng: number, minZoom = FOCUS_ZOOM) {
     if (!mapRef.current) {
       return;
     }
     mapRef.current.flyTo({
       center: [lng, lat],
-      zoom: Math.max(mapRef.current.getZoom(), FOCUS_ZOOM),
+      zoom: Math.max(mapRef.current.getZoom(), minZoom),
     });
   }
 
@@ -470,7 +473,13 @@ export default function MapGlobe({
     const object = info.object as Record<string, unknown> | undefined;
     if (object && !("flowType" in object)) {
       arcPingPong.current = { id: "", toFunder: false };
-      setSelected(object as unknown as Entity);
+      const entity = object as unknown as Entity;
+      // From country/state distance, dive to street level on the dot;
+      // already at street level or closer, keep the camera as-is.
+      if (mapRef.current && mapRef.current.getZoom() < DOT_STREET_ZOOM) {
+        flyToPoint(entity.lat, entity.lng, DOT_STREET_ZOOM);
+      }
+      setSelected(entity);
       onOpenPopup();
       return;
     }
