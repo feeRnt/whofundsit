@@ -637,8 +637,19 @@ export async function runGlobalIndustry(): Promise<{
     let batches = 0;
     for (let i = 0; i < leis.length; i += INDUSTRY_BATCH_SIZE) {
       const batch = leis.slice(i, i + INDUSTRY_BATCH_SIZE);
-      const hits = await fetchIndustries(batch);
       batches += 1;
+      let hits: Map<string, string | null>;
+      try {
+        hits = await fetchIndustries(batch);
+      } catch (err) {
+        // One dead batch (endpoint down after 3 retries) must not kill the
+        // rest: its LEIs stay null and retry next run (failures never cache).
+        console.warn(
+          `[global] industry batch ${batches}: failed, skipping (${err instanceof Error ? err.message : err})`,
+        );
+        missing += batch.length;
+        continue;
+      }
       for (const lei of batch) {
         const industry = hits.get(lei) ?? null;
         if (industry === null) {
@@ -653,7 +664,7 @@ export async function runGlobalIndustry(): Promise<{
       }
     }
     console.log(
-      `[global] industry: ${updated} placed, ${missing} without P452 (${leis.length} considered, ${batches} batches)`,
+      `[global] industry: ${updated} placed, ${missing} still without industry (${leis.length} considered, ${batches} batches)`,
     );
     return { considered: leis.length, updated, missing, batches };
   } finally {
