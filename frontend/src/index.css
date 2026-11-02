@@ -400,6 +400,10 @@ div.maplibregl-popup-content {
   border-radius: 10px;
   padding: 0.8rem 1rem;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  /* Scroll inside the card instead of panning the map to read it. */
+  max-height: 62vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .maplibregl-popup-anchor-top div.maplibregl-popup-tip {
@@ -430,7 +434,21 @@ button.maplibregl-popup-close-button:hover {
 
 .search {
   position: relative;
-  width: 16rem;
+  flex: 1 1 12rem;
+  max-width: 24rem;
+  min-width: 10rem;
+}
+
+/* Dots over arcs, stacked so the header stays one row tall. */
+.sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+/* Push the layer menus to the right edge, clear of search + sliders. */
+.sliders + .flows-menu {
+  margin-left: auto;
 }
 
 .search input {
@@ -598,6 +616,27 @@ button.maplibregl-popup-close-button:hover {
   height: 0.22rem;
   border-radius: 2px;
   flex: none;
+}
+
+.legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-left: 0.15rem;
+  color: #aeb6c2;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  pointer-events: auto;
+  flex: none;
+}
+
+.legend-toggle:hover {
+  color: #e5e7eb;
+  background: #232b40;
 }
 
 .flows-menu {

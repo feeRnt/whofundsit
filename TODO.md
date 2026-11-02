@@ -2,6 +2,10 @@
 
 ## ⏳ Not yet built (ordered by demo impact)
 
+- [ ] **⭐⭐⭐ VERY IMPORTANT — arcs slider must show the true max available arcs, like the dots slider.**
+      (Dots slider max/label already reflect the full available count; the arcs slider does not.
+      Make arcs behave the same way. Deferred by user 2026-11-02 — do after the demo-critical work.)
+
 - [ ] **Claim-verification loop with "x% verified" scores.** (Agentic background
       loop over our biggest claims — top entities' total assets/debt, top funding
       flows — rechecking each against an independent external source (13F

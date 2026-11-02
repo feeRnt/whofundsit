@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, Popup, useControl, type MapRef } from "react-map-gl/maplibre";
-import { Globe as GlobeIcon, Home, Map as MapIcon, Minus, Moon, Plus, Sun } from "lucide-react";
+import { ChevronLeft, ChevronRight, Globe as GlobeIcon, Home, Map as MapIcon, Minus, Moon, Plus, RefreshCw, Sun } from "lucide-react";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -124,7 +124,6 @@ function tooltip({ object }: PickingInfo, verification: VerificationReport | nul
 function greatCirclePath(
   from: [number, number],
   to: [number, number],
-  segments = 32,
 ): [number, number][] {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const toDeg = (r: number) => (r * 180) / Math.PI;
@@ -145,6 +144,9 @@ function greatCirclePath(
     Math.max(-1, p1[0] * p2[0] + p1[1] * p2[1] + p1[2] * p2[2]),
   );
   const omega = Math.acos(dot);
+  // Long arcs get more vertices (~2° each, 32–128): with a fixed 32 the
+  // polar crossings went sparse and the polyline cut corners into loops.
+  const segments = Math.max(32, Math.min(128, Math.ceil(((omega * 180) / Math.PI) / 2)));
   const pts: [number, number][] = [];
   for (let i = 0; i <= segments; i += 1) {
     const t = i / segments;
@@ -164,6 +166,18 @@ function greatCirclePath(
       toDeg(Math.atan2(y, x)),
       toDeg(Math.asin(Math.min(1, Math.max(-1, z)))),
     ]);
+  }
+  // Unwrap longitudes into a continuous run: near the poles (and across
+  // the antimeridian) raw atan2 output jumps +179° -> -179°, and the
+  // renderer joins that jump the long way round — the visible snake/loop.
+  // Continuous values may pass ±180°; the map wraps them back.
+  for (let i = 1; i < pts.length; i += 1) {
+    const prev = pts[i - 1]!;
+    const cur = pts[i]!;
+    let lng = cur[0];
+    while (lng - prev[0] > 180) lng -= 360;
+    while (lng - prev[0] < -180) lng += 360;
+    pts[i] = [lng, cur[1]];
   }
   return pts;
 }
@@ -248,11 +262,18 @@ export default function MapGlobe({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, focusTick]);
 
-  // The map remounts on projection/basemap toggle; show the spinner until onLoad.
+  // Manual tile refresh: bump to force a fresh Map (purple/corrupt tile
+  // buffers die with the old instance; no page reload needed).
+  const [mapTick, setMapTick] = useState(0);
+  const [legendOpen, setLegendOpen] = useState(true);
+
+  // The map remounts on projection/basemap/refresh; show the spinner until onLoad.
   useEffect(() => {
     setMapReady(false);
     setContextLost(false);
-  }, [projection, basemap]);
+    setMapError(false);
+    tileErrorsRef.current = 0;
+  }, [projection, basemap, mapTick]);
 
   // Zoom hint shows exactly once per page load (first ready only), never
   // again on projection toggles.
@@ -315,7 +336,7 @@ export default function MapGlobe({
     d.flowType === "13f"
       ? Math.max(1, Math.min(3, Math.log10(d.amount) - 4))
       : d.flowType === "ownership"
-        ? 1.5
+        ? 1.95 // 1.3x: thin red ownership arcs were hard to hit
         : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2));
   const dotColor = (d: Entity): [number, number, number, number] =>
     d.type.toLowerCase() === "education"
@@ -339,29 +360,31 @@ export default function MapGlobe({
       getPosition: (d) => [d.lng, d.lat],
       getRadius: (d) => {
         const base = (8000 + Math.sqrt(d.fundsVolume) * 2) / Math.SQRT2;
-        return (selected?.id === d.id ? base * 3 : base) * 2.4;
+        return (selected?.id === d.id ? base * 3 : base) * 1.7;
       },
-      radiusMinPixels: 7,
-      radiusMaxPixels: 26,
+      radiusMinPixels: 6,
+      radiusMaxPixels: 18,
       getFillColor: (d) => {
         const c = dotColor(d);
-        return [c[0], c[1], c[2], 26];
+        return [c[0], c[1], c[2], 11];
       },
     }),
     new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows-glow",
-      data: pathFlows,
+      // Light basemap: no glow under the orange 13F arcs (reads as smear
+      // on pale tiles); grant/ownership keep a faint halo.
+      data: basemap === "light" ? pathFlows.filter((f) => f.flowType !== "13f") : pathFlows,
       pickable: false,
       wrapLongitude: true,
       getPath: (d) => d.path,
       getColor: (d) => {
         const c = arcColor(d);
-        return [c[0], c[1], c[2], Math.round(c[3] * 0.35)];
+        return [c[0], c[1], c[2], Math.round(c[3] * 0.2)];
       },
-      getWidth: (d) => arcWidth(d) * 2.6,
+      getWidth: (d) => arcWidth(d) * 1.9,
       widthUnits: "pixels",
       widthMinPixels: 2,
-      widthMaxPixels: 8,
+      widthMaxPixels: 6,
     }),
     new ScatterplotLayer<Entity>({
       id: "entities",
@@ -443,7 +466,7 @@ export default function MapGlobe({
   return (
     <>
     <Map
-      key={`${projection}-${basemap}`}
+      key={`${projection}-${basemap}-${mapTick}`}
       ref={mapRef}
       mapLib={maplibregl}
       mapStyle={MAP_STYLES[basemap]}
@@ -480,7 +503,7 @@ export default function MapGlobe({
       {/* Mount the overlay only once globe projection is engaged. */}
       {mapReady && !mapError && (
         <DeckGLOverlay
-          key={`${projection}-${basemap}`}
+          key={`${projection}-${basemap}-${mapTick}`}
           layers={layers}
           getTooltip={(info) => tooltip(info, verification)}
           onClick={handleClick}
@@ -511,8 +534,12 @@ export default function MapGlobe({
         </Popup>
       )}
       {mapError && (
-        <div className="map-note">
-          Basemap tiles are failing to load — check your network connection.
+        <div className="map-note refreshable">
+          Basemap tiles are failing to load —{" "}
+          <button type="button" onClick={() => setMapTick((t) => t + 1)}>
+            refresh map
+          </button>{" "}
+          or check your network connection.
         </div>
       )}
       {contextLost && (
@@ -576,32 +603,56 @@ export default function MapGlobe({
         >
           {basemap === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
+        <button
+          type="button"
+          onClick={() => setMapTick((t) => t + 1)}
+          title="Refresh map tiles"
+          aria-label="Refresh map tiles"
+        >
+          <RefreshCw size={16} />
+        </button>
       </div>
-      <div className="map-legend" aria-label="Map legend">
-        <span className="legend-item">
-          <span className="legend-dot" style={{ background: "#2dd4bf" }} />
-          Company
-        </span>
-        <span className="legend-item">
-          <span className="legend-dot" style={{ background: "#a855f7" }} />
-          Has flows
-        </span>
-        <span className="legend-item">
-          <span className="legend-dot" style={{ background: "#fbbf24" }} />
-          University
-        </span>
-        <span className="legend-item">
-          <span className="legend-line" style={{ background: "#fb923c" }} />
-          13F holding
-        </span>
-        <span className="legend-item">
-          <span className="legend-line" style={{ background: "#ef4444" }} />
-          Ownership
-        </span>
-        <span className="legend-item">
-          <span className="legend-line" style={{ background: "#3daee9" }} />
-          Grant
-        </span>
+      <div className={`map-legend${legendOpen ? "" : " collapsed"}`} aria-label="Map legend">
+        {legendOpen ? (
+          <>
+            <span className="legend-item">
+              <span className="legend-dot" style={{ background: "#2dd4bf" }} />
+              Company
+            </span>
+            <span className="legend-item">
+              <span className="legend-dot" style={{ background: "#a855f7" }} />
+              Has flows
+            </span>
+            <span className="legend-item">
+              <span className="legend-dot" style={{ background: "#fbbf24" }} />
+              University
+            </span>
+            <span className="legend-item">
+              <span className="legend-line" style={{ background: "#fb923c" }} />
+              13F holding
+            </span>
+            <span className="legend-item">
+              <span className="legend-line" style={{ background: "#ef4444" }} />
+              Ownership
+            </span>
+            <span className="legend-item">
+              <span className="legend-line" style={{ background: "#3daee9" }} />
+              Grant
+            </span>
+          </>
+        ) : (
+          <span className="legend-item">Legend</span>
+        )}
+        <button
+          type="button"
+          className="legend-toggle"
+          onClick={() => setLegendOpen((o) => !o)}
+          title={legendOpen ? "Collapse legend" : "Expand legend"}
+          aria-label={legendOpen ? "Collapse legend" : "Expand legend"}
+          aria-expanded={legendOpen}
+        >
+          {legendOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+        </button>
       </div>
     </Map>
     {!mapReady && !mapError && (
