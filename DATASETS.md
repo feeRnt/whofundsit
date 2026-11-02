@@ -31,6 +31,12 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   (`npm run geo:snapshot`, ODbL 1.0 share-alike, attribution in-file).
   Because these derive from ODbL data, any public deployment must keep the
   © OpenStreetMap attribution visible (see TODO: standalone-cache license).
+- **LLM address repair (adopted approach, 2026-11-02, not yet built):**
+  deformed address → open-weight LLM on Modal → structured JSON
+  (house_number/street/city/state/postal) → Nominatim string lookup →
+  lat/lng. The LLM parses, never geocodes: coordinates come only from
+  vetted OSM-backed engines (Nominatim primary; OpenCage/Gisgraphy as
+  alternates).
 
 ## OpenAlex (grants: funders, works, institutions)
 

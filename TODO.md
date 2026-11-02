@@ -57,6 +57,12 @@
       live DB already unified post-export, or display-layer dedupe). Verbatim
       source settled: local offline archive (yauzl lazy streaming, no
       extraction — see bulkLoad `jsonEntries`).
+- [ ] **Ask Muse Wonder to sweep the repo for improvements (user reminder).**
+      Only from a fresh commit of a working state: review pass first, then
+      implement agreed improvements.
+- [ ] **Tell Muse Wonder about Claude's sleek dark globes (user reminder).**
+      Reference: how Claude builds modern, dark, sleek Globe visuals in
+      Globular apps — explore similar sleekness for our MapGlobe.
 
 ## Beneficial ownership (top individual owners)
 
