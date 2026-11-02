@@ -569,7 +569,7 @@ export default function MapGlobe({
         >
           <EntityPopup
             entity={selected}
-            entities={entities}
+            entities={allEntities}
             verification={verification}
             stakes={selectedStakes}
             hasFlows={flowEndpoints.has(selected.id)}
