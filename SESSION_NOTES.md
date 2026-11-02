@@ -430,3 +430,13 @@ comment corrected; old note left as history.
   — user runs locally. Note: failed queue looks foreign-dominated, so
   --census-failed yield will be US-slice-only; count line shows the
   parseable share.
+- Outcome colors: green hit / red miss address lines (census rows,
+  coords hits — new — retry-miss, llm-queue), TTY-only with NO_COLOR
+  respected, pin test added. Takes effect on next restart; tsc/tests
+  UNVERIFIED again (run still active).
+- dead-lines audit: all 693 entries are FULL original addresses (the 12
+  short ones are native short foreign forms, not stripped fallbacks).
+  Code agrees: only byQuery originals are logged; the lone truncated
+  path (400 on a fallback query) has evidently never fired. DB
+  businessAddress likewise untouched on failed rows — LLM pass reads
+  full addresses from both sources.

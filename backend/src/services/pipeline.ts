@@ -10,6 +10,8 @@ import {
   readCache,
   writeCache,
   apiLog,
+  green,
+  red,
   userAgentFromEnv,
 } from "./httpCache.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
@@ -516,7 +518,7 @@ async function geocodeMany(
     const r = results.get(q) ?? null;
     if (r === null) {
       missLog.add(q);
-      console.log(`[coords] retry-miss: ${q}`);
+      console.log(red(`[coords] retry-miss: ${q}`));
       // Transience is tracked per-query but judged per-original: if any
       // query behind this original errored, the original stays pending.
       const flaky =
@@ -527,6 +529,8 @@ async function geocodeMany(
           transientTexts.add(o);
         }
       }
+    } else {
+      console.log(green(`[coords] hit: ${q} -> ${r.lat},${r.lng}`));
     }
     for (const o of originals) {
       out.set(o, r);
@@ -854,7 +858,7 @@ export async function runPipeline(
       }
 
       if (status === "failed") {
-        console.log(`[coords] llm-queue: ${entity.id} (${entity.name})`);
+        console.log(red(`[coords] llm-queue: ${entity.id} (${entity.name})`));
         failed += 1;
       }
       await prisma.entity.update({

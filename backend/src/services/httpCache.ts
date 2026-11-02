@@ -35,6 +35,18 @@ export function apiLog(method: string, url: string, note?: string): void {
   );
 }
 
+// Outcome colors for address lines (green placed, red missed): ANSI only
+// on a live TTY without NO_COLOR, so piped logs and files stay clean.
+function paint(code: string, s: string): string {
+  if (!process.stdout.isTTY || process.env.NO_COLOR) {
+    return s;
+  }
+  return `\x1b[${code}m${s}\x1b[0m`;
+}
+
+export const green = (s: string): string => paint("32", s);
+export const red = (s: string): string => paint("31", s);
+
 // Retryable HTTP statuses, shared by every API fetcher: 429 (throttled)
 // and 5xx (server trouble). Everything else (4xx, network errors without
 // a status) throws immediately.

@@ -1,7 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  green,
   isRetryableHttpStatus,
+  red,
   redactUrlSecrets,
   userAgentFromEnv,
 } from "./httpCache.js";
@@ -86,6 +88,23 @@ describe("userAgentFromEnv", () => {
       assert.equal(lines.length, 1);
     } finally {
       delete process.env[name];
+    }
+  });
+});
+
+describe("terminal colors", () => {
+  it("passes text through untouched when NO_COLOR is set", () => {
+    const prev = process.env.NO_COLOR;
+    process.env.NO_COLOR = "1";
+    try {
+      assert.equal(green("hit"), "hit");
+      assert.equal(red("miss"), "miss");
+    } finally {
+      if (prev === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = prev;
+      }
     }
   });
 });

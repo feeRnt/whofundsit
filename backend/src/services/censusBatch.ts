@@ -1,5 +1,5 @@
 import axios from "axios";
-import { apiLog } from "./httpCache.js";
+import { apiLog, green, red } from "./httpCache.js";
 
 // US Census batch geocoder: free, no key, US-only, 10k addresses per call.
 // Request CSV (no header — a header line comes back No_Match):
@@ -177,9 +177,8 @@ export async function censusBatchGeocode(
     chunk.forEach(([query], j) => {
       const coords = parsed.get(String(i + j)) ?? null;
       out.set(query, coords);
-      console.log(
-        `[census] ${query} -> ${coords ? `${coords.lat},${coords.lng}` : "miss"}`,
-      );
+      const line = `[census] ${query} -> ${coords ? `${coords.lat},${coords.lng}` : "miss"}`;
+      console.log(coords ? green(line) : red(line));
     });
   }
   return out;
