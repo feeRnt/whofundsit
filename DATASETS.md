@@ -103,7 +103,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 - **Terms:** Taiwan **Open Government Data License** (via data.gov.tw):
   free reuse with attribution, data kept intact. TWSE site terms ban
   scraping *outside* agreed means — the official OpenAPI is the agreed
-  means, so we use only `/v1/opendata/*` endpoints.
+  means, so we use only `/v1/opendata/*` endpoints. No rate limits are
+  published (spec + site terms checked 2026-11-02); we pace 500ms
+  sequential + cached. Field note: rushed requests may return silent
+  empties instead of errors — never speed this up without re-checking.
 - **Local copies (gitignored):** `backend/data/cache/regional/twse-*.json`.
 
 ## Stooq (day-change quotes for popups)
