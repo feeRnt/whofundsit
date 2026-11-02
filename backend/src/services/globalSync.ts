@@ -24,7 +24,7 @@ function sleep(ms: number): Promise<void> {
 
 // Retry-After honoring: Wikidata sends it on 429s, and retrying before it
 // lapses just earns another 429. Capped at 120s; 15s steps when absent or
-// absurd. Same shape as the GLEIF fetcher. Pure.
+// absurd. Otherwise the region fetcher's 15s steps, unchanged. Pure.
 export function sparqlRetryWaitMs(err: unknown, attempt: number): number {
   const retryAfter = Number(
     axios.isAxiosError(err) ? err.response?.headers?.["retry-after"] : NaN,
