@@ -849,10 +849,6 @@ export default function MapGlobe({
               University
             </span>
             <span className="legend-item">
-              <span className="legend-badge">N</span>
-              Stack — click to expand
-            </span>
-            <span className="legend-item">
               <span className="legend-line" style={{ background: "#fb923c" }} />
               13F holding
             </span>
