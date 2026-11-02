@@ -576,3 +576,14 @@ comment corrected; old note left as history.
   `modal secret create whofundsit MODAL_API_KEY=...` + redeploy.
   VERIFIED: tsc clean, 40/40 pipeline+formalize+globalSync tests,
   py_compile on all 3 workers. No DB writes.
+- STACK BADGES ff01fba (REMEMBER: user may want this changed). Measured
+  511 multi-company stacks in seeds (NYC 212 on one dot). Every stack now
+  one dot + white count badge; click expands a deterministic hex-packed
+  ring (constant screen radius from move-end zoom), members individually
+  clickable, empty click collapses, search into a stack auto-expands,
+  tooltip says "N more here — click to expand", popup anchors the ring
+  dot, legend item added. Arcs stay at true centers. VERIFIED: frontend
+  tsc+vite build clean, oxlint 6 pre-existing EntityPopup warnings, 0 new
+  (no frontend test runner — visual check is the TODO item). Check
+  examples in TODO: SF Salesforce+DocuSign, NYC Medallion+TG Therapeutics.
+  No DB writes.
