@@ -40,6 +40,10 @@ MODEL_ID = "meta-llama/Llama-3.3-70B-Instruct"
 # in the deploying shell when yours isn't the default.
 HF_SECRET_NAME = os.environ.get("MODAL_HF_SECRET_NAME", "huggingface-secret")
 
+# Pin the HF cache onto the volume mount BEFORE vllm is imported (hf_hub
+# freezes HF_HOME at import; the default already matches, this just locks it).
+os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
+
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("vllm==0.6.3", "fastapi[standard]")
@@ -82,6 +86,9 @@ def _prompt(system: str, text: str) -> str:
     gpu="L40S:2",
     secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
     volumes={"/root/.cache/huggingface": hf_cache},
+    # Startup (download + fp8 load) gets its own hour: without startup_timeout
+    # the 15-min execution timeout would kill the 140 GB download mid-load.
+    startup_timeout=60 * 60,
     timeout=60 * 15,
     # 5s idle shutoff: gaps between chunks are milliseconds, but a >2s
     # hiccup would cold-start the 70B mid-run (minutes lost for ~3s saved).
@@ -92,7 +99,6 @@ class FormalizeWorker:
     def load(self) -> None:
         from vllm import LLM, SamplingParams
 
-        os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
         self.llm = LLM(
             model=MODEL_ID,
             tensor_parallel_size=2,
@@ -142,7 +148,9 @@ def _parse(raw: str, original: str) -> dict:
     }
 
 
-@app.function(image=image, timeout=60 * 10)
+# 22 min: the CPU endpoint just waits on the GPU class, so its budget must
+# cover a slow cold start, not just the generate call.
+@app.function(image=image, timeout=60 * 22)
 @modal.fastapi_endpoint(method="POST", label="formalize", requires_proxy_auth=True)
 def formalize_endpoint(payload: dict):
     """HTTP webhook: {"text": ...} -> object; {"texts": [...]} -> list."""

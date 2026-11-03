@@ -238,8 +238,10 @@ export function warnIfNotEndpointUrl(url: string): void {
 export type FormalizeBatchCaller = (texts: string[]) => Promise<unknown[]>;
 
 // Production batch caller: POST {"texts": [...]} (one GPU generate).
+// 25 min: outlives the endpoint's 22-min wait so a slow cold start surfaces
+// the server's verdict instead of dying as a client timeout.
 export function modalFormalizeBatchCaller(
-  timeoutMs = 600000,
+  timeoutMs = 1500000,
 ): FormalizeBatchCaller {
   const url = process.env.MODAL_FORMALIZE_URL;
   if (!url) {

@@ -749,6 +749,20 @@ comment corrected; old note left as history.
 - Same HF cache for the 8B worker (hf-hub-cache-8b volume, ~16 GB):
   HF_HOME pinned, commit after load. Safe to deploy anytime (separate
   app from the live formalize run). VERIFIED: py_compile. No DB writes.
+- Cache audit per user: verified Volume.from_name/create_if_missing,
+  cls volumes=, and Volume.commit against installed Modal 1.6.3 API;
+  moved HF_HOME setdefault to module top in both workers (hf_hub
+  freezes it at vllm import, so the in-load placement was a no-op —
+  harmless since the default already matches the mount). VERIFIED:
+  py_compile both. No DB writes, no deploys (user's live run safe).
+- Crash-loop fix from Modal docs (lifecycle + timeouts guides): the 15-min
+  class timeout covered the 140 GB download (startup_timeout unset), and
+  the 600s endpoint gave up waiting — container idled out, download lost,
+  next chunk repeated it. Fix: startup_timeout=1hr on the cls, endpoint
+  600→1320s, client batch/sequential 600s→1500s (chain moves together:
+  client 25min ≥ endpoint 22min; class startup 1hr, exec stays 15min).
+  VERIFIED: startup_timeout in installed API, py_compile, tsc, rebuild,
+  10/10 formalize. Needs redeploy (kills live run — user times it).
 - Diagnose logging mirrors formalize: client prints >> prompt and <<
   diagnosis per flag plus console.error on failure; worker endpoint
   prints payload in / raw out to Modal logs (needs inference redeploy;

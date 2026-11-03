@@ -96,7 +96,7 @@ if (sequential) {
 const results = sequential
   ? await formalizeAddresses(
       inputs.map((i) => i.text),
-      modalFormalizeCaller(600000),
+      modalFormalizeCaller(1500000),
     )
   : await formalizeAddressesBatched(inputs.map((i) => i.text));
 const rows = toPassRows(inputs, results, pass);
