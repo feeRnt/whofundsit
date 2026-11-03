@@ -1,5 +1,6 @@
 import "dotenv/config";
 import readline from "node:readline";
+import { runLlmPass } from "../services/llmPass.js";
 import {
   countFailedGeocodes,
   countPendingGeocodes,
@@ -33,6 +34,16 @@ async function askScope(pending: number): Promise<"all" | "top"> {
 }
 
 const args = process.argv.slice(2);
+// LLM-pass geocoding: coords:populate -- --llm-N reads llm-pass-N.json
+// (written by formalize:addresses --pass=N), skips success rows, and
+// marks hits success / misses failed back into the same file.
+const llmArg = args.find((a) => /^--llm-\d+$/.test(a));
+if (llmArg) {
+  const pass = Number(llmArg.slice("--llm-".length));
+  const summary = await runLlmPass(pass);
+  console.log(`[coords] llm-${pass}:`, summary);
+  process.exit(0);
+}
 // Census repass over LLM-flagged rows only: one batched POST per 500,
 // hits written + marked placed, the rest stay failed. Fast (no paced
 // queries) and safe to run before the main queue resumes.

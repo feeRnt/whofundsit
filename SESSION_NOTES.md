@@ -661,3 +661,33 @@ comment corrected; old note left as history.
 - verify --clean: wipes data/verification-history.json before the run so
   the snapshot averages restart from that run alone (works on
   verify:daily too). VERIFIED: tsc clean, 17/17 claimsVerify. No DB writes.
+- WORKER SWAP (user: 70B for addresses, 8B for commentary): formalize is
+  now Llama-3.3-70B on L40S:2 with fp8 (bf16 ~140GB cannot fit 96GB),
+  true one-generate batching, 224 token cap, scaledown 0. Inference
+  worker is Llama-3.1-8B on T4:1 serving normalize + diagnose (192/320
+  caps, temp 0/0.2, scaledown 0). T4+8B bf16 is ~16GB on 16GB: may OOM,
+  one-line L4 fallback flagged in-file. .env.example remapped
+  (MODAL_DIAGNOSE_URL added); formalize's WEBHOOK fallback REMOVED
+  (would post addresses at the name endpoint). No DB writes.
+- Rolling averages are tested-weighted (pct from summed passed/tested,
+  mean weighted by tested; zero-test runs vanish). weighted_stats.md
+  tutorial left UNTRACKED at repo root per user. No DB writes.
+- LLM pass loop BUILT: formalize:addresses --pass=N (pass 1 reads failed
+  rows from DB, N>1 retries prev-file misses with a Nominatim-naming
+  retry prompt; GPU chunks of 24, --limit cap, legacy stdin mode kept)
+  writes geo/llm-pass-N.json; coords:populate --llm-N geocodes it
+  (Census first for complete US rows, Nominatim STRUCTURED search for
+  the rest — yes, Nominatim takes street/city/state/postalcode/country
+  params, not a JSON body), marks success/failed in place, skips
+  successes forever. geocodeLocal gained optional structured params
+  (hot path untouched); geocodeRemote/censusGeocode exported for the
+  modal path. New llmPass service + tests (incl. ??-null bug the suite
+  caught). No DB writes by me (runners write on user runs).
+- verify:all = verify:claims && deadlines:snapshot && db:export (yes,
+  db:export writes entities.json + flows.json; db:seed reads them).
+  Run-and-leave: nohup npm run verify:all > chain.log 2>&1 &
+- MISSING: user-cited ./modal_example.py is nowhere in the tree —
+  asked for its location; GPU spellings follow repo convention until
+  the example says otherwise.
+- VERIFIED: tsc clean, py_compile both workers, 59/59
+  llmPass+formalize+pipeline+claimsVerify+censusBatch. No DB writes.

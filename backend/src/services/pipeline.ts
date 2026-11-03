@@ -125,26 +125,34 @@ function geoPath(text: string): string {
 export async function geocodeLocal(
   text: string,
   note?: string,
+  structured?: Record<string, string>,
 ): Promise<Coords | null> {
-  const cached = geocodeCache.get(text);
+  // Structured calls (LLM passes) share the same cache/pace/retry path;
+  // the key folds the field set in so q= and structured never collide.
+  const key = structured ? `${text}⟦${JSON.stringify(structured)}⟧` : text;
+  const cached = geocodeCache.get(key);
   if (cached !== undefined) {
     return cached;
   }
   let result: Coords | null;
   try {
-    result = await cachedJson<Coords | null>(geoPath(text), async () => {
+    result = await cachedJson<Coords | null>(geoPath(key), async () => {
       for (let attempt = 1; ; attempt += 1) {
         try {
           return await nominatim(async () => {
             apiLog(
               "GET",
-              `https://nominatim.openstreetmap.org/search?q=${text}`,
+              structured
+                ? `https://nominatim.openstreetmap.org/search?${new URLSearchParams(structured).toString()}`
+                : `https://nominatim.openstreetmap.org/search?q=${text}`,
               note,
             );
             const { data } = await axios.get<NominatimHit[]>(
               "https://nominatim.openstreetmap.org/search",
               {
-                params: { format: "jsonv2", limit: 1, q: text },
+                params: structured
+                  ? { format: "jsonv2", limit: 1, ...structured }
+                  : { format: "jsonv2", limit: 1, q: text },
                 headers: {
                   "User-Agent": nominatimUserAgent(),
                   Accept: "application/json",
@@ -180,7 +188,7 @@ export async function geocodeLocal(
         `[coords] Nominatim 400 for ${JSON.stringify(text)} — skipping (query too long?)`,
       );
       missLog.add(text);
-      geocodeCache.set(text, null);
+      geocodeCache.set(key, null);
       return null;
     }
     if (!shouldSwallowGeoError(status)) {
@@ -198,12 +206,19 @@ export async function geocodeLocal(
     transientTexts.add(text);
     return null;
   }
-  geocodeCache.set(text, result);
+  geocodeCache.set(key, result);
   return result;
 }
 
+// One Census batch for LLM-pass US rows (same 1s spacing as --census-failed).
+export async function censusGeocode(
+  rows: Map<string, ParsedUsAddress>,
+): Promise<Map<string, { lat: number; lng: number } | null>> {
+  return census(() => censusBatchGeocode(rows));
+}
+
 // One batch to the Modal geocoder (see backend/geocode_worker.py).
-async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null>> {
+export async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null>> {
   const url = process.env.MODAL_GEOCODE_URL;
   if (!url) {
     throw new Error("MODAL_GEOCODE_URL is not set (see backend/.env.example)");

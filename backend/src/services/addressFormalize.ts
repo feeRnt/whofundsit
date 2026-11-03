@@ -64,6 +64,31 @@ export function formalizePrompt(text: string): string {
   );
 }
 
+// Retry prompt for pass N>1: the model sees what failed and why, and is
+// told the consumer is Nominatim (no match = try a different segmentation).
+export function formalizeRetryPrompt(
+  original: string,
+  prevTried: string | null,
+  prevCause: string | null,
+  pass: number,
+): string {
+  return (
+    `Attempt ${pass}: a previous parse of this address FAILED on Nominatim ` +
+    "(OpenStreetMap's geocoder returned no match), so segment it differently. " +
+    "Reply with ONLY a JSON object: " +
+    '{"houseNumber": string|null, "street": string|null, "city": string|null, ' +
+    '"stateOrRegion": string|null, "postalCode": string|null, ' +
+    '"country": string|null, "countryCode": string|null, ' +
+    '"confidence": number, "notes": string, "failureCause": string|null}. ' +
+    "Rules: never invent a house number, postal code, or coordinates; try " +
+    "alternate readings (a different street/city split, expand abbreviations, " +
+    "drop registrant prefixes like C/O); explain the new reading in notes. " +
+    (prevTried ? `Previous attempt sent to Nominatim: ${prevTried}. ` : "") +
+    (prevCause ? `Previous failure cause: ${prevCause}. ` : "") +
+    `Original address: ${original}`
+  );
+}
+
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
 }
@@ -118,9 +143,10 @@ export function parseFormalizeResponse(raw: unknown, original: string): Formaliz
 export type FormalizeCaller = (text: string) => Promise<unknown>;
 
 // Production caller: POST one address to the Modal formalize endpoint.
-// MODAL_FORMALIZE_URL wins; MODAL_WEBHOOK_URL is the shared fallback.
+// No fallback: MODAL_WEBHOOK_URL is the 8B name endpoint now, and posting
+// addresses at it would return confident-looking empty parses.
 export function modalFormalizeCaller(): FormalizeCaller {
-  const url = process.env.MODAL_FORMALIZE_URL ?? process.env.MODAL_WEBHOOK_URL;
+  const url = process.env.MODAL_FORMALIZE_URL;
   if (!url) {
     throw new Error(
       "MODAL_FORMALIZE_URL is not set (deploy backend/formalize_worker.py; see backend/.env.example)",
@@ -188,6 +214,96 @@ export async function formalizeAddresses(
       });
     } finally {
       lastAt = Date.now();
+    }
+  }
+  return out;
+}
+
+// Texts per 70B call: 24 short addresses fit 2xL40S fp8 KV with headroom;
+// bigger chunks risk OOM, smaller ones waste cold starts.
+export const FORMALIZE_BATCH = 24;
+
+export type FormalizeBatchCaller = (texts: string[]) => Promise<unknown[]>;
+
+// Production batch caller: POST {"texts": [...]} (one GPU generate).
+export function modalFormalizeBatchCaller(
+  timeoutMs = 600000,
+): FormalizeBatchCaller {
+  const url = process.env.MODAL_FORMALIZE_URL;
+  if (!url) {
+    throw new Error(
+      "MODAL_FORMALIZE_URL is not set (deploy backend/formalize_worker.py; see backend/.env.example)",
+    );
+  }
+  const auth = modalProxyHeaders();
+  if (!auth) {
+    throw new Error(`Modal proxy auth is not configured — ${MODAL_PROXY_ENV_HINT}`);
+  }
+  return async (texts: string[]) => {
+    apiLog("POST", url);
+    const { data } = await axios.post(url, { texts }, {
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
+        ...auth,
+      },
+      timeout: timeoutMs,
+    });
+    if (!Array.isArray(data)) {
+      throw new Error("Modal formalizer returned a malformed batch");
+    }
+    return data as unknown[];
+  };
+}
+
+export function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+}
+
+// Formalize in GPU-sized chunks: one call per chunk, a failed chunk marks
+// every row llm-call-failed, the run never dies mid-queue.
+export async function formalizeAddressesBatched(
+  texts: string[],
+  call: FormalizeBatchCaller = modalFormalizeBatchCaller(),
+  batchSize: number = FORMALIZE_BATCH,
+): Promise<FormalizeResult[]> {
+  const out: FormalizeResult[] = [];
+  const chunks = chunk(texts, batchSize);
+  let n = 0;
+  for (const part of chunks) {
+    n += 1;
+    console.log(`[formalize] chunk ${n}/${chunks.length} (${part.length} addresses)`);
+    try {
+      const replies = await call(part);
+      part.forEach((text, i) => {
+        const raw = replies[i];
+        out.push(
+          raw === undefined
+            ? {
+                original: text,
+                address: { ...EMPTY },
+                confidence: null,
+                notes: "batch reply short: no element for this index",
+                failureCause: "llm-call-failed",
+              }
+            : parseFormalizeResponse(raw, text),
+        );
+      });
+    } catch (err) {
+      const notes = err instanceof Error ? err.message : String(err);
+      for (const text of part) {
+        out.push({
+          original: text,
+          address: { ...EMPTY },
+          confidence: null,
+          notes,
+          failureCause: "llm-call-failed",
+        });
+      }
     }
   }
   return out;

@@ -1,8 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  chunk,
   formalizeAddresses,
+  formalizeAddressesBatched,
   formalizePrompt,
+  formalizeRetryPrompt,
   parseFormalizeResponse,
 } from "./addressFormalize.js";
 
@@ -53,5 +56,39 @@ describe("formalizeAddresses", () => {
   it("prompt demands notes and a failure cause", () => {
     assert.match(formalizePrompt("X"), /failureCause/);
     assert.match(formalizePrompt("X"), /never invent/);
+  });
+});
+
+describe("formalizeRetryPrompt", () => {
+  it("names Nominatim and carries the failed attempt", () => {
+    const p = formalizeRetryPrompt("ORIG", "TRIED LINE", "po-box", 2);
+    assert.match(p, /Attempt 2/);
+    assert.match(p, /Nominatim/);
+    assert.match(p, /TRIED LINE/);
+    assert.match(p, /po-box/);
+    assert.match(p, /ORIG/);
+  });
+});
+
+describe("chunk + formalizeAddressesBatched", () => {
+  it("chunks evenly with a short tail", () => {
+    assert.deepEqual(chunk([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
+    assert.deepEqual(chunk([], 24), []);
+  });
+
+  it("batches calls and isolates a failed chunk", async () => {
+    const seen: string[][] = [];
+    const call = async (texts: string[]) => {
+      seen.push(texts);
+      if (texts.includes("BAD")) {
+        throw new Error("gpu busy");
+      }
+      return texts.map(() => ({ city: "X", confidence: 1, notes: "", failureCause: null }));
+    };
+    const out = await formalizeAddressesBatched(["a", "BAD", "c"], call, 2);
+    assert.equal(seen.length, 2);
+    assert.equal(out[0]?.failureCause, "llm-call-failed");
+    assert.equal(out[1]?.failureCause, "llm-call-failed");
+    assert.equal(out[2]?.address.city, "X");
   });
 });
