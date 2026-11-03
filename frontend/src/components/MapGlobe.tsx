@@ -675,9 +675,13 @@ export default function MapGlobe({
         }
         return;
       }
-      // From country/state distance, dive to street level on the dot;
-      // already at street level or closer, keep the camera as-is.
-      if (mapRef.current && mapRef.current.getZoom() < DOT_STREET_ZOOM) {
+      // Ring members never fly: you're already looking at them. Only the
+      // primary (badge) dot dives, and only from state/country distance.
+      if (
+        mapRef.current &&
+        !spreadPositions.has(entity.id) &&
+        mapRef.current.getZoom() < DOT_STREET_ZOOM
+      ) {
         flyToPoint(entity.lat, entity.lng, DOT_STREET_ZOOM);
       }
       setSelected(entity);
