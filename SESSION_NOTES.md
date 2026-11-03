@@ -736,3 +736,8 @@ comment corrected; old note left as history.
 - Formalize scaledown 2s → 5s per user: a >2s inter-chunk hiccup would
   cold-start the 70B mid-run; 5s costs ~3 idle seconds per run. Needs a
   redeploy to take effect. VERIFIED: py_compile. No DB writes.
+- Persistent HF cache on hf-hub-cache Modal Volume (free under 1 TB/mo):
+  HF_HOME pinned to the mount, commit after model load. First deploy
+  downloads ~140 GB once; later cold starts skip the download. Needs a
+  redeploy AFTER the live run finishes (never mid-run). VERIFIED:
+  py_compile. No DB writes.

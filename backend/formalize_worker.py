@@ -2,9 +2,11 @@
 
 The 70B does the addressing (the hardest parse job). fp8 quantization is
 load-bearing: bf16 weights (~140 GB) don't fit 2x48 GB, fp8 (~70 GB) does,
-with room left for batched KV cache. The GPU shuts down after every run
-(scaledown_window=0), so the client sends everything in a few big chunks
-(24 texts per call, one generate() each) — cold starts take minutes.
+with room left for batched KV cache. The GPU shuts down seconds after
+every run, so the client sends everything in a few big chunks (24 texts
+per call, one generate() each). Weights live on a persistent hf-hub-cache
+volume: the first deploy downloads (~140 GB, slow), later cold starts
+reuse the cache and only pay model load.
 
 TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
   1. Accept the Llama 3.3 license on Hugging Face for
@@ -45,6 +47,11 @@ image = (
 
 app = modal.App("whofundsit-formalize")
 
+# Persistent HF cache: weights download once (~140 GB), later cold starts
+# reuse it instead of re-downloading. Free: Modal includes 1 TB of volume
+# storage monthly. Auto-created on first deploy.
+hf_cache = modal.Volume.from_name("hf-hub-cache", create_if_missing=True)
+
 SYSTEM_PROMPT = (
     "You parse postal addresses. Given one raw address, reply with ONLY a "
     'JSON object: {"houseNumber": string|null, "street": string|null, '
@@ -74,6 +81,7 @@ def _prompt(system: str, text: str) -> str:
     image=image,
     gpu="L40S:2",
     secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
+    volumes={"/root/.cache/huggingface": hf_cache},
     timeout=60 * 15,
     # 5s idle shutoff: gaps between chunks are milliseconds, but a >2s
     # hiccup would cold-start the 70B mid-run (minutes lost for ~3s saved).
@@ -84,6 +92,7 @@ class FormalizeWorker:
     def load(self) -> None:
         from vllm import LLM, SamplingParams
 
+        os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
         self.llm = LLM(
             model=MODEL_ID,
             tensor_parallel_size=2,
@@ -91,6 +100,9 @@ class FormalizeWorker:
             max_model_len=4096,
             gpu_memory_utilization=0.90,
         )
+        # Persist freshly downloaded weights so the next cold start skips the
+        # download (cheap no-op when the cache is already full).
+        hf_cache.commit()
         # Addresses are tiny: cap output so runaway JSON can't burn KV.
         self.sampling = SamplingParams(temperature=0.0, max_tokens=224)
 
