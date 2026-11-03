@@ -36,7 +36,8 @@ import { SP500_TICKERS } from "../data/sp500.js";
 // fair game, not bugs. VERIFY_SEED pins the RNG for one reproducible run.
 // Each run appends a slim entry to backend/data/verification-history.json
 // (gitignored trend log); the committed seed-data/verification.json snapshot
-// always mirrors the LATEST run. `verify:daily` is the small cron-sized run.
+// carries the rolling AVERAGE per arm across every accumulated run (latest
+// run's flags/diagnoses attached). `verify:daily` is the small cron-sized run.
 
 // Pin the RNG only when a run must be reproduced exactly; otherwise null.
 const SEED =
@@ -104,13 +105,17 @@ export interface HistoryEntry {
     pctVerified: number | null;
     mean: number | null;
     tested: number;
+    untestable: number;
     passed: number;
   };
   cells: {
     cell: string;
+    kind: string;
     pctVerified: number | null;
     mean: number | null;
     tested: number;
+    untestable: number;
+    passed: number;
   }[];
 }
 
@@ -130,12 +135,14 @@ export function toHistoryEntry(report: {
     pctVerified: c.pctVerified,
     mean: c.mean,
     tested: c.tested,
+    untestable: c.untestable,
+    passed: c.passed,
   });
   return {
     generatedAt: report.generatedAt,
     seed: report.seed,
-    overall: { ...slim(report.overall), passed: report.overall.passed },
-    cells: report.cells.map((c) => ({ cell: c.cell, ...slim(c) })),
+    overall: slim(report.overall),
+    cells: report.cells.map((c) => ({ cell: c.cell, kind: c.kind, ...slim(c) })),
   };
 }
 
@@ -149,10 +156,11 @@ export function appendHistory(
 }
 
 // Best-effort record: a broken history file restarts, never blocks. I/O.
+// Returns the updated history (empty when the write failed).
 export function recordHistory(
   entry: HistoryEntry,
   file: string = historyPath(),
-): void {
+): HistoryEntry[] {
   try {
     let history: HistoryEntry[] = [];
     try {
@@ -163,11 +171,109 @@ export function recordHistory(
     } catch {
       history = [];
     }
+    const updated = appendHistory(history, entry);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(appendHistory(history, entry), null, 2));
+    fs.writeFileSync(file, JSON.stringify(updated, null, 2));
+    return updated;
   } catch {
     // History is a nice-to-have; the report files already landed.
+    return [];
   }
+}
+
+interface AvgStats {
+  pctVerified: number | null;
+  mean: number | null;
+  tested: number;
+  untestable: number;
+  passed: number;
+}
+
+// One vote per run: mean of each run's pct/mean (null runs excluded, never
+// zeroed), sums of tested/untestable/passed. Pure.
+export function averageStats(
+  list: { pctVerified: number | null; mean: number | null; tested: number; untestable: number; passed: number }[],
+): AvgStats {
+  const meanOf = (vals: (number | null)[]): number | null => {
+    const real = vals.filter((v): v is number => v !== null);
+    if (real.length === 0) {
+      return null;
+    }
+    return Math.round(real.reduce((a, b) => a + b, 0) / real.length);
+  };
+  const num = (v: unknown): number => (typeof v === "number" ? v : 0);
+  return {
+    pctVerified: meanOf(list.map((s) => s.pctVerified)),
+    mean: meanOf(list.map((s) => s.mean)),
+    tested: list.reduce((a, s) => a + num(s.tested), 0),
+    untestable: list.reduce((a, s) => a + num(s.untestable), 0),
+    passed: list.reduce((a, s) => a + num(s.passed), 0),
+  };
+}
+
+// Per-arm rolling averages across every accumulated run. Pure.
+export function averageCells(
+  history: HistoryEntry[],
+): ({ cell: string; kind: string; runs: number } & AvgStats)[] {
+  const byCell = new Map<string, HistoryEntry["cells"]>();
+  for (const e of history) {
+    for (const c of e.cells ?? []) {
+      const list = byCell.get(c.cell) ?? [];
+      list.push(c);
+      byCell.set(c.cell, list);
+    }
+  }
+  return [...byCell.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([cell, list]) => ({
+      cell,
+      kind:
+        list.find((c) => typeof c.kind === "string")?.kind ??
+        (cell.startsWith("flow=") ? "flow" : "entity"),
+      runs: list.length,
+      ...averageStats(list),
+    }));
+}
+
+// The user-facing snapshot: averaged numbers per arm plus the latest run's
+// flags/diagnoses (explanations don't average). Pure.
+export function averagedSnapshot(
+  history: HistoryEntry[],
+  latest: { cells: CellStats[]; overall: CellStats },
+): { cells: CellStats[]; overall: CellStats } {
+  const avg = new Map(averageCells(history).map((a) => [a.cell, a]));
+  const merge = (c: CellStats, kind: string): CellStats => {
+    const a = avg.get(c.cell);
+    if (!a) {
+      return c;
+    }
+    return {
+      ...c,
+      kind,
+      runs: a.runs,
+      n: a.tested + a.untestable,
+      tested: a.tested,
+      untestable: a.untestable,
+      passed: a.passed,
+      pctVerified: a.pctVerified,
+      mean: a.mean,
+    };
+  };
+  const cells = latest.cells.map((c) => merge(c, c.kind));
+  const o = averageStats(history.map((e) => e.overall));
+  return {
+    cells,
+    overall: {
+      ...latest.overall,
+      runs: history.length,
+      n: o.tested + o.untestable,
+      tested: o.tested,
+      untestable: o.untestable,
+      passed: o.passed,
+      pctVerified: o.pctVerified,
+      mean: o.mean,
+    },
+  };
 }
 
 // Agreement bands: exact-ish → 100, filing-noise → 90, stale-quarter → 70,
@@ -566,6 +672,8 @@ interface Cell {
 interface CellStats {
   cell: string;
   kind: string;
+  // Runs behind these numbers: 1 for a fresh roll, more in the snapshot.
+  runs: number;
   n: number;
   tested: number;
   untestable: number;
@@ -581,13 +689,14 @@ export function summarize(
   cell: string,
   kind: string,
   results: CheckResult[],
-  extra: { diagnoses?: FlagDiagnosis[] } = {},
+  extra: { diagnoses?: FlagDiagnosis[]; runs?: number } = {},
 ): CellStats {
   const tested = results.filter((r) => r.score !== null);
   const passed = tested.filter((r) => (r.score ?? 0) >= 90).length;
   return {
     cell,
     kind,
+    runs: extra.runs ?? 1,
     n: results.length,
     tested: tested.length,
     untestable: results.length - tested.length,
@@ -609,6 +718,7 @@ export async function runVerify(): Promise<{
   cells: CellStats[];
   overall: CellStats;
   reportPath: string;
+  runs: number;
 }> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -783,11 +893,17 @@ export async function runVerify(): Promise<{
     const seedPath = path.join(here, "..", "..", "prisma", "seed-data", "verification.json");
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
-    // Committed snapshot for trust badges: judges get it via db:seed.
+    // Committed snapshot for trust badges (judges get it via db:seed): the
+    // % shown is the rolling average per arm across every accumulated run,
+    // with the latest run's flags/diagnoses attached for actionability.
+    const history = recordHistory(toHistoryEntry(report));
+    const snapshot =
+      history.length > 0
+        ? { ...report, ...averagedSnapshot(history, report) }
+        : report;
     fs.mkdirSync(path.dirname(seedPath), { recursive: true });
-    fs.writeFileSync(seedPath, JSON.stringify(report, null, 2));
-    recordHistory(toHistoryEntry(report));
-    return { cells, overall, reportPath };
+    fs.writeFileSync(seedPath, JSON.stringify(snapshot, null, 2));
+    return { cells, overall, reportPath, runs: history.length };
   } finally {
     await prisma.$disconnect();
   }

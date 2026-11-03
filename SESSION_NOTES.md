@@ -652,3 +652,9 @@ comment corrected; old note left as history.
   when unconfigured. Diagnoses ride in both JSONs (new field; badges
   untouched) + console `why:` lines. VERIFIED: tsc clean, py_compile ok,
   38/38 httpCache+thirteenF+claimsVerify (4 new suites). No DB writes.
+- Snapshot % is now the rolling AVERAGE per arm: history entries keep
+  kind/passed/untestable; averageStats (one vote per run, nulls excluded,
+  counts summed) + averagedSnapshot (averaged numbers, latest flags and
+  diagnoses) feed seed-data/verification.json; local report stays
+  this-run-only. Cells gain `runs`. VERIFIED: tsc clean, 41/41 trio
+  (3 new suites). No DB writes. Frontend untouched (reads same fields).

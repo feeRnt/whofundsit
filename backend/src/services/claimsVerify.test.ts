@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   amountScore,
   appendHistory,
+  averageCells,
+  averagedSnapshot,
+  averageStats,
   diagnosisPrompt,
   isMajorIndex,
   makeRng,
@@ -158,5 +161,73 @@ describe("history", () => {
     const trimmed = appendHistory([entry, e2], e2, 2);
     assert.equal(trimmed.length, 2);
     assert.equal(trimmed[0].generatedAt, "2026-11-03T00:00:00.000Z");
+  });
+
+  it("keeps passed, untestable, and kind per arm", () => {
+    const cell = summarize("flow=13f", "flow", [
+      { score: 100, flags: [] },
+      { score: null, flags: ["x"] },
+    ]);
+    const entry = toHistoryEntry({
+      generatedAt: "t",
+      seed: null,
+      cells: [cell],
+      overall: cell,
+    });
+    assert.deepEqual(entry.cells[0], {
+      cell: "flow=13f",
+      kind: "flow",
+      pctVerified: 100,
+      mean: 100,
+      tested: 1,
+      untestable: 1,
+      passed: 1,
+    });
+  });
+});
+
+describe("averageStats", () => {
+  it("means the pcts, sums the counts, skips null runs", () => {
+    const a = averageStats([
+      { pctVerified: 100, mean: 100, tested: 2, untestable: 0, passed: 2 },
+      { pctVerified: 50, mean: 60, tested: 2, untestable: 0, passed: 1 },
+      { pctVerified: null, mean: null, tested: 0, untestable: 1, passed: 0 },
+    ]);
+    assert.equal(a.pctVerified, 75);
+    assert.equal(a.mean, 80);
+    assert.equal(a.tested, 4);
+    assert.equal(a.untestable, 1);
+    assert.equal(a.passed, 3);
+    const none = averageStats([
+      { pctVerified: null, mean: null, tested: 0, untestable: 1, passed: 0 },
+    ]);
+    assert.equal(none.pctVerified, null);
+    assert.equal(none.mean, null);
+  });
+});
+
+describe("averageCells + averagedSnapshot", () => {
+  it("averages per arm but keeps the latest flags", () => {
+    const run1 = summarize("source=sec", "entity", [
+      { score: 100, flags: [] },
+      { score: 100, flags: [] },
+    ]);
+    const run2 = summarize("source=sec", "entity", [
+      { score: 40, flags: ["stored 1 vs live 2"] },
+      { score: 100, flags: [] },
+    ]);
+    const h1 = toHistoryEntry({ generatedAt: "t1", seed: null, cells: [run1], overall: run1 });
+    const h2 = toHistoryEntry({ generatedAt: "t2", seed: null, cells: [run2], overall: run2 });
+    const avg = averageCells([h1, h2]);
+    assert.equal(avg.length, 1);
+    assert.equal(avg[0].runs, 2);
+    assert.equal(avg[0].pctVerified, 75); // mean of 100 and 50
+    assert.equal(avg[0].tested, 4);
+    assert.equal(avg[0].passed, 3);
+    const snap = averagedSnapshot([h1, h2], { cells: [run2], overall: run2 });
+    assert.equal(snap.cells[0].pctVerified, 75);
+    assert.equal(snap.cells[0].runs, 2);
+    assert.deepEqual(snap.cells[0].flags, ["stored 1 vs live 2"]);
+    assert.equal(snap.overall.runs, 2);
   });
 });

@@ -5,7 +5,7 @@ import { runVerify } from "../services/claimsVerify.js";
 // per source/region/index/flow cell (VERIFY_SAMPLE, VERIFY_SEED) against
 // live SEC + Nominatim and writes data/verification-report.json plus the
 // committed prisma/seed-data/verification.json snapshot (trust badges).
-const { cells, overall, reportPath } = await runVerify();
+const { cells, overall, reportPath, runs } = await runVerify();
 const fmt = (v: number | null) => (v === null ? "n/a" : `${v}%`);
 for (const c of cells) {
   console.log(
@@ -23,3 +23,4 @@ console.log(
   `[verify] OVERALL: ${overall.pctVerified}% verified (${overall.passed}/${overall.tested} passed, mean ${overall.mean})`,
 );
 console.log(`[verify] report: ${reportPath}`);
+console.log(`[verify] snapshot: rolling average over ${runs} run(s)`);
