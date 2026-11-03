@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { allocateRegionQuotas, regionOf } from "./regionQuotas.js";
+import {
+  allocateFlowQuotas,
+  allocateRegionQuotas,
+  regionOf,
+} from "./regionQuotas.js";
 
 describe("regionOf", () => {
   it("buckets world financial centers", () => {
@@ -132,5 +136,47 @@ describe("allocateRegionQuotas", () => {
     const out = allocateRegionQuotas(rows, 12);
     assert.equal(out.length, 12);
     assert.ok(out.some((r) => r.id === "uni-0"));
+  });
+});
+
+describe("allocateFlowQuotas", () => {
+  it("keeps small-unit types alive under a 13F flood", () => {
+    // Live shape: 100k 13F dollars vs 700 grants + 14k ownerships.
+    const quotas = allocateFlowQuotas(
+      { "13f": 100000, grant: 700, ownership: 14000 },
+      50000,
+    );
+    assert.equal(quotas.grant, 700);
+    assert.equal(quotas.ownership, 14000);
+    assert.equal(quotas["13f"], 35300);
+    assert.equal(quotas["13f"] + quotas.grant + quotas.ownership, 50000);
+  });
+
+  it("carries shortfall past an empty headline type", () => {
+    const quotas = allocateFlowQuotas(
+      { "13f": 0, grant: 10, ownership: 10 },
+      12,
+    );
+    assert.deepEqual(quotas, { "13f": 0, grant: 8, ownership: 4 });
+  });
+
+  it("fills tiny limits from the headline type alone", () => {
+    const quotas = allocateFlowQuotas(
+      { "13f": 5, grant: 5, ownership: 5 },
+      2,
+    );
+    assert.deepEqual(quotas, { "13f": 2, grant: 0, ownership: 0 });
+  });
+
+  it("never exceeds counts and yields nothing at zero", () => {
+    const quotas = allocateFlowQuotas(
+      { "13f": 1, grant: 0, ownership: 0 },
+      50,
+    );
+    assert.deepEqual(quotas, { "13f": 1, grant: 0, ownership: 0 });
+    assert.deepEqual(
+      allocateFlowQuotas({ "13f": 9, grant: 9, ownership: 9 }, 0),
+      { "13f": 0, grant: 0, ownership: 0 },
+    );
   });
 });

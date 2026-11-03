@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { allocateRegionQuotas } from "./services/regionQuotas.js";
+import {
+  FLOW_TYPES,
+  allocateFlowQuotas,
+  allocateRegionQuotas,
+  type FlowType,
+} from "./services/regionQuotas.js";
 import { getQuote } from "./services/stockQuote.js";
 
 if (!process.env.DATABASE_URL) {
@@ -80,13 +85,36 @@ app.get("/api/flows", async (req, res) => {
     );
     const endpoint = { id: true, name: true, lat: true, lng: true };
     const placed = { lat: { not: 0 }, lng: { not: 0 } };
-    const flows = await prisma.capitalFlow.findMany({
-      take: limit,
-      orderBy: { amount: "desc" },
-      where: { sourceEntity: placed, targetEntity: placed },
-      include: { sourceEntity: { select: endpoint }, targetEntity: { select: endpoint } },
-    });
-    res.json(flows);
+    // Per-type quotas: one amount-desc take would fill the whole cap with
+    // 13F dollars and starve grants + ownership (empty submenus). Amounts
+    // stay desc within each type; the total never exceeds the limit.
+    const counts = Object.fromEntries(
+      await Promise.all(
+        FLOW_TYPES.map(async (flowType) => [
+          flowType,
+          await prisma.capitalFlow.count({
+            where: { flowType, sourceEntity: placed, targetEntity: placed },
+          }),
+        ]),
+      ),
+    ) as Record<FlowType, number>;
+    const quotas = allocateFlowQuotas(counts, limit);
+    const perType = await Promise.all(
+      FLOW_TYPES.map((flowType) =>
+        quotas[flowType] === 0
+          ? []
+          : prisma.capitalFlow.findMany({
+              take: quotas[flowType],
+              orderBy: { amount: "desc" },
+              where: { flowType, sourceEntity: placed, targetEntity: placed },
+              include: {
+                sourceEntity: { select: endpoint },
+                targetEntity: { select: endpoint },
+              },
+            }),
+      ),
+    );
+    res.json(perType.flat());
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load flows" });

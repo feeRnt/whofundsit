@@ -40,6 +40,46 @@ export function regionOf(lat: number, lng: number): Region {
   return "unknown";
 }
 
+// Flow layers served by /api/flows, in backfill-priority order: the 13F book
+// (100k million-dollar rows) would otherwise fill the whole amount-desc
+// cap and starve grants (work counts) and ownership (undisclosed
+// stakes), leaving their submenus empty.
+export const FLOW_TYPES = ["13f", "grant", "ownership"] as const;
+export type FlowType = (typeof FLOW_TYPES)[number];
+
+// Even floors per flow type from placed-endpoint counts; unfilled floors
+// flow to 13f first (headline layer), then the rest in FLOW_TYPES order.
+// Quotas sum to at most the limit and never exceed their counts.
+export function allocateFlowQuotas(
+  counts: Record<FlowType, number>,
+  limit: number,
+): Record<FlowType, number> {
+  const quotas: Record<FlowType, number> = {
+    "13f": 0,
+    grant: 0,
+    ownership: 0,
+  };
+  if (limit <= 0) {
+    return quotas;
+  }
+  const floor = Math.floor(limit / FLOW_TYPES.length);
+  let used = 0;
+  for (const t of FLOW_TYPES) {
+    quotas[t] = Math.min(counts[t], floor);
+    used += quotas[t];
+  }
+  let leftover = limit - used;
+  for (const t of FLOW_TYPES) {
+    if (leftover <= 0) {
+      break;
+    }
+    const extra = Math.min(counts[t] - quotas[t], leftover);
+    quotas[t] += extra;
+    leftover -= extra;
+  }
+  return quotas;
+}
+
 const FLOOR_REGIONS: Region[] = [
   "north-america",
   "south-america",
