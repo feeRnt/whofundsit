@@ -172,10 +172,7 @@ export function modalFormalizeCaller(): FormalizeCaller {
         },
       ));
     } catch (err) {
-      if (
-        axios.isAxiosError(err) &&
-        (err.response?.status === 401 || err.response?.status === 403)
-      ) {
+      if (isModalAuthRejection(err)) {
         // Thrown per-row: formalizeAddresses records it as llm-call-failed,
         // so a bad token fails loud on every row instead of silently.
         throw new Error(`Modal proxy auth rejected — ${MODAL_PROXY_ENV_HINT}`);
@@ -204,11 +201,13 @@ export async function formalizeAddresses(
     try {
       out.push(parseFormalizeResponse(await call(text), text));
     } catch (err) {
+      const notes = err instanceof Error ? err.message : String(err);
+      console.error(`[formalize] call failed for ${text.slice(0, 120)}: ${notes}`);
       out.push({
         original: text,
         address: { ...EMPTY },
         confidence: null,
-        notes: err instanceof Error ? err.message : String(err),
+        notes,
         failureCause: "llm-call-failed",
       });
     } finally {
@@ -254,14 +253,23 @@ export function modalFormalizeBatchCaller(
     apiLog("POST", url);
     console.log(`[formalize] >> ${texts.length} texts to ${url}`);
     texts.forEach((t, i) => console.log(`[formalize] >> [${i}] ${t}`));
-    const { data, status } = await axios.post(url, { texts }, {
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
-        ...auth,
-      },
-      timeout: timeoutMs,
-    });
+    let data: unknown;
+    let status: number | undefined;
+    try {
+      ({ data, status } = await axios.post(url, { texts }, {
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
+          ...auth,
+        },
+        timeout: timeoutMs,
+      }));
+    } catch (err) {
+      if (isModalAuthRejection(err)) {
+        throw new Error(`Modal proxy auth rejected — ${MODAL_PROXY_ENV_HINT}`);
+      }
+      throw err;
+    }
     const replies = Array.isArray(data) ? data : [data];
     console.log(`[formalize] << HTTP ${status}, ${replies.length} replies`);
     replies.forEach((r, i) => console.log(`[formalize] << [${i}] ${JSON.stringify(r)}`));
@@ -270,6 +278,15 @@ export function modalFormalizeBatchCaller(
     }
     return data as unknown[];
   };
+}
+
+// True when Modal rejected our proxy headers (wrong token pair — usually CLI
+// API tokens pasted where wk-/ws- proxy tokens belong). Pure.
+export function isModalAuthRejection(err: unknown): boolean {
+  return (
+    axios.isAxiosError(err) &&
+    (err.response?.status === 401 || err.response?.status === 403)
+  );
 }
 
 export function chunk<T>(items: T[], size: number): T[][] {
@@ -311,6 +328,9 @@ export async function formalizeAddressesBatched(
       });
     } catch (err) {
       const notes = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[formalize] chunk ${n}/${chunks.length} failed: ${notes} (${part.length} rows marked llm-call-failed)`,
+      );
       for (const text of part) {
         out.push({
           original: text,

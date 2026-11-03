@@ -728,3 +728,8 @@ comment corrected; old note left as history.
   and every raw reply (<<) with status; warnIfNotEndpointUrl warns on
   non-endpoint URLs in both callers. VERIFIED: tsc clean, 9/9
   addressFormalize. No DB writes.
+- Formalize errors now print to log: chunk failures (batch) and call
+  failures (single) console.error as they happen with counts; 401/403
+  maps to the actionable proxy-token message in the batch caller too
+  (was single-only) via shared isModalAuthRejection. VERIFIED: tsc
+  clean, 10/10 addressFormalize. No DB writes.

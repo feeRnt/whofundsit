@@ -6,6 +6,7 @@ import {
   formalizeAddressesBatched,
   formalizePrompt,
   formalizeRetryPrompt,
+  isModalAuthRejection,
   parseFormalizeResponse,
   warnIfNotEndpointUrl,
 } from "./addressFormalize.js";
@@ -110,5 +111,14 @@ describe("warnIfNotEndpointUrl", () => {
     }
     assert.equal(warns.length, 1);
     assert.match(warns[0] ?? "", /dashboard/);
+  });
+});
+
+describe("isModalAuthRejection", () => {
+  it("flags 401/403 axios errors only", () => {
+    assert.equal(isModalAuthRejection({ isAxiosError: true, response: { status: 401 } }), true);
+    assert.equal(isModalAuthRejection({ isAxiosError: true, response: { status: 403 } }), true);
+    assert.equal(isModalAuthRejection({ isAxiosError: true, response: { status: 405 } }), false);
+    assert.equal(isModalAuthRejection(new Error("boom")), false);
   });
 });
