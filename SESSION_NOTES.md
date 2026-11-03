@@ -746,3 +746,6 @@ comment corrected; old note left as history.
   single caller gained timeout param (default unchanged 120s) and
   >>/<< logging parity. Batch path untouched. VERIFIED: tsc clean,
   10/10 addressFormalize, py_compile worker. No DB writes.
+- Same HF cache for the 8B worker (hf-hub-cache-8b volume, ~16 GB):
+  HF_HOME pinned, commit after load. Safe to deploy anytime (separate
+  app from the live formalize run). VERIFIED: py_compile. No DB writes.

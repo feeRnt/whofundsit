@@ -44,6 +44,11 @@ image = (
 
 app = modal.App("whofundsit-inference")
 
+# Persistent HF cache: 8B weights download once (~16 GB), later cold starts
+# reuse it. Free under Modal's 1 TB monthly volume allowance. Auto-created
+# on first deploy; separate from the 70B cache (different weights).
+hf_cache_8b = modal.Volume.from_name("hf-hub-cache-8b", create_if_missing=True)
+
 DIAGNOSE_SYSTEM_PROMPT = (
     "You explain data-audit flags. Given one flag plus its known facts, "
     'reply with ONLY a JSON object: {"diagnosis": string} — 2-3 sentences '
@@ -58,6 +63,7 @@ DIAGNOSE_SYSTEM_PROMPT = (
     image=image,
     gpu=GPU,
     secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
+    volumes={"/root/.cache/huggingface": hf_cache_8b},
     timeout=60 * 15,
     # Minimum allowed (2s): GPU effectively off after every run.
     scaledown_window=2,
@@ -67,12 +73,16 @@ class InferenceWorker:
     def load(self) -> None:
         from vllm import LLM, SamplingParams
 
+        os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
         self.llm = LLM(
             model=MODEL_ID,
             tensor_parallel_size=1,
             max_model_len=4096,
             gpu_memory_utilization=0.90,
         )
+        # Persist freshly downloaded weights so the next cold start skips the
+        # download (cheap no-op when the cache is already full).
+        hf_cache_8b.commit()
         self.diag_sampling = SamplingParams(temperature=0.2, max_tokens=320)
 
     def _ask(self, system: str, text: str, sampling) -> str:
