@@ -1,5 +1,10 @@
 import axios from "axios";
-import { apiLog, userAgentFromEnv } from "./httpCache.js";
+import {
+  apiLog,
+  modalProxyHeaders,
+  MODAL_PROXY_ENV_HINT,
+  userAgentFromEnv,
+} from "./httpCache.js";
 
 // LLM address formalization (dead-lines consumer, step 1 of the adopted
 // pipeline): deformed address -> Llama on Modal -> structured fields ->
@@ -121,33 +126,36 @@ export function modalFormalizeCaller(): FormalizeCaller {
       "MODAL_FORMALIZE_URL is not set (deploy backend/formalize_worker.py; see backend/.env.example)",
     );
   }
-  const key = process.env.MODAL_API_KEY;
-  if (!key) {
-    throw new Error(
-      "MODAL_API_KEY is not set (same value as the whofundsit Modal secret; see backend/.env.example)",
-    );
+  const auth = modalProxyHeaders();
+  if (!auth) {
+    throw new Error(`Modal proxy auth is not configured — ${MODAL_PROXY_ENV_HINT}`);
   }
   return async (text: string) => {
     apiLog("POST", url);
-    const { data } = await axios.post(
-      url,
-      { text, key },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
+    let data: unknown;
+    try {
+      ({ data } = await axios.post(
+        url,
+        { text },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
+            ...auth,
+          },
+          timeout: 120000,
         },
-        timeout: 120000,
-      },
-    );
-    if (
-      data !== null &&
-      typeof data === "object" &&
-      typeof (data as { error?: unknown }).error === "string"
-    ) {
-      // Thrown per-row: formalizeAddresses records it as llm-call-failed,
-      // so a bad key fails loud on every row instead of parsing garbage.
-      throw new Error(`Modal formalize: ${(data as { error: string }).error}`);
+      ));
+    } catch (err) {
+      if (
+        axios.isAxiosError(err) &&
+        (err.response?.status === 401 || err.response?.status === 403)
+      ) {
+        // Thrown per-row: formalizeAddresses records it as llm-call-failed,
+        // so a bad token fails loud on every row instead of silently.
+        throw new Error(`Modal proxy auth rejected — ${MODAL_PROXY_ENV_HINT}`);
+      }
+      throw err;
     }
     return data as unknown;
   };

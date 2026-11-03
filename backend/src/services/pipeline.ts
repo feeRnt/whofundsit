@@ -12,6 +12,8 @@ import {
   apiLog,
   green,
   red,
+  modalProxyHeaders,
+  MODAL_PROXY_ENV_HINT,
   userAgentFromEnv,
 } from "./httpCache.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
@@ -206,30 +208,34 @@ async function geocodeRemote(texts: string[]): Promise<Map<string, Coords | null
   if (!url) {
     throw new Error("MODAL_GEOCODE_URL is not set (see backend/.env.example)");
   }
-  const key = process.env.MODAL_API_KEY;
-  if (!key) {
-    throw new Error(
-      "MODAL_API_KEY is not set (same value as the whofundsit Modal secret; see backend/.env.example)",
-    );
+  const auth = modalProxyHeaders();
+  if (!auth) {
+    throw new Error(`Modal proxy auth is not configured — ${MODAL_PROXY_ENV_HINT}`);
   }
   const unique = [...new Set(texts)];
   apiLog("POST", url);
-  const { data } = await modal(() =>
-    axios.post(
-      url,
-      { texts: unique, userAgent: nominatimUserAgent(), key },
-      { headers: { "Content-Type": "application/json" }, timeout: 120000 },
-    ),
-  );
-  if (!Array.isArray(data)) {
-    const errMsg = (data as { error?: unknown } | null)?.error;
-    throw new Error(
-      typeof errMsg === "string"
-        ? `Modal geocoder: ${errMsg}`
-        : "Modal geocoder returned a malformed batch",
-    );
+  let data: unknown;
+  try {
+    ({ data } = await modal(() =>
+      axios.post(
+        url,
+        { texts: unique, userAgent: nominatimUserAgent() },
+        {
+          headers: { "Content-Type": "application/json", ...auth },
+          timeout: 120000,
+        },
+      ),
+    ));
+  } catch (err) {
+    if (
+      axios.isAxiosError(err) &&
+      (err.response?.status === 401 || err.response?.status === 403)
+    ) {
+      throw new Error(`Modal proxy auth rejected — ${MODAL_PROXY_ENV_HINT}`);
+    }
+    throw err;
   }
-  if (data.length !== unique.length) {
+  if (!Array.isArray(data) || data.length !== unique.length) {
     throw new Error("Modal geocoder returned a malformed batch");
   }
   const out = new Map<string, Coords | null>();
@@ -663,15 +669,13 @@ async function normalizeWithLlama(
   if (!url) {
     return null;
   }
-  const key = process.env.MODAL_API_KEY;
-  if (!key) {
-    // Best-effort stays best-effort (never throw here), but a missing key
-    // warns once — silent no-op normalization is a misconfig smell.
+  const auth = modalProxyHeaders();
+  if (!auth) {
+    // Best-effort stays best-effort (never throw here), but a missing
+    // token warns once — silent no-op normalization is a misconfig smell.
     if (!warnedModalKey) {
       warnedModalKey = true;
-      console.warn(
-        "MODAL_API_KEY is not set — skipping AI normalization (see backend/.env.example)",
-      );
+      console.warn(`Modal proxy auth is not configured — skipping AI normalization (${MODAL_PROXY_ENV_HINT})`);
     }
     return null;
   }
@@ -684,8 +688,11 @@ async function normalizeWithLlama(
           apiLog("POST", url);
           const res = await axios.post(
             url,
-            { text: input, key },
-            { headers: { "Content-Type": "application/json" }, timeout: 60000 },
+            { text: input },
+            {
+              headers: { "Content-Type": "application/json", ...auth },
+              timeout: 60000,
+            },
           );
           return res.data as unknown;
         }),
@@ -693,12 +700,7 @@ async function normalizeWithLlama(
     const parsed: unknown =
       typeof data === "string" ? JSON.parse(data) : data;
     if (typeof parsed === "object" && parsed !== null) {
-      const doc = parsed as { canonicalName?: unknown; error?: unknown };
-      if (typeof doc.error === "string") {
-        console.warn(`Modal normalize: ${doc.error}`);
-        return null;
-      }
-      const name = doc.canonicalName;
+      const name = (parsed as { canonicalName?: unknown }).canonicalName;
       return typeof name === "string" && name.length > 0 ? name : null;
     }
     return null;

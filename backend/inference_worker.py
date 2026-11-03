@@ -4,18 +4,17 @@ TEMPLATE: not deployed from the coding sandbox. Deployment (hackathon credits):
   1. Accept the Llama 3.1 license on Hugging Face for
      meta-llama/Llama-3.1-70B-Instruct (the weights are gated).
   2. modal secret create huggingface-secret HF_TOKEN=<your HF token>
-  3. modal secret create whofundsit MODAL_API_KEY=$(openssl rand -hex 32)
-  4. modal deploy backend/inference_worker.py
-  5. Put the printed endpoint URL in backend/.env as MODAL_WEBHOOK_URL
-     and the same key as MODAL_API_KEY.
-Contract: POST {"text": "...", "key": "..."} -> normalized object.
-A wrong/missing key, or an unset secret, answers {"error": "unauthorized"}.
+  3. modal deploy backend/inference_worker.py
+  4. Put the printed endpoint URL in backend/.env as MODAL_WEBHOOK_URL.
+  5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)
+     and store it as MODAL_TOKEN_ID/MODAL_TOKEN_SECRET in backend/.env —
+     the endpoint enforces them natively (requires_proxy_auth).
+Contract: POST {"text": "..."} (+ Modal-Key / Modal-Secret headers) ->
+normalized object.
 Never hardcode tokens in this file (ground rules).
 """
 
-import hmac
 import json
-import os
 
 import modal
 
@@ -76,26 +75,10 @@ class InferenceWorker:
         return outputs[0].outputs[0].text.strip()
 
 
-def _authorized(payload: dict) -> bool:
-    """Shared-secret gate: MODAL_API_KEY comes from the `whofundsit`
-    Modal secret (container env), matched against payload["key"].
-    Fail-closed — an unset secret denies everything."""
-    expected = os.environ.get("MODAL_API_KEY", "")
-    return bool(expected) and hmac.compare_digest(
-        str(payload.get("key", "")), expected
-    )
-
-
-@app.function(
-    image=image,
-    timeout=60 * 10,
-    secrets=[modal.Secret.from_name("whofundsit")],
-)
-@modal.fastapi_endpoint(method="POST", label="normalize")
+@app.function(image=image, timeout=60 * 10)
+@modal.fastapi_endpoint(method="POST", label="normalize", requires_proxy_auth=True)
 def normalize_endpoint(payload: dict) -> dict:
     """HTTP webhook the Express backend POSTs {"text": "..."} to."""
-    if not _authorized(payload):
-        return {"error": "unauthorized"}
     text = str(payload.get("text", "")).strip()
     if not text:
         return {"error": "missing 'text'"}

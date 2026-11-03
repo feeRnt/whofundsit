@@ -593,3 +593,15 @@ comment corrected; old note left as history.
   selects; rings fan companies. Names rejected as identity (same-CIK
   punctuation variants vs same-name distinct LEIs). VERIFIED: frontend
   build clean, oxlint 6 pre-existing. No DB writes.
+- Ring clicks no longer fly (user): sub-dot clicks select without camera
+  flight; only the badge dives, and only from state/country distance.
+  Frontend build clean, oxlint 6 pre-existing. No DB writes.
+- Modal NATIVE proxy auth (user: no api_key, checked docs): workers use
+  requires_proxy_auth=True (proxy enforces pre-function); my hand-rolled
+  body-key gate removed. TS sends Modal-Key/Secret headers from
+  MODAL_TOKEN_ID/MODAL_TOKEN_SECRET (user's exported names; MODEL_ read
+  as MODAL_ typo). 401/403 throw loud auth errors. NOTE: docs say proxy
+  tokens are wk-/ws- values, separate from CLI API tokens — if the
+  user's exports are API tokens, first modal call 401s with a clear
+  message; then `modal workspace proxy-tokens create`. VERIFIED: tsc
+  clean, 47/47 focused tests, py_compile x3. No DB writes.
