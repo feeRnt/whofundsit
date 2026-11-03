@@ -46,7 +46,10 @@ os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .pip_install("vllm==0.6.3", "fastapi[standard]")
+    # transformers pinned: unpinned, pip now resolves a release that
+    # removed TokenizerBackend.all_special_tokens_extended, and vllm
+    # 0.6.3 crashes in tokenizer init (~9s, before any weight download).
+    .pip_install("vllm==0.6.3", "transformers==4.45.2", "fastapi[standard]")
 )
 
 app = modal.App("whofundsit-formalize")
