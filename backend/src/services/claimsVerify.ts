@@ -37,7 +37,8 @@ import { SP500_TICKERS } from "../data/sp500.js";
 // Each run appends a slim entry to backend/data/verification-history.json
 // (gitignored trend log); the committed seed-data/verification.json snapshot
 // carries the rolling AVERAGE per arm across every accumulated run (latest
-// run's flags/diagnoses attached). `verify:daily` is the small cron-sized run.
+// run's flags/diagnoses attached). `--clean` wipes the history first so the
+// snapshot restarts from that run alone. `verify:daily` is the small cron run.
 
 // Pin the RNG only when a run must be reproduced exactly; otherwise null.
 const SEED =
@@ -178,6 +179,17 @@ export function recordHistory(
   } catch {
     // History is a nice-to-have; the report files already landed.
     return [];
+  }
+}
+
+// `--clean`: drop the accumulated history so averages restart from the
+// next run. Best-effort; true when a file was actually removed. I/O.
+export function clearHistory(file: string = historyPath()): boolean {
+  try {
+    fs.rmSync(file);
+    return true;
+  } catch {
+    return false;
   }
 }
 

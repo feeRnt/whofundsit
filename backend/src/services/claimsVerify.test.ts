@@ -1,11 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   amountScore,
   appendHistory,
   averageCells,
   averagedSnapshot,
   averageStats,
+  clearHistory,
   diagnosisPrompt,
   isMajorIndex,
   makeRng,
@@ -229,5 +233,15 @@ describe("averageCells + averagedSnapshot", () => {
     assert.equal(snap.cells[0].runs, 2);
     assert.deepEqual(snap.cells[0].flags, ["stored 1 vs live 2"]);
     assert.equal(snap.overall.runs, 2);
+  });
+});
+
+describe("clearHistory", () => {
+  it("removes the file once, then reports nothing to clear", () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vh-")), "h.json");
+    fs.writeFileSync(file, "[]");
+    assert.equal(clearHistory(file), true);
+    assert.equal(fs.existsSync(file), false);
+    assert.equal(clearHistory(file), false);
   });
 });

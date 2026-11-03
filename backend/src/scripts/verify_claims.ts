@@ -1,10 +1,18 @@
 import "dotenv/config";
-import { runVerify } from "../services/claimsVerify.js";
+import { clearHistory, runVerify } from "../services/claimsVerify.js";
 
-// Stochastic methodology audit: `npm run verify:claims` samples 25 rows
-// per source/region/index/flow cell (VERIFY_SAMPLE, VERIFY_SEED) against
-// live SEC + Nominatim and writes data/verification-report.json plus the
-// committed prisma/seed-data/verification.json snapshot (trust badges).
+// Stochastic methodology audit: `npm run verify:claims` rolls fresh members
+// per source/region/index/flow cell against live SEC + Nominatim and writes
+// data/verification-report.json plus the committed prisma/seed-data/
+// verification.json snapshot (trust badges: rolling per-arm averages).
+// `--clean` wipes the accumulated history first (averages restart here).
+if (process.argv.includes("--clean")) {
+  console.log(
+    clearHistory()
+      ? "[verify] history cleared: averages restart from this run"
+      : "[verify] no history file: nothing to clear",
+  );
+}
 const { cells, overall, reportPath, runs } = await runVerify();
 const fmt = (v: number | null) => (v === null ? "n/a" : `${v}%`);
 for (const c of cells) {

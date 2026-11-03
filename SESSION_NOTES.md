@@ -658,3 +658,6 @@ comment corrected; old note left as history.
   diagnoses) feed seed-data/verification.json; local report stays
   this-run-only. Cells gain `runs`. VERIFIED: tsc clean, 41/41 trio
   (3 new suites). No DB writes. Frontend untouched (reads same fields).
+- verify --clean: wipes data/verification-history.json before the run so
+  the snapshot averages restart from that run alone (works on
+  verify:daily too). VERIFIED: tsc clean, 17/17 claimsVerify. No DB writes.
