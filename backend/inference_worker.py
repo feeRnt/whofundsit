@@ -1,8 +1,8 @@
-"""WhoFundsIt small-tasks worker — Modal + vLLM, Llama-3.1-8B on 1xT4.
+"""WhoFundsIt diagnosis worker — Modal + vLLM, Llama-3.1-8B on 1xT4.
 
-The 8B handles the basic jobs: company-name cleanup and 3-4 line
-verify-flag commentary. Addressing (the hard parse) lives on the 70B
-worker (formalize_worker.py). One deploy prints both endpoint URLs.
+The 8B writes basic 3-4 line verify-flag commentary. Addressing (the hard
+parse) lives on the 70B worker (formalize_worker.py). (Name cleanup was
+removed 2026-11-02: names:sync owns CIK names from the SEC archive.)
 
 TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
   1. Accept the Llama 3.1 license on Hugging Face for
@@ -11,13 +11,12 @@ TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
      (or --from-dotenv <file holding just HF_TOKEN>; the worker reads
      Modal's env, never your local .env)
   3. modal deploy backend/inference_worker.py
-  4. Put the printed endpoint URLs in backend/.env as MODAL_WEBHOOK_URL
-     (normalize) and MODAL_DIAGNOSE_URL (diagnose).
+  4. Put the printed endpoint URL in backend/.env as MODAL_DIAGNOSE_URL.
   5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)
      and store it as MODAL_TOKEN_ID/MODAL_TOKEN_SECRET in backend/.env —
-     both endpoints enforce them natively (requires_proxy_auth).
+     the endpoint enforces them natively (requires_proxy_auth).
 Contract: POST {"text": "..."} (+ Modal-Key / Modal-Secret headers) ->
-normalized object (normalize) or {"diagnosis": "..."} (diagnose).
+{"diagnosis": "..."}.
 Never hardcode tokens in this file (ground rules).
 """
 
@@ -38,16 +37,6 @@ image = (
 
 app = modal.App("whofundsit-inference")
 
-NAME_SYSTEM_PROMPT = (
-    "You clean SEC filing data. Given one raw filing line, reply with ONLY a "
-    'JSON object: {"canonicalName": string, "aliases": string[], '
-    '"entityType": string|null, "locationText": string|null} — canonicalName '
-    "is the clean, deduplicated company name (not ALL-CAPS unless it is an "
-    "acronym), aliases lists other name variants of the same company, "
-    "entityType is the business kind if inferable, locationText is any state "
-    "or address text found in the input. No prose, no code fences."
-)
-
 DIAGNOSE_SYSTEM_PROMPT = (
     "You explain data-audit flags. Given one flag plus its known facts, "
     'reply with ONLY a JSON object: {"diagnosis": string} — 2-3 sentences '
@@ -63,8 +52,8 @@ DIAGNOSE_SYSTEM_PROMPT = (
     gpu=GPU,
     secrets=[modal.Secret.from_name("huggingface-secret")],
     timeout=60 * 15,
-    # Close the GPU after every run: these calls are rare, idling burns budget.
-    scaledown_window=0,
+    # Minimum allowed (2s): GPU effectively off after every run.
+    scaledown_window=2,
 )
 class InferenceWorker:
     @modal.enter()
@@ -77,7 +66,6 @@ class InferenceWorker:
             max_model_len=4096,
             gpu_memory_utilization=0.90,
         )
-        self.name_sampling = SamplingParams(temperature=0.0, max_tokens=192)
         self.diag_sampling = SamplingParams(temperature=0.2, max_tokens=320)
 
     def _ask(self, system: str, text: str, sampling) -> str:
@@ -92,11 +80,6 @@ class InferenceWorker:
         return outputs[0].outputs[0].text.strip()
 
     @modal.method()
-    def normalize(self, text: str) -> str:
-        """Normalize one unstructured filing line into a clean JSON string."""
-        return self._ask(NAME_SYSTEM_PROMPT, text, self.name_sampling)
-
-    @modal.method()
     def diagnose(self, text: str) -> str:
         """Explain one verify-audit flag in 2-3 sentences (JSON string)."""
         return self._ask(DIAGNOSE_SYSTEM_PROMPT, text, self.diag_sampling)
@@ -104,22 +87,6 @@ class InferenceWorker:
 
 def _clean_json(raw: str) -> str:
     return raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-
-
-@app.function(image=image, timeout=60 * 10)
-@modal.fastapi_endpoint(method="POST", label="normalize", requires_proxy_auth=True)
-def normalize_endpoint(payload: dict) -> dict:
-    """Name cleanup: the pipeline POSTs {"text": ...} (MODAL_WEBHOOK_URL)."""
-    text = str(payload.get("text", "")).strip()
-    if not text:
-        return {"error": "missing 'text'"}
-    raw = InferenceWorker().normalize.remote(text)
-    raw = _clean_json(raw)
-    try:
-        parsed = json.loads(raw)
-        return parsed if isinstance(parsed, dict) else {"raw": raw}
-    except json.JSONDecodeError:
-        return {"canonicalName": text, "raw": raw}
 
 
 @app.function(image=image, timeout=60 * 10)

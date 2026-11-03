@@ -90,7 +90,6 @@ const retryFailed = args.includes("--retry-failed");
 console.log(`[coords] pending: ${pending} addresses`);
 if (scope === "top") {
   const summary = await runPipeline({
-    normalize: false,
     take: 100,
     indexOnly: true,
     retryFailed,
@@ -105,7 +104,6 @@ if (scope === "top") {
   let skip = 0;
   for (;;) {
     const summary = await runPipeline({
-      normalize: false,
       take: 500,
       skip,
       retryFailed,

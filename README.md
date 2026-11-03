@@ -141,7 +141,7 @@ From `whofundsit/backend/` (pipeline order):
 | `deadlines:snapshot` | Copy local `dead-lines.json` into the committed seed for fresh clones |
 | `geo:snapshot` | Export address→coords mapping into the committed ODbL seed for fresh clones |
 | `ingest:all` | `ingest` + `coords:populate` in one go |
-| `pipeline` | Geocode pending entities (≤100/run) + Modal cleanup when configured |
+| `pipeline` | Geocode pending entities (≤100/run, single batch) |
 | `flows:openalex` | Grant arcs from OpenAlex funders (`OPENALEX_FUNDER_IDS` list, cursor-paged with key, cached) |
 | `flows:13f` | Fund arcs from every 13F-HR filer (core-scaled workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it, `THIRTEENF_SKIP_STALE=1` drops dead filers; unplaceable funds stub for coords retry) |
 | `sync:global` | International companies (Wikidata → GLEIF) + ownership arcs (`GLOBAL_LIMIT`, `GLOBAL_MAX_CHILDREN`) |

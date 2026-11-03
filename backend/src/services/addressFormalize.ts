@@ -143,8 +143,6 @@ export function parseFormalizeResponse(raw: unknown, original: string): Formaliz
 export type FormalizeCaller = (text: string) => Promise<unknown>;
 
 // Production caller: POST one address to the Modal formalize endpoint.
-// No fallback: MODAL_WEBHOOK_URL is the 8B name endpoint now, and posting
-// addresses at it would return confident-looking empty parses.
 export function modalFormalizeCaller(): FormalizeCaller {
   const url = process.env.MODAL_FORMALIZE_URL;
   if (!url) {

@@ -68,8 +68,8 @@ def _prompt(system: str, text: str) -> str:
     gpu="L40S:2",
     secrets=[modal.Secret.from_name("huggingface-secret")],
     timeout=60 * 15,
-    # Close the GPUs after every run: batch everything, pay for minutes.
-    scaledown_window=0,
+    # Minimum allowed (2s): GPUs effectively off after every run.
+    scaledown_window=2,
 )
 class FormalizeWorker:
     @modal.enter()

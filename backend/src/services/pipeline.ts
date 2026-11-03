@@ -24,13 +24,13 @@ import {
   type ParsedUsAddress,
 } from "./censusBatch.js";
 
-// Background pipeline: give ingested SEC entities real coordinates, and route
-// shouty/complex names through the Modal Llama worker for normalization.
+// Background pipeline: give ingested SEC entities real coordinates.
 // "Missing" coordinates means the 0,0 ingest placeholders. Geocoding runs
 // where GEOCODE_BACKEND says ("local" default, or "modal" batch worker).
 // Every outbound API is rate-limited + cached, every run capped (guardrails).
+// (GPU name cleanup was removed 2026-11-02: names:sync owns CIK names from
+// the SEC archive, the authoritative source — LLM guesses lost on all axes.)
 const MAX_ENTITIES_PER_RUN = 100;
-const MAX_MODAL_CALLS_PER_RUN = 25;
 const NOMINATIM_MIN_INTERVAL_MS = 1100; // Nominatim usage policy: <= 1 req/s
 const MODAL_MIN_INTERVAL_MS = 250;
 // Census batch states no limit (built for bulk); 1s politeness costs ~nothing
@@ -670,65 +670,10 @@ async function geocodeRemoteCached(
   return out;
 }
 
-// SEC names arrive SHOUTING or punctuated ("AAR CORP."); those earn a Llama pass.
-function needsLlama(name: string): boolean {
-  return name === name.toUpperCase() || /[^A-Za-z0-9 .,&'-]/.test(name);
-}
-
-let warnedModalKey = false;
-
-async function normalizeWithLlama(
-  entity: Pick<Entity, "name" | "rawAddressText">,
-): Promise<string | null> {
-  const url = process.env.MODAL_WEBHOOK_URL;
-  if (!url) {
-    return null;
-  }
-  const auth = modalProxyHeaders();
-  if (!auth) {
-    // Best-effort stays best-effort (never throw here), but a missing
-    // token warns once — silent no-op normalization is a misconfig smell.
-    if (!warnedModalKey) {
-      warnedModalKey = true;
-      console.warn(`Modal proxy auth is not configured — skipping AI normalization (${MODAL_PROXY_ENV_HINT})`);
-    }
-    return null;
-  }
-  const input = `${entity.name} (${entity.rawAddressText})`;
-  try {
-    const data = await cachedJson<unknown>(
-      `ai/normalize-${cacheKey(input)}.json`,
-      () =>
-        modal(async () => {
-          apiLog("POST", url);
-          const res = await axios.post(
-            url,
-            { text: input },
-            {
-              headers: { "Content-Type": "application/json", ...auth },
-              timeout: 60000,
-            },
-          );
-          return res.data as unknown;
-        }),
-    );
-    const parsed: unknown =
-      typeof data === "string" ? JSON.parse(data) : data;
-    if (typeof parsed === "object" && parsed !== null) {
-      const name = (parsed as { canonicalName?: unknown }).canonicalName;
-      return typeof name === "string" && name.length > 0 ? name : null;
-    }
-    return null;
-  } catch {
-    return null; // best-effort: never fail the run on AI cleanup
-  }
-}
-
 export interface PipelineSummary {
   scanned: number; // entities considered (<= take)
   geocoded: number; // rows placed with real lat/lng (scanned = geocoded + failed)
   failed: number; // rows marked failed: misses, junk, errors-after-retry
-  normalized: number; // rows renamed by the Llama worker
   dead: number; // of failed: hit the dead-lines file, zero API calls
   junk: number; // of failed: registrant-name pre-filter, zero API calls
 }
@@ -871,7 +816,6 @@ async function runCensusFailedPass(
     scanned: entities.length,
     geocoded,
     failed,
-    normalized: 0,
     dead: 0,
     junk: 0,
   };
@@ -879,7 +823,6 @@ async function runCensusFailedPass(
 
 export async function runPipeline(
   opts: {
-    normalize?: boolean;
     take?: number;
     indexOnly?: boolean;
     skip?: number;
@@ -909,9 +852,7 @@ export async function runPipeline(
     }
 
     let geocoded = 0;
-    let normalized = 0;
     let failed = 0;
-    let modalCalls = 0;
     deadHits = 0;
     junkHits = 0;
     const t0 = Date.now();
@@ -934,17 +875,6 @@ export async function runPipeline(
       const addrText = entity.businessAddress ?? entity.rawAddressText;
       const coords = coordsByText.get(addrText) ?? null;
 
-      let canonicalName: string | null = null;
-      if (
-        opts.normalize !== false &&
-        needsLlama(entity.name) &&
-        modalCalls < MAX_MODAL_CALLS_PER_RUN &&
-        process.env.MODAL_WEBHOOK_URL
-      ) {
-        modalCalls += 1;
-        canonicalName = await normalizeWithLlama(entity);
-      }
-
       // Skip IS failed: every scanned row without coords is marked
       // failed — junk and errors-after-retry included. The only ways out
       // are the LLM pass, coords:global (P625), and --census-failed, so
@@ -959,15 +889,11 @@ export async function runPipeline(
         where: { id: entity.id },
         data: {
           ...(coords ?? {}),
-          ...(canonicalName ? { name: canonicalName } : {}),
           ...(status ? { geoStatus: status } : {}),
         },
       });
       if (coords) {
         geocoded += 1;
-      }
-      if (canonicalName) {
-        normalized += 1;
       }
     }
 
@@ -981,7 +907,6 @@ export async function runPipeline(
       scanned: entities.length,
       geocoded,
       failed,
-      normalized,
       dead: deadHits,
       junk: junkHits,
     };

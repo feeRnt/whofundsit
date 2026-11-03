@@ -701,3 +701,13 @@ comment corrected; old note left as history.
   coords_p625 stub now says SUPERSEDED (was a silent no-op trap).
   VERIFIED: tsc clean. No DB writes, no chain runs. Left untouched:
   user's seed-data outputs + dead-lines seed (their run products).
+- REMOVED GPU name cleanup per user (names:sync owns names): stripped
+  needsLlama/normalizeWithLlama + normalize option + summary.normalized
+  from pipeline.ts, normalize:false from coords call sites, the normalize
+  endpoint/prompt from inference_worker.py (diagnose-only 8B now),
+  MODAL_WEBHOOK_URL from .env.example; README/TODO/deploy item updated.
+  Deploy fixes for user: run modal deploy from repo root (their
+  FileNotFoundError was a cwd issue); scaledown_window=0 is INVALID in
+  Modal (must be 2-3600) — set 2 (effectively off) on both workers.
+  VERIFIED: tsc clean, py_compile both, 34/34
+  pipeline+llmPass+formalize. No DB writes.

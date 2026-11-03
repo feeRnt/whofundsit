@@ -118,10 +118,10 @@
       (Done 2026-11-02: errors-after-retry are DB-failed but never dead-lined;
       distinct `retry-error` log line. The skip-is-failed change removed the
       pending limbo that made this nasty.)
-- [ ] **Deploy the swapped Modal workers + set the three URLs.** (`modal deploy
+- [ ] **Deploy the Modal workers + set the two URLs.** (`modal deploy
       backend/formalize_worker.py` (70B 3.3, L40S:2) → `MODAL_FORMALIZE_URL`;
-      `modal deploy backend/inference_worker.py` (8B, T4:1) → `MODAL_WEBHOOK_URL`
-      + `MODAL_DIAGNOSE_URL`. Same proxy tokens cover all endpoints. Watch the
+      `modal deploy backend/inference_worker.py` (8B, T4:1) → `MODAL_DIAGNOSE_URL`.
+      Run both from the repo root. Same proxy tokens cover all endpoints. Watch the
       T4 deploy: 8B bf16 is ~16GB on a 16GB card — flip the in-file `GPU` const
       to `L4` and redeploy if it OOMs. Needed before any `--pass` or diagnose run.)
 
