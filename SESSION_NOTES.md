@@ -754,3 +754,10 @@ comment corrected; old note left as history.
   prints payload in / raw out to Modal logs (needs inference redeploy;
   safe anytime). Fixed stale "Second webhook" docstring. VERIFIED: tsc
   clean, 17/17 claimsVerify, py_compile. No DB writes.
+- Diagnose failures now throw (user chose log-and-exit): empty replies
+  and call errors fail fast on flag one; runVerify writes report,
+  history, and snapshot FIRST, then throws, so scores survive and the
+  exit is loud. Unconfigured (no URL/auth) and VERIFY_DIAGNOSE=0 stay
+  graceful skips. No new unit test: the path needs live Modal and the
+  suite has no network harness. VERIFIED: tsc clean, 17/17
+  claimsVerify. No DB writes.

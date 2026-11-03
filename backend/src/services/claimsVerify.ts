@@ -381,14 +381,16 @@ const sec = limiter(150); // SEC fair access: <= 10 req/s
 const nominatim = limiter(1100); // Nominatim usage policy: <= 1 req/s
 const modal = limiter(250); // our own GPU: spacing, not a ToS limit
 
-// --- 70B why/how diagnosis (Modal only, zero new outside data calls) ---
+// --- 8B why/how diagnosis (Modal only, zero new outside data calls) ---
 //
 // The model reasons ONLY over facts already in hand — the stored-vs-live
 // numbers the check just fetched. Diagnosis adds Modal calls (cached per
 // flag, capped per run) and never touches SEC/Nominatim/outside sources.
 // Needs MODAL_INFERENCE_URL (diagnose endpoint in inference_worker.py) plus
-// the usual proxy tokens; without them flags ship undiagnosed.
-// VERIFY_DIAGNOSE=0 skips the pass; VERIFY_DIAGNOSE_MAX caps flags per run.
+// the usual proxy tokens; without them flags ship undiagnosed (graceful).
+// A failed call when configured throws AFTER report files land: loud exit,
+// never a silent gap. VERIFY_DIAGNOSE=0 skips the pass;
+// VERIFY_DIAGNOSE_MAX caps flags per run.
 const INFERENCE_URL = process.env.MODAL_INFERENCE_URL;
 const DIAGNOSE_MAX = Number(process.env.VERIFY_DIAGNOSE_MAX ?? 10);
 
@@ -408,10 +410,10 @@ export function diagnosisPrompt(flag: string, cell: string): string {
   ].join("\n");
 }
 
-async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
+async function diagnoseOne(flag: string, cell: string): Promise<string> {
   const auth = modalProxyHeaders();
   if (!auth || !INFERENCE_URL) {
-    return null;
+    throw new Error("MODAL_INFERENCE_URL or proxy auth is not set");
   }
   const prompt = diagnosisPrompt(flag, cell);
   console.log(`[verify] >> diagnose ${cell}: ${flag}`);
@@ -434,13 +436,15 @@ async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
         }),
     );
     const d = data?.diagnosis;
-    console.log(`[verify] << diagnosis: ${typeof d === "string" && d.length > 0 ? d : "(empty)"}`);
-    return typeof d === "string" && d.length > 0 ? d : null;
+    if (typeof d !== "string" || d.length === 0) {
+      throw new Error("API replied with an empty diagnosis");
+    }
+    console.log(`[verify] << diagnosis: ${d}`);
+    return d;
   } catch (err) {
-    console.error(
-      `[verify] diagnose failed for ${cell}: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return null; // best-effort: the flag still ships, just unexplained
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[verify] diagnose failed for ${cell} (${flag}): ${msg}`);
+    throw err instanceof Error ? err : new Error(msg);
   }
 }
 
@@ -448,7 +452,7 @@ async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
 // one 70B serves the queue, parallelism buys nothing. Pure-ish (cached I/O).
 async function diagnoseFlags(
   cells: { name: string; flags: string[] }[],
-): Promise<Map<string, FlagDiagnosis[]>> {
+): Promise<{ byCell: Map<string, FlagDiagnosis[]>; error: Error | null }> {
   const out = new Map<string, FlagDiagnosis[]>();
   const queue: { cell: string; flag: string }[] = [];
   const seenFlag = new Set<string>();
@@ -461,25 +465,29 @@ async function diagnoseFlags(
     }
   }
   if (queue.length === 0 || process.env.VERIFY_DIAGNOSE === "0") {
-    return out;
+    return { byCell: out, error: null };
   }
   if (!INFERENCE_URL) {
     console.log("[verify] diagnoses skipped: MODAL_INFERENCE_URL is not set");
-    return out;
+    return { byCell: out, error: null };
   }
   if (!modalProxyHeaders()) {
     console.log(`[verify] diagnoses skipped: ${MODAL_PROXY_ENV_HINT}`);
-    return out;
+    return { byCell: out, error: null };
   }
+  // Fail fast: a systematic outage (bad URL, dead endpoint) exits on flag
+  // one instead of burning ten timeouts. The caller throws after files land.
   for (const { cell, flag } of queue.slice(0, DIAGNOSE_MAX)) {
-    const diagnosis = await diagnoseOne(flag, cell);
-    if (diagnosis) {
+    try {
+      const diagnosis = await diagnoseOne(flag, cell);
       const list = out.get(cell) ?? [];
       list.push({ flag, diagnosis });
       out.set(cell, list);
+    } catch (err) {
+      return { byCell: out, error: err instanceof Error ? err : new Error(String(err)) };
     }
   }
-  return out;
+  return { byCell: out, error: null };
 }
 
 interface CompanyFact {
@@ -885,8 +893,9 @@ export async function runVerify(): Promise<{
       );
     }
 
-    // 70B explains the flags (Modal only; no new outside data calls).
-    const diagnosed = await diagnoseFlags(
+    // 8B explains the flags (Modal only; no new outside data calls).
+    // A diagnose failure throws AFTER files land (below): loud exit, safe scores.
+    const { byCell: diagnosed, error: diagnoseError } = await diagnoseFlags(
       cells.map((c) => ({ name: c.cell, flags: c.flags })),
     );
     for (const c of cells) {
@@ -926,6 +935,9 @@ export async function runVerify(): Promise<{
         : report;
     fs.mkdirSync(path.dirname(seedPath), { recursive: true });
     fs.writeFileSync(seedPath, JSON.stringify(snapshot, null, 2));
+    if (diagnoseError) {
+      throw diagnoseError;
+    }
     return { cells, overall, reportPath, runs: history.length };
   } finally {
     await prisma.$disconnect();
