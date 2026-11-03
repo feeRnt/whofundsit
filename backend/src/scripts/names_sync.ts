@@ -12,7 +12,8 @@ import { jsonEntries } from "../services/bulkLoad.js";
 // Nothing writes before an interactive yes: the scan is read-only, the log
 // shows exactly how many CIKs and rows would change, and the prompt defaults
 // to no. `--yes` approves non-interactively (overnight chain); without a TTY
-// and without --yes the script aborts instead of guessing.
+// and without --yes the script aborts instead of guessing. `--list` prints
+// every affected CIK as old -> legal name (read-only detail, no prompt skip).
 async function askConfirm(ciks: number, rows: number): Promise<boolean> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -86,6 +87,19 @@ try {
     rowsAffected: affected,
   });
   const args = process.argv.slice(2);
+  if (args.includes("--list")) {
+    // Dry-run detail: one old -> legal line per CIK, sorted. Read-only.
+    const current = new Map<number, string>();
+    for (const row of rows) {
+      const m = /^(\d+):/.exec(row.id);
+      if (m && changed.has(Number(m[1])) && !current.has(Number(m[1]))) {
+        current.set(Number(m[1]), row.name);
+      }
+    }
+    for (const [cik, want] of [...changed.entries()].sort((a, b) => a[0] - b[0])) {
+      console.log(`[names] ${cik}: ${current.get(cik)} -> ${want}`);
+    }
+  }
   let approved = args.includes("--yes");
   if (!approved && changed.size > 0) {
     if (!process.stdin.isTTY) {

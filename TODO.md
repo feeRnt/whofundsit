@@ -1,15 +1,20 @@
 # TODO
 
-## ⚠️ CIRCULAR CHAIN DEPENDENCY: 13F <-> coords (read before ANY rerun)
+## ⚠️ 13F keeps everything (kills the rerun sandwich) — NOT YET BUILT
 
-- [ ] **Always run the chain as 13f → coords → 13f → export, in that order, never one
-      side alone.** (Each half feeds the other: 13F matches holdings ONLY against
-      PLACED entities, so fresh coords need a 13F rerun (cheap, filings cached) to
-      convert unmatched holdings into flows; and 13F stubs new fund rows that need a
-      coords rerun to place fund dots. Running just one side leaves the other half's
-      gaps in place — THIS circle is why partial reruns looked broken in the past.
-      After coords:populate, rerun flows:13f. After flows:13f, rerun coords:populate.
-      Then export. No exceptions.)
+- [ ] **Fix flows:13f to keep ALL holdings as flows, even unmapped/unplaced ones —
+      then one 13F + one coords converges in any order, once each, no reruns.**
+      (Replaces the old 13f → coords → 13f sandwich (which existed because 13F
+      matched ONLY placed entities and dropped the rest — that's why partial reruns
+      looked broken). The fix: match against ALL entities placed or not; unmatched
+      holdings get shared per-CUSIP stub targets (`13ft:<cusip>`, one bulk createMany
+      with skipDuplicates, safe for concurrent managers + reruns); fund stubs always
+      written AND their flows written too. API already filters lat/lng 0, so stubs
+      stay hidden until coords:populate places what it can (fund dots; targets with
+      real rows). Reruns stay useful only at the margin (genuinely-new companies
+      ingested later repoint flows via upsert). Watch-out before building: stubs
+      bloat db:export seeds by tens of thousands of hidden rows — decide export-all
+      vs export-placed-only first. Design sketched, code untouched per user.)
 
 ## Post-demo: revisit quarterly SEC cache (demo shortcut, see 95c061b)
 

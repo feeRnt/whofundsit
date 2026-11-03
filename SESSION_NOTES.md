@@ -634,3 +634,10 @@ comment corrected; old note left as history.
   VERIFIED: tsc clean, 34/34 httpCache+thirteenF+claimsVerify tests
   (new currentQuarter suite). Live 13f run keeps old code in memory;
   new cache loads on next start. No DB writes.
+- names:sync --list preview (read-only). Prints one
+  `[names] <cik>: <current> -> <legal>` line per affected CIK, sorted,
+  before the counts + [y/N] prompt. No prompt skip, no writes. tsc clean.
+- TODO.md: the 13f→coords→13f sandwich item REPLACED with the planned
+  13F keep-everything fix (match-all + 13ft:<cusip> stubs; decide
+  export-all-vs-placed first). thirteenF.ts edits reverted per user —
+  code untouched, design parked in the todo. No DB writes.
