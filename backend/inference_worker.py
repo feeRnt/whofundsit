@@ -43,7 +43,9 @@ os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .pip_install("vllm==0.6.3", "fastapi[standard]")
+    # Same pin as the 70B worker: latest transformers crashes vllm 0.6.3
+    # tokenizer init (all_special_tokens_extended removed).
+    .pip_install("vllm==0.6.3", "transformers==4.45.2", "fastapi[standard]")
 )
 
 app = modal.App("whofundsit-inference")
@@ -68,6 +70,9 @@ DIAGNOSE_SYSTEM_PROMPT = (
     gpu=GPU,
     secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
     volumes={"/root/.cache/huggingface": hf_cache_8b},
+    # Download (~16 GB) gets startup room like the 70B class; without it
+    # the 15-min execution timeout is the cold-start ceiling.
+    startup_timeout=60 * 30,
     timeout=60 * 15,
     # Minimum allowed (2s): GPU effectively off after every run.
     scaledown_window=2,
@@ -109,7 +114,8 @@ def _clean_json(raw: str) -> str:
     return raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
 
 
-@app.function(image=image, timeout=60 * 10)
+# 22 min, matching formalize: the wrapper waits out a cold start.
+@app.function(image=image, timeout=60 * 22)
 @modal.fastapi_endpoint(method="POST", label="diagnose", requires_proxy_auth=True)
 def diagnose_endpoint(payload: dict) -> dict:
     """Diagnose webhook: verify:claims POSTs {"text": flag} for a why/how."""
