@@ -7,9 +7,10 @@ removed 2026-11-02: names:sync owns CIK names from the SEC archive.)
 TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
   1. Accept the Llama 3.1 license on Hugging Face for
      meta-llama/Llama-3.1-8B-Instruct (the weights are gated).
-  2. modal secret create huggingface-secret HF_TOKEN=<your HF token>
-     (or --from-dotenv <file holding just HF_TOKEN>; the worker reads
-     Modal's env, never your local .env)
+  2. modal secret create <name> HF_TOKEN=<your HF token>
+     (default name huggingface-secret; or --from-dotenv <file holding just
+     HF_TOKEN>. If yours differs, export MODAL_HF_SECRET_NAME=<name> before
+     deploying; the worker reads Modal's env, never your local .env)
   3. modal deploy backend/inference_worker.py
   4. Put the printed endpoint URL in backend/.env as MODAL_DIAGNOSE_URL.
   5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)
@@ -21,6 +22,7 @@ Never hardcode tokens in this file (ground rules).
 """
 
 import json
+import os
 
 import modal
 
@@ -29,6 +31,11 @@ MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
 # T4 is a 16 GB card and 8B bf16 weights are ~16 GB: tight, may OOM on
 # deploy. If it does, flip to "L4" (24 GB, still cheap) and redeploy.
 GPU = "T4:1"
+
+# Modal secret holding HF_TOKEN. Deploy-time only: `modal deploy` reads your
+# local shell env, not backend/.env — export MODAL_HF_SECRET_NAME=<name>
+# in the deploying shell when yours isn't the default.
+HF_SECRET_NAME = os.environ.get("MODAL_HF_SECRET_NAME", "huggingface-secret")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -50,7 +57,7 @@ DIAGNOSE_SYSTEM_PROMPT = (
 @app.cls(
     image=image,
     gpu=GPU,
-    secrets=[modal.Secret.from_name("huggingface-secret")],
+    secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
     timeout=60 * 15,
     # Minimum allowed (2s): GPU effectively off after every run.
     scaledown_window=2,

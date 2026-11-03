@@ -711,3 +711,7 @@ comment corrected; old note left as history.
   Modal (must be 2-3600) — set 2 (effectively off) on both workers.
   VERIFIED: tsc clean, py_compile both, 34/34
   pipeline+llmPass+formalize. No DB writes.
+- Modal secret name configurable: both LLM workers read
+  MODAL_HF_SECRET_NAME (default huggingface-secret) from the deploying
+  shell's env at `modal deploy` time (backend/.env is NOT read by
+  deploy). .env.example documents it. VERIFIED: py_compile both. No DB writes.

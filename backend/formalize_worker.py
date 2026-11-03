@@ -9,9 +9,10 @@ with room left for batched KV cache. The GPU shuts down after every run
 TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
   1. Accept the Llama 3.3 license on Hugging Face for
      meta-llama/Llama-3.3-70B-Instruct (the weights are gated).
-  2. modal secret create huggingface-secret HF_TOKEN=<your HF token>
-     (or --from-dotenv <file holding just HF_TOKEN>; the worker reads
-     Modal's env, never your local .env)
+  2. modal secret create <name> HF_TOKEN=<your HF token>
+     (default name huggingface-secret; or --from-dotenv <file holding just
+     HF_TOKEN>. If yours differs, export MODAL_HF_SECRET_NAME=<name> before
+     deploying; the worker reads Modal's env, never your local .env)
   3. modal deploy backend/formalize_worker.py
   4. Put the printed endpoint URL in backend/.env as MODAL_FORMALIZE_URL.
   5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)
@@ -26,10 +27,16 @@ Never hardcode tokens in this file (ground rules).
 """
 
 import json
+import os
 
 import modal
 
 MODEL_ID = "meta-llama/Llama-3.3-70B-Instruct"
+
+# Modal secret holding HF_TOKEN. Deploy-time only: `modal deploy` reads your
+# local shell env, not backend/.env — export MODAL_HF_SECRET_NAME=<name>
+# in the deploying shell when yours isn't the default.
+HF_SECRET_NAME = os.environ.get("MODAL_HF_SECRET_NAME", "huggingface-secret")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -66,7 +73,7 @@ def _prompt(system: str, text: str) -> str:
 @app.cls(
     image=image,
     gpu="L40S:2",
-    secrets=[modal.Secret.from_name("huggingface-secret")],
+    secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
     timeout=60 * 15,
     # Minimum allowed (2s): GPUs effectively off after every run.
     scaledown_window=2,
