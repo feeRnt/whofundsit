@@ -143,7 +143,7 @@ export function parseFormalizeResponse(raw: unknown, original: string): Formaliz
 export type FormalizeCaller = (text: string) => Promise<unknown>;
 
 // Production caller: POST one address to the Modal formalize endpoint.
-export function modalFormalizeCaller(): FormalizeCaller {
+export function modalFormalizeCaller(timeoutMs = 120000): FormalizeCaller {
   const url = process.env.MODAL_FORMALIZE_URL;
   if (!url) {
     throw new Error(
@@ -157,6 +157,8 @@ export function modalFormalizeCaller(): FormalizeCaller {
   warnIfNotEndpointUrl(url);
   return async (text: string) => {
     apiLog("POST", url);
+    console.log(`[formalize] >> 1 text to ${url}`);
+    console.log(`[formalize] >> [0] ${text}`);
     let data: unknown;
     try {
       ({ data } = await axios.post(
@@ -168,9 +170,10 @@ export function modalFormalizeCaller(): FormalizeCaller {
             "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
             ...auth,
           },
-          timeout: 120000,
+          timeout: timeoutMs,
         },
       ));
+      console.log(`[formalize] << [0] ${JSON.stringify(data)}`);
     } catch (err) {
       if (isModalAuthRejection(err)) {
         // Thrown per-row: formalizeAddresses records it as llm-call-failed,

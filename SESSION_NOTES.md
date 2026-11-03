@@ -741,3 +741,8 @@ comment corrected; old note left as history.
   downloads ~140 GB once; later cold starts skip the download. Needs a
   redeploy AFTER the live run finishes (never mid-run). VERIFIED:
   py_compile. No DB writes.
+- Sequential formalize mode per user: --pass=N takes --sequential (one
+  address per call, each awaited, 10-min timeout for cold starts);
+  single caller gained timeout param (default unchanged 120s) and
+  >>/<< logging parity. Batch path untouched. VERIFIED: tsc clean,
+  10/10 addressFormalize, py_compile worker. No DB writes.

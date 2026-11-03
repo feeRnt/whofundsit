@@ -7,16 +7,18 @@ import {
   formalizeAddressesBatched,
   formalizePrompt,
   formalizeRetryPrompt,
+  modalFormalizeCaller,
 } from "../services/addressFormalize.js";
 import { readPassFile, toPassRows, writePassFile } from "../services/llmPass.js";
 
 // LLM repair passes (GPU side; the geocode side is coords:populate --llm-N).
 //
-// Queue mode: `npm run formalize:addresses -- --pass=N [--limit=K]`
+// Queue mode: `npm run formalize:addresses -- --pass=N [--limit=K] [--sequential]`
 //   pass 1 reads failed unplaced entities from the DB; pass N>1 reads the
 //   unsuccessful rows of llm-pass-(N-1).json (successes stay put, never
-//   re-sent). Prompts go out in GPU-sized chunks; rows land in
-//   data/cache/geo/llm-pass-N.json as status pending for --llm-N.
+//   re-sent). Prompts go out in GPU-sized chunks (or one at a time, each
+//   awaited, with --sequential); rows land in data/cache/geo/llm-pass-N.json
+//   as status pending for --llm-N.
 // Legacy mode: file (one address per line) or stdin -> JSON Lines on
 // stdout. Writes nothing else.
 //   npx tsx src/scripts/formalize_addresses.ts addresses.txt > out.jsonl
@@ -87,7 +89,16 @@ if (pass === 1) {
   }));
 }
 console.log(`[formalize] pass ${pass}: ${inputs.length} addresses queued`);
-const results = await formalizeAddressesBatched(inputs.map((i) => i.text));
+const sequential = args.includes("--sequential");
+if (sequential) {
+  console.log("[formalize] sequential mode: one address per call, each awaited");
+}
+const results = sequential
+  ? await formalizeAddresses(
+      inputs.map((i) => i.text),
+      modalFormalizeCaller(600000),
+    )
+  : await formalizeAddressesBatched(inputs.map((i) => i.text));
 const rows = toPassRows(inputs, results, pass);
 writePassFile(pass, rows);
 const parsed = rows.filter((r) => !r.failureCause).length;
