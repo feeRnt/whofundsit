@@ -1,0 +1,217 @@
+{
+  "generatedAt": "2026-11-03T04:34:05.987Z",
+  "seed": null,
+  "mode": {
+    "fraction": 0.1,
+    "maxPerCell": 5
+  },
+  "cells": [
+    {
+      "cell": "index=long-tail",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 3,
+      "pctVerified": 60,
+      "mean": 83,
+      "flags": [
+        "lei:549300ITODCIPOGBMF68: reverse country us vs bucket non-us",
+        "1653606:Assets: reverse country ca vs bucket us"
+      ],
+      "diagnoses": []
+    },
+    {
+      "cell": "index=major",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "region=non-us",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 4,
+      "pctVerified": 80,
+      "mean": 90,
+      "flags": [
+        "lei:5493008OU1Z02FTKFJ53: reverse country us vs bucket non-us"
+      ],
+      "diagnoses": []
+    },
+    {
+      "cell": "region=unknown",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "region=us",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "source=13f",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 0,
+      "pctVerified": 0,
+      "mean": 50,
+      "flags": [
+        "13f:0000721204: reverse country us vs bucket non-us",
+        "13f:0000050863: reverse country us vs bucket non-us",
+        "13f:0000314965: reverse country us vs bucket non-us",
+        "13f:0000819535: reverse country us vs bucket non-us",
+        "13f:0000715113: reverse country us vs bucket non-us"
+      ],
+      "diagnoses": []
+    },
+    {
+      "cell": "source=bulk-zip",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 3,
+      "pctVerified": 60,
+      "mean": 87,
+      "flags": [
+        "1735707:Revenues: reverse country ch vs bucket us",
+        "1381074:StockholdersEquity: reverse country cn vs bucket us"
+      ],
+      "diagnoses": []
+    },
+    {
+      "cell": "source=frames-api",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "source=global",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "source=openalex",
+      "kind": "entity",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "flow=13f",
+      "kind": "flow",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "flow=grant",
+      "kind": "flow",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    },
+    {
+      "cell": "flow=ownership",
+      "kind": "flow",
+      "runs": 1,
+      "n": 5,
+      "tested": 5,
+      "untestable": 0,
+      "passed": 5,
+      "pctVerified": 100,
+      "mean": 100,
+      "flags": [],
+      "diagnoses": []
+    }
+  ],
+  "overall": {
+    "cell": "overall",
+    "kind": "all",
+    "runs": 1,
+    "n": 65,
+    "tested": 65,
+    "untestable": 0,
+    "passed": 55,
+    "pctVerified": 85,
+    "mean": 93,
+    "flags": [
+      "lei:549300ITODCIPOGBMF68: reverse country us vs bucket non-us",
+      "1653606:Assets: reverse country ca vs bucket us",
+      "lei:5493008OU1Z02FTKFJ53: reverse country us vs bucket non-us",
+      "13f:0000721204: reverse country us vs bucket non-us",
+      "13f:0000050863: reverse country us vs bucket non-us",
+      "13f:0000314965: reverse country us vs bucket non-us",
+      "13f:0000819535: reverse country us vs bucket non-us",
+      "13f:0000715113: reverse country us vs bucket non-us",
+      "1735707:Revenues: reverse country ch vs bucket us",
+      "1381074:StockholdersEquity: reverse country cn vs bucket us"
+    ],
+    "diagnoses": []
+  }
+}
