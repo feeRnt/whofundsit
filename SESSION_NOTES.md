@@ -749,3 +749,8 @@ comment corrected; old note left as history.
 - Same HF cache for the 8B worker (hf-hub-cache-8b volume, ~16 GB):
   HF_HOME pinned, commit after load. Safe to deploy anytime (separate
   app from the live formalize run). VERIFIED: py_compile. No DB writes.
+- Diagnose logging mirrors formalize: client prints >> prompt and <<
+  diagnosis per flag plus console.error on failure; worker endpoint
+  prints payload in / raw out to Modal logs (needs inference redeploy;
+  safe anytime). Fixed stale "Second webhook" docstring. VERIFIED: tsc
+  clean, 17/17 claimsVerify, py_compile. No DB writes.

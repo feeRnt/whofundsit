@@ -413,6 +413,9 @@ async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
   if (!auth || !INFERENCE_URL) {
     return null;
   }
+  const prompt = diagnosisPrompt(flag, cell);
+  console.log(`[verify] >> diagnose ${cell}: ${flag}`);
+  console.log(`[verify] >> prompt: ${prompt}`);
   try {
     const data = await cachedJson<{ diagnosis?: unknown }>(
       `verify/diag-${cacheKey(flag)}.json`,
@@ -421,7 +424,7 @@ async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
           apiLog("POST", INFERENCE_URL);
           const res = await axios.post(
             INFERENCE_URL,
-            { text: diagnosisPrompt(flag, cell) },
+            { text: prompt },
             {
               headers: { "Content-Type": "application/json", ...auth },
               timeout: 300000,
@@ -431,8 +434,12 @@ async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
         }),
     );
     const d = data?.diagnosis;
+    console.log(`[verify] << diagnosis: ${typeof d === "string" && d.length > 0 ? d : "(empty)"}`);
     return typeof d === "string" && d.length > 0 ? d : null;
-  } catch {
+  } catch (err) {
+    console.error(
+      `[verify] diagnose failed for ${cell}: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return null; // best-effort: the flag still ships, just unexplained
   }
 }

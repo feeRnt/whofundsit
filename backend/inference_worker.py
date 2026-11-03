@@ -109,11 +109,14 @@ def _clean_json(raw: str) -> str:
 @app.function(image=image, timeout=60 * 10)
 @modal.fastapi_endpoint(method="POST", label="diagnose", requires_proxy_auth=True)
 def diagnose_endpoint(payload: dict) -> dict:
-    """Second webhook: verify:claims POSTs {"text": flag} for a why/how."""
+    """Diagnose webhook: verify:claims POSTs {"text": flag} for a why/how."""
     text = str(payload.get("text", "")).strip()
     if not text:
         return {"error": "missing 'text'"}
+    print(f"[diagnose] >> {len(text)} chars in")
+    print(f"[diagnose] >> {text}")
     raw = InferenceWorker().diagnose.remote(text)
+    print(f"[diagnose] << raw out: {raw}")
     raw = _clean_json(raw)
     try:
         parsed = json.loads(raw)
