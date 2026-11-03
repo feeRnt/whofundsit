@@ -154,6 +154,7 @@ export function modalFormalizeCaller(): FormalizeCaller {
   if (!auth) {
     throw new Error(`Modal proxy auth is not configured — ${MODAL_PROXY_ENV_HINT}`);
   }
+  warnIfNotEndpointUrl(url);
   return async (text: string) => {
     apiLog("POST", url);
     let data: unknown;
@@ -221,6 +222,17 @@ export async function formalizeAddresses(
 // bigger chunks risk OOM, smaller ones waste cold starts.
 export const FORMALIZE_BATCH = 24;
 
+// The .env value must be the function's https endpoint (.modal.run), not the
+// Modal dashboard/deployment link — the dashboard 405s POSTs. Warn, don't
+// throw: custom domains exist.
+export function warnIfNotEndpointUrl(url: string): void {
+  if (!/^https:\/\/[^/]+\.modal\.run(\/|$)/.test(url)) {
+    console.warn(
+      `[formalize] ${url} does not look like a Modal endpoint URL — want the https://....modal.run function URL from \`modal deploy\`, not the dashboard link.`,
+    );
+  }
+}
+
 export type FormalizeBatchCaller = (texts: string[]) => Promise<unknown[]>;
 
 // Production batch caller: POST {"texts": [...]} (one GPU generate).
@@ -237,9 +249,12 @@ export function modalFormalizeBatchCaller(
   if (!auth) {
     throw new Error(`Modal proxy auth is not configured — ${MODAL_PROXY_ENV_HINT}`);
   }
+  warnIfNotEndpointUrl(url);
   return async (texts: string[]) => {
     apiLog("POST", url);
-    const { data } = await axios.post(url, { texts }, {
+    console.log(`[formalize] >> ${texts.length} texts to ${url}`);
+    texts.forEach((t, i) => console.log(`[formalize] >> [${i}] ${t}`));
+    const { data, status } = await axios.post(url, { texts }, {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
@@ -247,6 +262,9 @@ export function modalFormalizeBatchCaller(
       },
       timeout: timeoutMs,
     });
+    const replies = Array.isArray(data) ? data : [data];
+    console.log(`[formalize] << HTTP ${status}, ${replies.length} replies`);
+    replies.forEach((r, i) => console.log(`[formalize] << [${i}] ${JSON.stringify(r)}`));
     if (!Array.isArray(data)) {
       throw new Error("Modal formalizer returned a malformed batch");
     }

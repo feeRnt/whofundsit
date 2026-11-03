@@ -721,3 +721,10 @@ comment corrected; old note left as history.
   as history. User must rename the key in backend/.env (untouched by me).
   VERIFIED: tsc clean, 17/17 claimsVerify (dist; tsx blocked by sandbox
   EPERM as before). No DB writes.
+- Pass-1 postmortem: 2737/2737 llm-failed with HTTP 405 — user's
+  MODAL_FORMALIZE_URL held the Modal dashboard/deployment link, not the
+  function endpoint URL. Fix is theirs: paste the https://....modal.run
+  function URL. Hardening: batch caller now logs every text sent (>>)
+  and every raw reply (<<) with status; warnIfNotEndpointUrl warns on
+  non-endpoint URLs in both callers. VERIFIED: tsc clean, 9/9
+  addressFormalize. No DB writes.

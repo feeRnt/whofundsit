@@ -7,6 +7,7 @@ import {
   formalizePrompt,
   formalizeRetryPrompt,
   parseFormalizeResponse,
+  warnIfNotEndpointUrl,
 } from "./addressFormalize.js";
 
 describe("parseFormalizeResponse", () => {
@@ -90,5 +91,24 @@ describe("chunk + formalizeAddressesBatched", () => {
     assert.equal(out[0]?.failureCause, "llm-call-failed");
     assert.equal(out[1]?.failureCause, "llm-call-failed");
     assert.equal(out[2]?.address.city, "X");
+  });
+});
+
+describe("warnIfNotEndpointUrl", () => {
+  it("warns on dashboard links, stays quiet on endpoint URLs", () => {
+    const warns: string[] = [];
+    const orig = console.warn;
+    console.warn = (m: string) => {
+      warns.push(m);
+    };
+    try {
+      warnIfNotEndpointUrl("https://modal.com/apps/abc");
+      warnIfNotEndpointUrl("https://foo--bar.modal.run");
+      warnIfNotEndpointUrl("https://foo--bar.modal.run/");
+    } finally {
+      console.warn = orig;
+    }
+    assert.equal(warns.length, 1);
+    assert.match(warns[0] ?? "", /dashboard/);
   });
 });
