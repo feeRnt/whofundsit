@@ -201,25 +201,29 @@ interface AvgStats {
   passed: number;
 }
 
-// One vote per run: mean of each run's pct/mean (null runs excluded, never
-// zeroed), sums of tested/untestable/passed. Pure.
+// Tested-weighted: pct from summed passed/tested (exact, no rounding drift
+// from averaging rounded pcts), mean weighted by tested per run. Runs with
+// nothing tested weigh nothing, so they vanish instead of skewing. Pure.
 export function averageStats(
   list: { pctVerified: number | null; mean: number | null; tested: number; untestable: number; passed: number }[],
 ): AvgStats {
-  const meanOf = (vals: (number | null)[]): number | null => {
-    const real = vals.filter((v): v is number => v !== null);
-    if (real.length === 0) {
-      return null;
-    }
-    return Math.round(real.reduce((a, b) => a + b, 0) / real.length);
-  };
   const num = (v: unknown): number => (typeof v === "number" ? v : 0);
+  const tested = list.reduce((a, s) => a + num(s.tested), 0);
+  const passed = list.reduce((a, s) => a + num(s.passed), 0);
+  const scored = list.filter((s) => typeof s.mean === "number" && num(s.tested) > 0);
+  const scoredTested = scored.reduce((a, s) => a + num(s.tested), 0);
   return {
-    pctVerified: meanOf(list.map((s) => s.pctVerified)),
-    mean: meanOf(list.map((s) => s.mean)),
-    tested: list.reduce((a, s) => a + num(s.tested), 0),
+    pctVerified: tested === 0 ? null : Math.round((passed / tested) * 100),
+    mean:
+      scoredTested === 0
+        ? null
+        : Math.round(
+            scored.reduce((a, s) => a + (s.mean as number) * num(s.tested), 0) /
+              scoredTested,
+          ),
+    tested,
     untestable: list.reduce((a, s) => a + num(s.untestable), 0),
-    passed: list.reduce((a, s) => a + num(s.passed), 0),
+    passed,
   };
 }
 

@@ -191,17 +191,18 @@ describe("history", () => {
 });
 
 describe("averageStats", () => {
-  it("means the pcts, sums the counts, skips null runs", () => {
+  it("weights by tested, sums the counts, skips null runs", () => {
+    // 100% on 1 test + 0% on 3 tests: one-vote says 50, weighted says 25.
     const a = averageStats([
-      { pctVerified: 100, mean: 100, tested: 2, untestable: 0, passed: 2 },
-      { pctVerified: 50, mean: 60, tested: 2, untestable: 0, passed: 1 },
+      { pctVerified: 100, mean: 100, tested: 1, untestable: 0, passed: 1 },
+      { pctVerified: 0, mean: 20, tested: 3, untestable: 0, passed: 0 },
       { pctVerified: null, mean: null, tested: 0, untestable: 1, passed: 0 },
     ]);
-    assert.equal(a.pctVerified, 75);
-    assert.equal(a.mean, 80);
+    assert.equal(a.pctVerified, 25);
+    assert.equal(a.mean, 40);
     assert.equal(a.tested, 4);
     assert.equal(a.untestable, 1);
-    assert.equal(a.passed, 3);
+    assert.equal(a.passed, 1);
     const none = averageStats([
       { pctVerified: null, mean: null, tested: 0, untestable: 1, passed: 0 },
     ]);
@@ -225,7 +226,8 @@ describe("averageCells + averagedSnapshot", () => {
     const avg = averageCells([h1, h2]);
     assert.equal(avg.length, 1);
     assert.equal(avg[0].runs, 2);
-    assert.equal(avg[0].pctVerified, 75); // mean of 100 and 50
+    assert.equal(avg[0].pctVerified, 75); // 3 passed of 4 tested
+    assert.equal(avg[0].mean, 85); // (100*2 + 70*2) / 4
     assert.equal(avg[0].tested, 4);
     assert.equal(avg[0].passed, 3);
     const snap = averagedSnapshot([h1, h2], { cells: [run2], overall: run2 });
