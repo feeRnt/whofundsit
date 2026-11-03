@@ -109,7 +109,8 @@ const OTHER_COLOR = "#64748b";
 // Ownership ring: top 6 tracked 13F holders get slices, the rest merge
 // into gray "Other". With a market cap (shares × live price) every slice
 // is a true % and the public float gets a sized dark slice; without one
-// the ring falls back to tracked-relative and Public shows no percentage.
+// the ring falls back to tracked-relative and hides Public entirely —
+// a 0% residual there is definitional (tracked sums to 100%), not measured.
 function StakesRing({
   stakes,
   entities,
@@ -249,23 +250,16 @@ function StakesRing({
             </span>
           </li>
         )}
-        <li
-          className="stakes-public"
-          title={
-            trueMode
-              ? "10-K shares outstanding minus tracked 13F positions: retail, insiders, small funds"
-              : "Retail, insiders and small funds never appear in 13F filings"
-          }
-        >
-          <span className="swatch swatch-unknown">?</span>
-          <span className="stakes-name">
-            {marketCap !== null ? "Untracked shares" : "Untracked funding"}
-          </span>
-          <span className="stakes-pct">
-            {exceeds ? "≈" : ""}
-            {untrackedPct.toFixed(1)}%
-          </span>
-        </li>
+        {trueMode && (
+          <li
+            className="stakes-public"
+            title="10-K shares outstanding minus tracked 13F positions: retail, insiders, small funds"
+          >
+            <span className="swatch swatch-unknown">?</span>
+            <span className="stakes-name">Untracked shares</span>
+            <span className="stakes-pct">{untrackedPct.toFixed(1)}%</span>
+          </li>
+        )}
       </ul>
       <p className="stakes-note">
         {trueMode && marketCap !== null

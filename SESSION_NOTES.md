@@ -605,3 +605,10 @@ comment corrected; old note left as history.
   user's exports are API tokens, first modal call 401s with a clear
   message; then `modal workspace proxy-tokens create`. VERIFIED: tsc
   clean, 47/47 focused tests, py_compile x3. No DB writes.
+- RING HONESTY (user: % modes must not present Other+Untracked as the
+  remainder). The Untracked legend row now renders in true-% mode only
+  (real public float); tracked-relative hides it — its 0.0% was
+  definitional (tracked sums to 100%), contradicting the code's own
+  "Public shows no percentage" spec. Other (n) keeps its tracked share
+  (measured, note-disclaimed). VERIFIED: frontend build clean, oxlint 6
+  pre-existing. No DB writes.
