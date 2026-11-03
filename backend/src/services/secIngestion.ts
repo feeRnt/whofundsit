@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
-import { cachedJson, cachedJsonDaily, apiLog, userAgentFromEnv } from "./httpCache.js";
+import { cachedJson, cachedJsonQuarterly, apiLog, userAgentFromEnv } from "./httpCache.js";
 
 // SEC EDGAR Frames API: one funding-relevant concept per frame, Q2 2026
 // (last fully-filed quarter). Responses are file-cached under gitignored
@@ -203,7 +203,7 @@ async function fetchSubmissions(cik: number): Promise<SubmissionsInfo> {
     return cached;
   }
   const padded = String(cik).padStart(10, "0");
-  const data = await cachedJsonDaily<SecSubmissions>(
+  const data = await cachedJsonQuarterly<SecSubmissions>(
     `sec/submissions/CIK${padded}.json`,
     () => secGet<SecSubmissions>(`${SUBMISSIONS_URL}/CIK${padded}.json`),
   );
@@ -313,7 +313,7 @@ export async function ingestSecFrames(): Promise<IngestSummary> {
 
     for (const frame of FRAMES) {
       const url = `${FRAME_API}/${frame.taxonomy}/${frame.tag}/${frame.uom}/${frame.ccp}.json`;
-      const payload = await cachedJsonDaily<SecFramesPayload>(
+      const payload = await cachedJsonQuarterly<SecFramesPayload>(
         `sec/frames/${frame.tag}-${frame.ccp}.json`,
         () => secGet<SecFramesPayload>(url),
       );

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   apiLog,
+  currentQuarter,
   green,
   isRetryableHttpStatus,
   red,
@@ -159,5 +160,15 @@ describe("isRetryableHttpStatus", () => {
     assert.equal(isRetryableHttpStatus(403), false);
     assert.equal(isRetryableHttpStatus(404), false);
     assert.equal(isRetryableHttpStatus(undefined), false);
+  });
+});
+
+describe("currentQuarter", () => {
+  it("namespaces by UTC calendar quarter", () => {
+    assert.equal(currentQuarter(new Date("2026-01-15T12:00:00Z")), "2026-Q1");
+    assert.equal(currentQuarter(new Date("2026-03-31T23:59:59Z")), "2026-Q1");
+    assert.equal(currentQuarter(new Date("2026-04-01T00:00:00Z")), "2026-Q2");
+    assert.equal(currentQuarter(new Date("2026-11-02T10:00:00Z")), "2026-Q4");
+    assert.equal(currentQuarter(new Date("2026-12-31T23:59:59Z")), "2026-Q4");
   });
 });

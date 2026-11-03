@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { XMLParser } from "fast-xml-parser";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cachedJsonDaily, apiLog, readCache, writeCache, userAgentFromEnv } from "./httpCache.js";
+import { cachedJson, cachedJsonQuarterly, apiLog, readCache, writeCache, userAgentFromEnv } from "./httpCache.js";
 import {
   jsonEntries,
   locationTag,
@@ -139,7 +139,7 @@ export async function latest13F(
   cik10: string,
   label: string,
 ): Promise<{ accn: string; filingDate: string; state: string | null }> {
-  const doc = await cachedJsonDaily<{
+  const doc = await cachedJsonQuarterly<{
     addresses?: {
       business?: Record<string, unknown> | null;
       mailing?: Record<string, unknown> | null;

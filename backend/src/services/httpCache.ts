@@ -139,17 +139,20 @@ export async function cachedJson<T>(
   return data;
 }
 
-// Day-scoped cache for SEC ingest responses (frames, submissions,
-// companyfacts): keys are namespaced by UTC date, so every calendar day
-// re-fetches fresh while intraday reruns stay free. Old day-dirs linger on
-// disk (gitignored; wipe by hand when stale). Everything else stays on
-// plain cachedJson: nothing is ever pruned automatically.
-export async function cachedJsonDaily<T>(
+// Quarter-scoped cache for SEC responses (frames, submissions,
+// companyfacts): keys are namespaced by calendar quarter, so a new quarter
+// re-fetches fresh while same-quarter reruns stay free. SEC filings are
+// quarterly — daily expiry just re-bought identical bytes. Old
+// quarter-dirs linger on disk (gitignored; wipe by hand when stale).
+// Everything else stays on plain cachedJson: nothing is pruned automatically.
+export function currentQuarter(date: Date = new Date()): string {
+  const q = Math.floor(date.getUTCMonth() / 3) + 1;
+  return `${date.getUTCFullYear()}-Q${q}`;
+}
+
+export async function cachedJsonQuarterly<T>(
   relPath: string,
   fetcher: () => Promise<T>,
 ): Promise<T> {
-  return cachedJson<T>(
-    `daily/${new Date().toISOString().slice(0, 10)}/${relPath}`,
-    fetcher,
-  );
+  return cachedJson<T>(`quarterly/${currentQuarter()}/${relPath}`, fetcher);
 }

@@ -624,3 +624,13 @@ comment corrected; old note left as history.
   it); workers read Modal's env, never local .env. .env.example gained
   HF_TOKEN as the documented source value with a DATABASE_URL warning;
   worker docstrings updated. No DB writes.
+- QUARTERLY SEC CACHE (user: filings are quarterly, not daily).
+  cachedJsonDaily replaced by cachedJsonQuarterly (UTC YYYY-Qn key);
+  frames + submissions (ingest), 13F submissions, verify companyfacts
+  all moved over. Same-quarter reruns free, new quarter refetches.
+  Trade-off: mid-quarter late filings wait for next quarter or
+  CACHE_REFRESH=1. Old daily/ dirs orphaned on disk (gitignored).
+  13F filing docs were already permanent (immutable) — untouched.
+  VERIFIED: tsc clean, 34/34 httpCache+thirteenF+claimsVerify tests
+  (new currentQuarter suite). Live 13f run keeps old code in memory;
+  new cache loads on next start. No DB writes.
