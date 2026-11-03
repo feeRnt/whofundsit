@@ -1,5 +1,26 @@
 # TODO
 
+## ⚠️ CIRCULAR CHAIN DEPENDENCY: 13F <-> coords (read before ANY rerun)
+
+- [ ] **Always run the chain as 13f → coords → 13f → export, in that order, never one
+      side alone.** (Each half feeds the other: 13F matches holdings ONLY against
+      PLACED entities, so fresh coords need a 13F rerun (cheap, filings cached) to
+      convert unmatched holdings into flows; and 13F stubs new fund rows that need a
+      coords rerun to place fund dots. Running just one side leaves the other half's
+      gaps in place — THIS circle is why partial reruns looked broken in the past.
+      After coords:populate, rerun flows:13f. After flows:13f, rerun coords:populate.
+      Then export. No exceptions.)
+
+## Post-demo: revisit quarterly SEC cache (demo shortcut, see 95c061b)
+
+- [ ] **Mid-quarter late filings are invisible under the quarterly cache.**
+      (Demo-only shortcut for lack of time (commit `95c061b`): SEC frames /
+      submissions / companyfacts cache by calendar quarter, so filings landing
+      mid-quarter never appear until next quarter or a `CACHE_REFRESH=1` run.
+      Post-demo: either revert `95c061b`, or do the smarter split — daily expiry
+      for the CURRENT quarter, permanent cache for CLOSED quarters (immutable).
+      Until then, any suspiciously stale SEC number gets a `CACHE_REFRESH=1` rerun.)
+
 ## ⏳ Not yet built (ordered by demo impact)
 
 - [ ] **User reminder: check whether % shares has the same coverage gaps as the primary metric.**
