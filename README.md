@@ -82,12 +82,28 @@ This webapp is an interactive global corporate financing map that showcases the 
 
 ```bash
 cd backend
-npm run bulk            # SEC nightly ZIPs -> base layer (one long run, cached)
-npm run ingest:all      # frames top-up + Nominatim geocoding
-npm run flows:openalex  # grant arcs (OpenAlex, cached)
-npm run flows:13f       # fund arcs (all 13F filers; THIRTEENF_MAX_MANAGERS caps it)
-npm run names:sync -- --yes # legal filer names (asks first without --yes)
-npm run db:export       # snapshot tables into prisma/seed-data/
+npm run bulk                 # SEC nightly ZIPs -> base layer (one long run, cached)
+npm run ingest               # XBRL frames top-up for the current quarter
+npm run sync:global          # international companies (Wikidata -> GLEIF) + ownership arcs
+npm run industry:global      # industry backfill on lei: rows (Wikidata P452)
+npm run tickers:global       # ticker backfill on lei: rows (ISIN -> OpenFIGI)
+npm run regional:esef        # EU/UK facts (optional; ESEF_LIMIT caps it)
+npm run regional:twse        # Taiwan facts (optional; TWSE_LIMIT caps it)
+npm run flows:openalex       # grant arcs (OpenAlex, cursor-paged, cached)
+npm run coords:global        # place lei: rows from Wikidata P625 (before Nominatim)
+npm run coords:populate -- --all  # Nominatim geocoding, 1 req/s, biggest first
+npm run flows:13f            # fund arcs (all 13F filers; THIRTEENF_MAX_MANAGERS caps it)
+npm run industry:sync        # SIC industry backfill from the local archive (offline)
+npm run names:sync -- --yes  # legal filer names (asks first without --yes; --list previews)
+npm run verify:all           # verify:claims + deadlines:snapshot + db:export (run and leave)
+```
+
+LLM repair loop for ungeocoded rows (needs the Modal workers deployed):
+```bash
+npm run formalize:addresses -- --pass=1   # 70B parses DB failures -> llm-pass-1.json
+npm run coords:populate -- --llm-1        # Census + structured Nominatim, marks outcomes
+npm run formalize:addresses -- --pass=2   # retry prior misses (add --limit=K to cap)
+npm run coords:populate -- --llm-2        # ... and so on
 ```
 
 Then commit the updated seed files. Report suspected duplicates with
@@ -121,7 +137,7 @@ From `whofundsit/backend/` (pipeline order):
 |---|---|
 | `bulk` | SEC nightly ZIPs → base entity layer (long first run, then cached) |
 | `ingest` | XBRL frames top-up for the current quarter |
-| `coords:populate` | Nominatim geocoding, 1 req/s, biggest first (city/state fallback retry on misses; marks `geoStatus`, `--retry-failed` re-includes failed rows) |
+| `coords:populate` | Nominatim geocoding, 1 req/s, biggest first (city/state fallback retry on misses; marks `geoStatus`, `--retry-failed` re-includes failed rows, `--census-failed` repasses failures via Census batch, `--llm-N` geocodes `llm-pass-N.json`) |
 | `deadlines:snapshot` | Copy local `dead-lines.json` into the committed seed for fresh clones |
 | `geo:snapshot` | Export address→coords mapping into the committed ODbL seed for fresh clones |
 | `ingest:all` | `ingest` + `coords:populate` in one go |
@@ -133,14 +149,19 @@ From `whofundsit/backend/` (pipeline order):
 | `tickers:global` | Backfill primary tickers on `lei:` rows via ISIN→OpenFIGI (same `GLOBAL_LIMIT` as the sync) |
 | `regional:esef` | EU/UK financial facts onto `lei:` rows, native currency (`ESEF_LIMIT`) |
 | `regional:twse` | Taiwan balance-sheet facts onto `lei:` rows in TWD (`TWSE_LIMIT`) |
-| `names:sync` | Backfill legal filer names from the local archive |
+| `names:sync` | Backfill legal filer names from the local archive (`--list` previews every rename, `--yes` approves) |
 | `industry:sync` | Backfill SIC industry + normalize `type` from the local archive (offline) |
+| `coords:global` | Place unplaced `lei:` rows from Wikidata P625 (100-LEI VALUES batches; run before `coords:populate`) |
+| `coords:p625` | Deprecated dry-run stub — use `coords:global` (this script only prints its contract and exits) |
+| `formalize:addresses` | LLM address repair: `--pass=N` queues (`--limit=K` caps), or legacy file/stdin → JSON Lines |
 | `merge -- <keep> <drop>` | Fold a duplicate row (repoints flows, keeps provenance) |
 | `dedupe:report` | Print candidate duplicate groups for review (read-only) |
 | `db:push` | Push the Prisma schema to Postgres |
 | `db:export` | Snapshot tables into `prisma/seed-data/` for committing |
 | `db:seed` | Wipe + reload tables from the committed seeds (judge path) |
-| `verify:claims` | Stochastic methodology audit: 10% seeded sample per source/region/index/flow cell (cap 5) vs live SEC + Nominatim, 0-100 scores, `% verified` per cell, report in `data/verification-report.json` (`VERIFY_FRACTION`, `VERIFY_MAX_PER_CELL`, `VERIFY_SEED`; `VERIFY_SAMPLE=25` restores the original fixed-25 spec) |
+| `verify:claims` | Stochastic methodology audit: fresh random sample per source/region/index/flow cell vs live SEC + Nominatim, 0-100 scores, rolling tested-weighted `% verified` per arm in the committed snapshot, 8B why/how per flag (`VERIFY_FRACTION`, `VERIFY_MAX_PER_CELL`, `VERIFY_SEED` to reproduce, `--clean` to restart averages) |
+| `verify:daily` | Cron-sized audit (~40 checks) + history append for the rolling snapshot |
+| `verify:all` | `verify:claims` + `deadlines:snapshot` + `db:export` in one run-and-leave command |
 | `test` | Backend unit suite (`tsx --test`) |
 | `dev` / `build` / `start` | Hot reload / compile / run the API + static server |
 

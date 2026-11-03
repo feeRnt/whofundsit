@@ -48,17 +48,13 @@
       direct P625 beats HQ-hop per LEI, hits write lat/lng + `geoStatus: "placed"`, unplaced
       lei: rows only. Differently named than the HANDOFF spec, same job.)
 
-- [ ] **Claim-verification loop with "x% verified" scores.** (Agentic background
-      loop over our biggest claims — top entities' total assets/debt, top funding
-      flows — rechecking each against an independent external source (13F
-      aggregators, company IR filings, OpenAlex works) and scoring 0-100% by
-      closeness (e.g. within 1% = 100, within 5% = 90, missing = 0). Scores
-      surface as trust badges in popups/tooltips ("87% verified"). Needs: a
-      `verification` store (entity/flow id → score + source + checked-at),
-      per-claim-type checkers with cached fetches (respect every source ToS),
-      and a scheduled/CI loop — NOT on the request path. Manual precedent:
-      Vanguard→NVIDIA $422.74B vs $423B and BlackRock→NXP $6,716,412,097 vs
-      $6,716,412,000 both verified by hand on 2026-11-01.)
+- [x] **Claim-verification loop with "x% verified" scores.** (Shipped 2026-11-02
+      as `verify:claims`: stratified audit vs live SEC + Nominatim, scores as
+      trust badges; then went agentic — crypto-random rolls, `verify:daily`
+      cron run, per-run history, rolling tested-weighted % per arm in the
+      committed snapshot (`--clean` restarts), 70B→8B why/how diagnoses per
+      flag. Manual precedent: Vanguard→NVIDIA $422.74B vs $423B and
+      BlackRock→NXP $6,716,412,097 vs $6,716,412,000 verified by hand.)
 - [x] **Regional financial loaders, phase 1.** (`regional:esef` + `regional:twse`
       shipped with tests; native currencies. Trialed 2026-11-01: ESEF sort/shape
       fixed to verified JSON:API, TWSE made self-sufficient via GLEIF creation;
@@ -83,9 +79,9 @@
 - [ ] **Demo rehearsal in a real browser** (backend path verified 2026-11-01:
       fresh DB → 21,514 entities / 9,362 flows, APIs + frontend / → 200;
       still needs human eyes on the globe, arcs, popups).
-- [ ] **Geocode backfill, 2nd pass** (IN PROGRESS 2026-11-01: `--all` pager now
-      pages past all-miss batches to cover all ~20k; chain is 13f → coords →
-      13f → export — resumable, cached).
+- [x] **Geocode backfill, 2nd pass** (Done 2026-11-02: `--all` pager pages past
+      all-miss batches to cover all ~20k, resumable, cached. The 13f→coords→13f
+      sandwich ran the chain until the keep-everything 13F fix (⚠️ item at top) lands.)
 - [ ] **Free API keys before scale-up runs** (OpenAlex key set 2026-11-02, cursor-paging
       unblocked; EDINET BLOCKED on mobile 2FA; Open DART keys still needed for Korea loader).
 - [ ] **Euro/Asia rows missing from served data** (observed 2026-11-01: the map
@@ -112,17 +108,22 @@
       cache helpers; eventually fold request, retry, and audit-trail
       handling into one global helper to reduce clutter. Census
       `censusBatch.ts` is the conformance reference.)
-- [ ] **Build the LLM address-repair pass (dead-lines consumer).**
-      (Everything feeds it: `geo/dead-lines.json` (742+), `geoStatus:
-      failed` rows, 26 stateless-US, funder-coords `llm` rows. Approach
-      adopted in DATASETS: deformed address → Modal open-weight LLM →
-      structured fields → Census batch (US) / Nominatim (foreign) →
-      exact coords. Reads full original addresses — verified the queue
-      stores pre-retry originals, never stripped fallbacks.)
+- [x] **Build the LLM address-repair pass (dead-lines consumer).**
+      (Shipped 2026-11-02: `formalize:addresses --pass=N` (70B 3.3 on L40S:2,
+      GPU chunks of 24, Nominatim-aware retry prompts) writes `llm-pass-N.json`;
+      `coords:populate --llm-N` geocodes it (Census US first, structured
+      Nominatim after), marks success/failed in place, skips successes forever.
+      Sources: `geoStatus: failed` rows (pass 1), prior-pass misses (pass N>1).)
 - [x] **Exclude transient queries from the dead-lines flush (post-run).**
       (Done 2026-11-02: errors-after-retry are DB-failed but never dead-lined;
       distinct `retry-error` log line. The skip-is-failed change removed the
       pending limbo that made this nasty.)
+- [ ] **Deploy the swapped Modal workers + set the three URLs.** (`modal deploy
+      backend/formalize_worker.py` (70B 3.3, L40S:2) → `MODAL_FORMALIZE_URL`;
+      `modal deploy backend/inference_worker.py` (8B, T4:1) → `MODAL_WEBHOOK_URL`
+      + `MODAL_DIAGNOSE_URL`. Same proxy tokens cover all endpoints. Watch the
+      T4 deploy: 8B bf16 is ~16GB on a 16GB card — flip the in-file `GPU` const
+      to `L4` and redeploy if it OOMs. Needed before any `--pass` or diagnose run.)
 
 ## Beneficial ownership (top individual owners)
 
@@ -192,7 +193,9 @@
 
 ## OpenAlex scale-up (after the demo works)
 
-- [ ] **Cursor-page all funder works** (currently first 200/page; Colgate has 1417) once an API key exists.
+- [x] **Cursor-page all funder works** (Live 2026-11-02 with the API key:
+      works cursor-page past 200 (5000-work pulls observed); `OPENALEX_MAX_WORKS`
+      caps the pull, default 5000.)
 - [x] **Consider merging institution duplicates.** (Tooling shipped: read-only `dedupe:report`
       finds candidates, `merge -- keep drop` folds with `mergedFrom` provenance; individual merges are user ops.)
 

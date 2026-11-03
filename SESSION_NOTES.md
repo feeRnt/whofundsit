@@ -691,3 +691,13 @@ comment corrected; old note left as history.
   the example says otherwise.
 - VERIFIED: tsc clean, py_compile both workers, 59/59
   llmPass+formalize+pipeline+claimsVerify+censusBatch. No DB writes.
+- BG docs sweep (user resting): TODO ticked claim-verification, geocode
+  2nd pass, LLM repair pass, OpenAlex cursor-paging (all shipped); added
+  deploy-swapped-workers item. README maintainer chain rewritten
+  (full order + LLM loop) and scripts table refreshed (coords:global,
+  formalize, verify:daily/all, --list/--llm-N/--clean flags). .env.example
+  gained VERIFY_DIAGNOSE(_MAX), OPENALEX_FUNDER_IDS/MAX_WORKS,
+  MODAL_USER_AGENT; VERIFY_SEED comment fixed (fresh-random default).
+  coords_p625 stub now says SUPERSEDED (was a silent no-op trap).
+  VERIFIED: tsc clean. No DB writes, no chain runs. Left untouched:
+  user's seed-data outputs + dead-lines seed (their run products).
