@@ -124,6 +124,9 @@ function StakesRing({
 }) {
   // Slice hover name after 0.1s (native <title> was far slower).
   const [tip, setTip] = useState<string | null>(null);
+  // Hovered slice id: instant white underlay (no delay — the highlight
+  // must track the cursor, only the text waits out the 0.1s).
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
   const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showTip = (text: string) => {
     if (tipTimer.current) clearTimeout(tipTimer.current);
@@ -199,19 +202,39 @@ function StakesRing({
       >
         <g transform="rotate(-90 50 50)">
           {arcs.map((s) => (
-            <circle
-              key={s.key}
-              cx="50"
-              cy="50"
-              r={R}
-              fill="none"
-              stroke={s.color}
-              strokeWidth="14"
-              strokeDasharray={`${Math.max(s.frac * C - 2, 1)} ${C}`}
-              strokeDashoffset={-(s.offset * C)}
-              onMouseEnter={() => showTip(s.title)}
-              onMouseLeave={hideTip}
-            />
+            <g key={s.key}>
+              {hoverKey === s.key && (
+                <circle
+                  cx="50"
+                  cy="50"
+                  r={R}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth="18"
+                  opacity="0.9"
+                  strokeDasharray={`${Math.max(s.frac * C - 2, 1)} ${C}`}
+                  strokeDashoffset={-(s.offset * C)}
+                />
+              )}
+              <circle
+                cx="50"
+                cy="50"
+                r={R}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="14"
+                strokeDasharray={`${Math.max(s.frac * C - 2, 1)} ${C}`}
+                strokeDashoffset={-(s.offset * C)}
+                onMouseEnter={() => {
+                  setHoverKey(s.key);
+                  showTip(s.title);
+                }}
+                onMouseLeave={() => {
+                  setHoverKey(null);
+                  hideTip();
+                }}
+              />
+            </g>
           ))}
         </g>
         <text x="50" y="49" textAnchor="middle" className="stakes-total">

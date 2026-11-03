@@ -4,6 +4,8 @@ TEMPLATE: not deployed from the coding sandbox. Deployment (hackathon credits):
   1. Accept the Llama 3.1 license on Hugging Face for
      meta-llama/Llama-3.1-70B-Instruct (the weights are gated).
   2. modal secret create huggingface-secret HF_TOKEN=<your HF token>
+     (or --from-dotenv <file holding just HF_TOKEN>; the worker reads
+     Modal's env, never your local .env)
   3. modal deploy backend/inference_worker.py
   4. Put the printed endpoint URL in backend/.env as MODAL_WEBHOOK_URL.
   5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)

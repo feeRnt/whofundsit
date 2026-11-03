@@ -612,3 +612,15 @@ comment corrected; old note left as history.
   "Public shows no percentage" spec. Other (n) keeps its tracked share
   (measured, note-disclaimed). VERIFIED: frontend build clean, oxlint 6
   pre-existing. No DB writes.
+- Ring hover highlight: hovered slice gets an instant white underlay
+  (wider stroke beneath the colored arc); text tip keeps its 0.1s delay.
+  VERIFIED: frontend build clean, oxlint 6 pre-existing. No DB writes.
+- Ingest shares answer (user): shares frame is already bulk — 1 Frames
+  API call per tag (6 total), fetched:500 = ROWS kept, not calls; frames
+  + per-CIK submissions both cached daily (sec/frames, sec/submissions).
+  The ~500-call sighting was submissions address fetches, also cached.
+- HF_TOKEN placement: Modal secret only (`modal secret create
+  huggingface-secret HF_TOKEN=...` or --from-dotenv a file holding just
+  it); workers read Modal's env, never local .env. .env.example gained
+  HF_TOKEN as the documented source value with a DATABASE_URL warning;
+  worker docstrings updated. No DB writes.
