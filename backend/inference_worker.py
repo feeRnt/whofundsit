@@ -1,14 +1,18 @@
-"""WhoFundsIt inference worker — Modal + vLLM running Llama-3.1-70B-Instruct.
+"""WhoFundsIt small-tasks worker — Modal + vLLM, Llama-3.1-8B on 1xT4.
 
-TEMPLATE: not deployed from the coding sandbox. Deployment (hackathon credits):
+The 8B handles the basic jobs: company-name cleanup and 3-4 line
+verify-flag commentary. Addressing (the hard parse) lives on the 70B
+worker (formalize_worker.py). One deploy prints both endpoint URLs.
+
+TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
   1. Accept the Llama 3.1 license on Hugging Face for
-     meta-llama/Llama-3.1-70B-Instruct (the weights are gated).
+     meta-llama/Llama-3.1-8B-Instruct (the weights are gated).
   2. modal secret create huggingface-secret HF_TOKEN=<your HF token>
      (or --from-dotenv <file holding just HF_TOKEN>; the worker reads
      Modal's env, never your local .env)
   3. modal deploy backend/inference_worker.py
   4. Put the printed endpoint URLs in backend/.env as MODAL_WEBHOOK_URL
-     (normalize) and MODAL_DIAGNOSE_URL (diagnose). One deploy prints both.
+     (normalize) and MODAL_DIAGNOSE_URL (diagnose).
   5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)
      and store it as MODAL_TOKEN_ID/MODAL_TOKEN_SECRET in backend/.env —
      both endpoints enforce them natively (requires_proxy_auth).
@@ -21,7 +25,11 @@ import json
 
 import modal
 
-MODEL_ID = "meta-llama/Llama-3.1-70B-Instruct"
+MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
+
+# T4 is a 16 GB card and 8B bf16 weights are ~16 GB: tight, may OOM on
+# deploy. If it does, flip to "L4" (24 GB, still cheap) and redeploy.
+GPU = "T4:1"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -30,7 +38,7 @@ image = (
 
 app = modal.App("whofundsit-inference")
 
-SYSTEM_PROMPT = (
+NAME_SYSTEM_PROMPT = (
     "You clean SEC filing data. Given one raw filing line, reply with ONLY a "
     'JSON object: {"canonicalName": string, "aliases": string[], '
     '"entityType": string|null, "locationText": string|null} — canonicalName '
@@ -52,13 +60,11 @@ DIAGNOSE_SYSTEM_PROMPT = (
 
 @app.cls(
     image=image,
-    # 70B in bf16 needs >80 GB of VRAM: two H100s via tensor parallelism.
-    gpu="H100:2",
+    gpu=GPU,
     secrets=[modal.Secret.from_name("huggingface-secret")],
     timeout=60 * 15,
-    # Keep the model warm briefly between hackathon bursts; cold-starting a
-    # 70B takes minutes, idling H100s burns budget. Tune to taste.
-    scaledown_window=120,
+    # Close the GPU after every run: these calls are rare, idling burns budget.
+    scaledown_window=0,
 )
 class InferenceWorker:
     @modal.enter()
@@ -67,12 +73,12 @@ class InferenceWorker:
 
         self.llm = LLM(
             model=MODEL_ID,
-            tensor_parallel_size=2,
+            tensor_parallel_size=1,
             max_model_len=4096,
             gpu_memory_utilization=0.90,
         )
-        self.sampling = SamplingParams(temperature=0.0, max_tokens=256)
-        self.diag_sampling = SamplingParams(temperature=0.2, max_tokens=512)
+        self.name_sampling = SamplingParams(temperature=0.0, max_tokens=192)
+        self.diag_sampling = SamplingParams(temperature=0.2, max_tokens=320)
 
     def _ask(self, system: str, text: str, sampling) -> str:
         prompt = (
@@ -88,7 +94,7 @@ class InferenceWorker:
     @modal.method()
     def normalize(self, text: str) -> str:
         """Normalize one unstructured filing line into a clean JSON string."""
-        return self._ask(SYSTEM_PROMPT, text, self.sampling)
+        return self._ask(NAME_SYSTEM_PROMPT, text, self.name_sampling)
 
     @modal.method()
     def diagnose(self, text: str) -> str:
@@ -103,7 +109,7 @@ def _clean_json(raw: str) -> str:
 @app.function(image=image, timeout=60 * 10)
 @modal.fastapi_endpoint(method="POST", label="normalize", requires_proxy_auth=True)
 def normalize_endpoint(payload: dict) -> dict:
-    """HTTP webhook the Express backend POSTs {"text": "..."} to."""
+    """Name cleanup: the pipeline POSTs {"text": ...} (MODAL_WEBHOOK_URL)."""
     text = str(payload.get("text", "")).strip()
     if not text:
         return {"error": "missing 'text'"}

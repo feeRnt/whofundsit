@@ -1,8 +1,14 @@
-"""WhoFundsIt address formalizer — Modal + vLLM running Llama-3.1-70B-Instruct.
+"""WhoFundsIt address formalizer — Modal + vLLM, Llama-3.3-70B on 2xL40S.
+
+The 70B does the addressing (the hardest parse job). fp8 quantization is
+load-bearing: bf16 weights (~140 GB) don't fit 2x48 GB, fp8 (~70 GB) does,
+with room left for batched KV cache. The GPU shuts down after every run
+(scaledown_window=0), so the client sends everything in a few big chunks
+(24 texts per call, one generate() each) — cold starts take minutes.
 
 TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
-  1. Accept the Llama 3.1 license on Hugging Face for
-     meta-llama/Llama-3.1-70B-Instruct (the weights are gated).
+  1. Accept the Llama 3.3 license on Hugging Face for
+     meta-llama/Llama-3.3-70B-Instruct (the weights are gated).
   2. modal secret create huggingface-secret HF_TOKEN=<your HF token>
      (or --from-dotenv <file holding just HF_TOKEN>; the worker reads
      Modal's env, never your local .env)
@@ -23,7 +29,7 @@ import json
 
 import modal
 
-MODEL_ID = "meta-llama/Llama-3.1-70B-Instruct"
+MODEL_ID = "meta-llama/Llama-3.3-70B-Instruct"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -47,13 +53,23 @@ SYSTEM_PROMPT = (
     "cause in notes. No prose, no code fences."
 )
 
+def _prompt(system: str, text: str) -> str:
+    return (
+        "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
+        f"{system}<|eot_id|>"
+        "<|start_header_id|>user<|end_header_id|>\n\n"
+        f"{text}<|eot_id|>"
+        "<|start_header_id|>assistant<|end_header_id|>\n\n"
+    )
+
 
 @app.cls(
     image=image,
-    gpu="H100:2",
+    gpu="L40S:2",
     secrets=[modal.Secret.from_name("huggingface-secret")],
     timeout=60 * 15,
-    scaledown_window=120,
+    # Close the GPUs after every run: batch everything, pay for minutes.
+    scaledown_window=0,
 )
 class FormalizeWorker:
     @modal.enter()
@@ -63,22 +79,25 @@ class FormalizeWorker:
         self.llm = LLM(
             model=MODEL_ID,
             tensor_parallel_size=2,
+            quantization="fp8",
             max_model_len=4096,
             gpu_memory_utilization=0.90,
         )
-        self.sampling = SamplingParams(temperature=0.0, max_tokens=320)
+        # Addresses are tiny: cap output so runaway JSON can't burn KV.
+        self.sampling = SamplingParams(temperature=0.0, max_tokens=224)
 
     @modal.method()
     def formalize(self, text: str) -> str:
-        prompt = (
-            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
-            f"{SYSTEM_PROMPT}<|eot_id|>"
-            "<|start_header_id|>user<|end_header_id|>\n\n"
-            f"{text}<|eot_id|>"
-            "<|start_header_id|>assistant<|end_header_id|>\n\n"
-        )
-        outputs = self.llm.generate([prompt], self.sampling)
+        outputs = self.llm.generate([_prompt(SYSTEM_PROMPT, text)], self.sampling)
         return outputs[0].outputs[0].text.strip()
+
+    @modal.method()
+    def formalize_batch(self, texts: list) -> list:
+        """One generate() call for the whole chunk: true batching, one GPU
+        spin-up serves dozens of addresses instead of one."""
+        prompts = [_prompt(SYSTEM_PROMPT, t) for t in texts]
+        outputs = self.llm.generate(prompts, self.sampling)
+        return [o.outputs[0].text.strip() for o in outputs]
 
 
 def _parse(raw: str, original: str) -> dict:
@@ -109,8 +128,11 @@ def formalize_endpoint(payload: dict):
     """HTTP webhook: {"text": ...} -> object; {"texts": [...]} -> list."""
     worker = FormalizeWorker()
     if isinstance(payload.get("texts"), list):
-        texts = [str(t) for t in payload["texts"]]
-        return [_parse(worker.formalize.remote(t), t) for t in texts]
+        texts = [str(t) for t in payload["texts"] if str(t).strip()]
+        if not texts:
+            return []
+        outs = worker.formalize_batch.remote(texts)
+        return [_parse(o, t) for o, t in zip(outs, texts)]
     text = str(payload.get("text", "")).strip()
     if not text:
         return {"error": "missing 'text'"}
