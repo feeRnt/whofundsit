@@ -715,3 +715,9 @@ comment corrected; old note left as history.
   MODAL_HF_SECRET_NAME (default huggingface-secret) from the deploying
   shell's env at `modal deploy` time (backend/.env is NOT read by
   deploy). .env.example documents it. VERIFIED: py_compile both. No DB writes.
+- Renamed MODAL_DIAGNOSE_URL → MODAL_INFERENCE_URL per user (live URL has
+  inference in the name): claimsVerify const/skip message, .env.example,
+  inference_worker docstring, TODO deploy item. Old SESSION_NOTES lines kept
+  as history. User must rename the key in backend/.env (untouched by me).
+  VERIFIED: tsc clean, 17/17 claimsVerify (dist; tsx blocked by sandbox
+  EPERM as before). No DB writes.

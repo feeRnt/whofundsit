@@ -120,7 +120,7 @@
       pending limbo that made this nasty.)
 - [ ] **Deploy the Modal workers + set the two URLs.** (`modal deploy
       backend/formalize_worker.py` (70B 3.3, L40S:2) → `MODAL_FORMALIZE_URL`;
-      `modal deploy backend/inference_worker.py` (8B, T4:1) → `MODAL_DIAGNOSE_URL`.
+      `modal deploy backend/inference_worker.py` (8B, T4:1) → `MODAL_INFERENCE_URL`.
       Run both from the repo root. Same proxy tokens cover all endpoints. Watch the
       T4 deploy: 8B bf16 is ~16GB on a 16GB card — flip the in-file `GPU` const
       to `L4` and redeploy if it OOMs. Needed before any `--pass` or diagnose run.)

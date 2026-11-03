@@ -12,7 +12,7 @@ TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
      HF_TOKEN>. If yours differs, export MODAL_HF_SECRET_NAME=<name> before
      deploying; the worker reads Modal's env, never your local .env)
   3. modal deploy backend/inference_worker.py
-  4. Put the printed endpoint URL in backend/.env as MODAL_DIAGNOSE_URL.
+  4. Put the printed endpoint URL in backend/.env as MODAL_INFERENCE_URL.
   5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)
      and store it as MODAL_TOKEN_ID/MODAL_TOKEN_SECRET in backend/.env —
      the endpoint enforces them natively (requires_proxy_auth).

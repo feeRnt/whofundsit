@@ -386,10 +386,10 @@ const modal = limiter(250); // our own GPU: spacing, not a ToS limit
 // The model reasons ONLY over facts already in hand — the stored-vs-live
 // numbers the check just fetched. Diagnosis adds Modal calls (cached per
 // flag, capped per run) and never touches SEC/Nominatim/outside sources.
-// Needs MODAL_DIAGNOSE_URL (second endpoint in inference_worker.py) plus
+// Needs MODAL_INFERENCE_URL (diagnose endpoint in inference_worker.py) plus
 // the usual proxy tokens; without them flags ship undiagnosed.
 // VERIFY_DIAGNOSE=0 skips the pass; VERIFY_DIAGNOSE_MAX caps flags per run.
-const DIAGNOSE_URL = process.env.MODAL_DIAGNOSE_URL;
+const INFERENCE_URL = process.env.MODAL_INFERENCE_URL;
 const DIAGNOSE_MAX = Number(process.env.VERIFY_DIAGNOSE_MAX ?? 10);
 
 export interface FlagDiagnosis {
@@ -410,7 +410,7 @@ export function diagnosisPrompt(flag: string, cell: string): string {
 
 async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
   const auth = modalProxyHeaders();
-  if (!auth || !DIAGNOSE_URL) {
+  if (!auth || !INFERENCE_URL) {
     return null;
   }
   try {
@@ -418,9 +418,9 @@ async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
       `verify/diag-${cacheKey(flag)}.json`,
       () =>
         modal(async () => {
-          apiLog("POST", DIAGNOSE_URL);
+          apiLog("POST", INFERENCE_URL);
           const res = await axios.post(
-            DIAGNOSE_URL,
+            INFERENCE_URL,
             { text: diagnosisPrompt(flag, cell) },
             {
               headers: { "Content-Type": "application/json", ...auth },
@@ -456,8 +456,8 @@ async function diagnoseFlags(
   if (queue.length === 0 || process.env.VERIFY_DIAGNOSE === "0") {
     return out;
   }
-  if (!DIAGNOSE_URL) {
-    console.log("[verify] diagnoses skipped: MODAL_DIAGNOSE_URL is not set");
+  if (!INFERENCE_URL) {
+    console.log("[verify] diagnoses skipped: MODAL_INFERENCE_URL is not set");
     return out;
   }
   if (!modalProxyHeaders()) {
