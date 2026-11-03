@@ -2,7 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   amountScore,
+  appendHistory,
+  diagnosisPrompt,
   isMajorIndex,
+  makeRng,
   mulberry32,
   cellTake,
   parseEntityRef,
@@ -11,6 +14,7 @@ import {
   regionBucket,
   sampleIndices,
   summarize,
+  toHistoryEntry,
 } from "./claimsVerify.js";
 
 describe("mulberry32 + sampleIndices", () => {
@@ -100,5 +104,59 @@ describe("ownershipStructural", () => {
     assert.equal(ownershipStructural("global:AAA", 0).score, 0);
     assert.equal(ownershipStructural("13f:123:456", 10).score, 0);
     assert.equal(ownershipStructural("global:AAA:BBB", NaN).score, 0);
+  });
+});
+
+describe("makeRng", () => {
+  it("rolls fresh [0,1) values every call by default", () => {
+    const rng = makeRng();
+    const vals = Array.from({ length: 50 }, () => rng());
+    assert.ok(vals.every((v) => v >= 0 && v < 1));
+    assert.ok(new Set(vals).size > 1); // a stuck RNG fails here
+  });
+});
+
+describe("diagnosisPrompt", () => {
+  it("carries the flag and the use-only-given-facts guardrail", () => {
+    const p = diagnosisPrompt("stored 1 vs live 2 (score 40)", "source=sec");
+    assert.ok(p.includes("stored 1 vs live 2 (score 40)"));
+    assert.ok(p.includes("source=sec"));
+    assert.ok(p.includes("Use ONLY the facts above"));
+    assert.ok(p.includes("Do NOT invent live values"));
+  });
+});
+
+describe("summarize diagnoses", () => {
+  it("attaches diagnoses, defaulting to none", () => {
+    const bare = summarize("c", "entity", [{ score: 100, flags: [] }]);
+    assert.deepEqual(bare.diagnoses, []);
+    const d = [{ flag: "f", diagnosis: "because" }];
+    const full = summarize("c", "entity", [{ score: 40, flags: ["f"] }], {
+      diagnoses: d,
+    });
+    assert.deepEqual(full.diagnoses, d);
+    assert.deepEqual(full.flags, ["f"]);
+  });
+});
+
+describe("history", () => {
+  it("slims a report and trims oldest beyond the cap", () => {
+    const cell = summarize("source=sec", "entity", [
+      { score: 100, flags: [] },
+      { score: null, flags: ["no live series"] },
+    ]);
+    const entry = toHistoryEntry({
+      generatedAt: "2026-11-02T00:00:00.000Z",
+      seed: null,
+      cells: [cell],
+      overall: cell,
+    });
+    assert.equal(entry.cells.length, 1);
+    assert.equal(entry.cells[0].tested, 1);
+    assert.ok(!("flags" in entry.cells[0]));
+    const e2 = { ...entry, generatedAt: "2026-11-03T00:00:00.000Z" };
+    const trimmed = appendHistory([entry, e2], e2, 2);
+    assert.equal(trimmed.length, 2);
+    assert.equal(trimmed[0].generatedAt, "2026-11-03T00:00:00.000Z");
   });
 });

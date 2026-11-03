@@ -1,10 +1,19 @@
 import axios from "axios";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { cachedJson, cachedJsonQuarterly, cacheKey, apiLog, userAgentFromEnv } from "./httpCache.js";
+import {
+  cachedJson,
+  cachedJsonQuarterly,
+  cacheKey,
+  apiLog,
+  userAgentFromEnv,
+  modalProxyHeaders,
+  MODAL_PROXY_ENV_HINT,
+} from "./httpCache.js";
 import { infoTableXml, latest13F, parseInfoTable } from "./thirteenF.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
@@ -18,12 +27,20 @@ import { SP500_TICKERS } from "../data/sp500.js";
 // methodology for edge cases, bugs, or other errors that were unhandled.
 //
 // Strata: entity SOURCE cells + REGION cells (us/non-us/unknown) + INDEX
-// cells (major/long-tail), and one cell per flow type. Every cell samples
-// VERIFY_SAMPLE members with a seeded RNG (reproducible), checks each
-// against a live primary source, and reports "% verified" (score >= 90)
-// plus the mean score. `npm run verify:claims`.
+// cells (major/long-tail), and one cell per flow type. Every cell rolls
+// fresh members with a crypto-backed RNG, checks each against a live
+// primary source, and reports "% verified" (score >= 90) plus the mean
+// score. `npm run verify:claims`.
+//
+// Rolls are truly random every run (crypto-backed): repeats across runs are
+// fair game, not bugs. VERIFY_SEED pins the RNG for one reproducible run.
+// Each run appends a slim entry to backend/data/verification-history.json
+// (gitignored trend log); the committed seed-data/verification.json snapshot
+// always mirrors the LATEST run. `verify:daily` is the small cron-sized run.
 
-const SEED = Number(process.env.VERIFY_SEED ?? 7);
+// Pin the RNG only when a run must be reproduced exactly; otherwise null.
+const SEED =
+  process.env.VERIFY_SEED !== undefined ? Number(process.env.VERIFY_SEED) : null;
 // Fraction mode (default): 10% of each cell, capped at 5, full census of
 // tiny cells. VERIFY_FRACTION / VERIFY_MAX_PER_CELL tune it.
 // Original spec, kept behind a flag: fixed 25 seeded samples per cell —
@@ -68,6 +85,89 @@ export function sampleIndices(pop: number, n: number, rng: () => number): number
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, take);
+}
+
+// Fresh randomness every run; the VERIFY_SEED branch stays reproducible.
+export function makeRng(): () => number {
+  if (SEED !== null) {
+    return mulberry32(SEED);
+  }
+  return () => crypto.randomInt(0, 1 << 30) / (1 << 30);
+}
+
+// --- Run history (gitignored trend log; the committed snapshot is latest-only) ---
+
+export interface HistoryEntry {
+  generatedAt: string;
+  seed: number | null;
+  overall: {
+    pctVerified: number | null;
+    mean: number | null;
+    tested: number;
+    passed: number;
+  };
+  cells: {
+    cell: string;
+    pctVerified: number | null;
+    mean: number | null;
+    tested: number;
+  }[];
+}
+
+export function historyPath(): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.join(here, "..", "..", "data", "verification-history.json");
+}
+
+// Slim a full report down to its trendable numbers. Pure.
+export function toHistoryEntry(report: {
+  generatedAt: string;
+  seed: number | null;
+  cells: CellStats[];
+  overall: CellStats;
+}): HistoryEntry {
+  const slim = (c: CellStats) => ({
+    pctVerified: c.pctVerified,
+    mean: c.mean,
+    tested: c.tested,
+  });
+  return {
+    generatedAt: report.generatedAt,
+    seed: report.seed,
+    overall: { ...slim(report.overall), passed: report.overall.passed },
+    cells: report.cells.map((c) => ({ cell: c.cell, ...slim(c) })),
+  };
+}
+
+// Append one entry, trimming oldest beyond a year of dailies. Pure.
+export function appendHistory(
+  history: HistoryEntry[],
+  entry: HistoryEntry,
+  cap: number = 365,
+): HistoryEntry[] {
+  return [...history, entry].slice(-cap);
+}
+
+// Best-effort record: a broken history file restarts, never blocks. I/O.
+export function recordHistory(
+  entry: HistoryEntry,
+  file: string = historyPath(),
+): void {
+  try {
+    let history: HistoryEntry[] = [];
+    try {
+      const raw = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+      if (Array.isArray(raw)) {
+        history = raw as HistoryEntry[];
+      }
+    } catch {
+      history = [];
+    }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(appendHistory(history, entry), null, 2));
+  } catch {
+    // History is a nice-to-have; the report files already landed.
+  }
 }
 
 // Agreement bands: exact-ish → 100, filing-noise → 90, stale-quarter → 70,
@@ -157,6 +257,101 @@ function limiter(minMs: number): <T>(fn: () => Promise<T>) => Promise<T> {
 
 const sec = limiter(150); // SEC fair access: <= 10 req/s
 const nominatim = limiter(1100); // Nominatim usage policy: <= 1 req/s
+const modal = limiter(250); // our own GPU: spacing, not a ToS limit
+
+// --- 70B why/how diagnosis (Modal only, zero new outside data calls) ---
+//
+// The model reasons ONLY over facts already in hand — the stored-vs-live
+// numbers the check just fetched. Diagnosis adds Modal calls (cached per
+// flag, capped per run) and never touches SEC/Nominatim/outside sources.
+// Needs MODAL_DIAGNOSE_URL (second endpoint in inference_worker.py) plus
+// the usual proxy tokens; without them flags ship undiagnosed.
+// VERIFY_DIAGNOSE=0 skips the pass; VERIFY_DIAGNOSE_MAX caps flags per run.
+const DIAGNOSE_URL = process.env.MODAL_DIAGNOSE_URL;
+const DIAGNOSE_MAX = Number(process.env.VERIFY_DIAGNOSE_MAX ?? 10);
+
+export interface FlagDiagnosis {
+  flag: string;
+  diagnosis: string;
+}
+
+export function diagnosisPrompt(flag: string, cell: string): string {
+  return [
+    `Verify audit flag in cell ${cell}:`,
+    flag,
+    "",
+    "In 2-3 sentences explain why this flag likely fired and how to confirm or fix it.",
+    "Use ONLY the facts above plus general methodology knowledge.",
+    "Do NOT invent live values and do NOT assume any outside lookup was made.",
+  ].join("\n");
+}
+
+async function diagnoseOne(flag: string, cell: string): Promise<string | null> {
+  const auth = modalProxyHeaders();
+  if (!auth || !DIAGNOSE_URL) {
+    return null;
+  }
+  try {
+    const data = await cachedJson<{ diagnosis?: unknown }>(
+      `verify/diag-${cacheKey(flag)}.json`,
+      () =>
+        modal(async () => {
+          apiLog("POST", DIAGNOSE_URL);
+          const res = await axios.post(
+            DIAGNOSE_URL,
+            { text: diagnosisPrompt(flag, cell) },
+            {
+              headers: { "Content-Type": "application/json", ...auth },
+              timeout: 300000,
+            },
+          );
+          return res.data as { diagnosis?: unknown };
+        }),
+    );
+    const d = data?.diagnosis;
+    return typeof d === "string" && d.length > 0 ? d : null;
+  } catch {
+    return null; // best-effort: the flag still ships, just unexplained
+  }
+}
+
+// First DIAGNOSE_MAX unique flags across cells, in cell order. Sequential:
+// one 70B serves the queue, parallelism buys nothing. Pure-ish (cached I/O).
+async function diagnoseFlags(
+  cells: { name: string; flags: string[] }[],
+): Promise<Map<string, FlagDiagnosis[]>> {
+  const out = new Map<string, FlagDiagnosis[]>();
+  const queue: { cell: string; flag: string }[] = [];
+  const seenFlag = new Set<string>();
+  for (const c of cells) {
+    for (const flag of c.flags) {
+      if (!seenFlag.has(flag)) {
+        seenFlag.add(flag);
+        queue.push({ cell: c.name, flag });
+      }
+    }
+  }
+  if (queue.length === 0 || process.env.VERIFY_DIAGNOSE === "0") {
+    return out;
+  }
+  if (!DIAGNOSE_URL) {
+    console.log("[verify] diagnoses skipped: MODAL_DIAGNOSE_URL is not set");
+    return out;
+  }
+  if (!modalProxyHeaders()) {
+    console.log(`[verify] diagnoses skipped: ${MODAL_PROXY_ENV_HINT}`);
+    return out;
+  }
+  for (const { cell, flag } of queue.slice(0, DIAGNOSE_MAX)) {
+    const diagnosis = await diagnoseOne(flag, cell);
+    if (diagnosis) {
+      const list = out.get(cell) ?? [];
+      list.push({ flag, diagnosis });
+      out.set(cell, list);
+    }
+  }
+  return out;
+}
 
 interface CompanyFact {
   end: string;
@@ -379,12 +574,14 @@ interface CellStats {
   pctVerified: number | null;
   mean: number | null;
   flags: string[];
+  diagnoses: FlagDiagnosis[];
 }
 
 export function summarize(
   cell: string,
   kind: string,
   results: CheckResult[],
+  extra: { diagnoses?: FlagDiagnosis[] } = {},
 ): CellStats {
   const tested = results.filter((r) => r.score !== null);
   const passed = tested.filter((r) => (r.score ?? 0) >= 90).length;
@@ -404,6 +601,7 @@ export function summarize(
             tested.reduce((a, r) => a + (r.score ?? 0), 0) / tested.length,
           ),
     flags: results.flatMap((r) => r.flags).slice(0, 10),
+    diagnoses: extra.diagnoses ?? [],
   };
 }
 
@@ -418,7 +616,7 @@ export async function runVerify(): Promise<{
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   const prisma = new PrismaClient({ adapter });
   try {
-    const rng = mulberry32(SEED);
+    const rng = makeRng();
     // One light pass buckets every entity into its source/region/index cells.
     const all = (await prisma.entity.findMany({
       select: {
@@ -554,10 +752,21 @@ export async function runVerify(): Promise<{
       );
     }
 
+    // 70B explains the flags (Modal only; no new outside data calls).
+    const diagnosed = await diagnoseFlags(
+      cells.map((c) => ({ name: c.cell, flags: c.flags })),
+    );
+    for (const c of cells) {
+      const d = diagnosed.get(c.cell);
+      if (d) {
+        c.diagnoses = d;
+      }
+    }
     const overall = summarize(
       "overall",
       "all",
       [...entityScores.values(), ...flowScores.values()],
+      { diagnoses: [...diagnosed.values()].flat() },
     );
     const report = {
       generatedAt: new Date().toISOString(),
@@ -577,6 +786,7 @@ export async function runVerify(): Promise<{
     // Committed snapshot for trust badges: judges get it via db:seed.
     fs.mkdirSync(path.dirname(seedPath), { recursive: true });
     fs.writeFileSync(seedPath, JSON.stringify(report, null, 2));
+    recordHistory(toHistoryEntry(report));
     return { cells, overall, reportPath };
   } finally {
     await prisma.$disconnect();

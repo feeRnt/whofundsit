@@ -641,3 +641,14 @@ comment corrected; old note left as history.
   13F keep-everything fix (match-all + 13ft:<cusip> stubs; decide
   export-all-vs-placed first). thirteenF.ts edits reverted per user —
   code untouched, design parked in the todo. No DB writes.
+- verify:claims goes agentic: crypto RNG default (VERIFY_SEED only to
+  reproduce), every run appends a slim entry to gitignored
+  data/verification-history.json (cap 365) while seed-data snapshot stays
+  latest-only; new verify:daily (2%, cap 2, ~40 checks) for cron. Skip-state
+  idea built then REMOVED per user (not true random). 70B why/how per flag
+  via new diagnose endpoint in inference_worker.py (MODAL_DIAGNOSE_URL,
+  same proxy auth, one redeploy prints both URLs); prompt + system forbid
+  outside facts, calls cached per flag, capped 10/run, best-effort skip
+  when unconfigured. Diagnoses ride in both JSONs (new field; badges
+  untouched) + console `why:` lines. VERIFIED: tsc clean, py_compile ok,
+  38/38 httpCache+thirteenF+claimsVerify (4 new suites). No DB writes.

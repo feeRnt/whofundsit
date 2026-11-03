@@ -13,6 +13,10 @@ for (const c of cells) {
   );
   for (const f of c.flags.slice(0, 3)) {
     console.log(`[verify]   flag: ${f}`);
+    const d = c.diagnoses.find((x) => x.flag === f);
+    if (d) {
+      console.log(`[verify]   why: ${d.diagnosis}`);
+    }
   }
 }
 console.log(
