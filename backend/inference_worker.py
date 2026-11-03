@@ -37,6 +37,10 @@ GPU = "T4:1"
 # in the deploying shell when yours isn't the default.
 HF_SECRET_NAME = os.environ.get("MODAL_HF_SECRET_NAME", "huggingface-secret")
 
+# Pin the HF cache onto the volume mount BEFORE vllm is imported (hf_hub
+# freezes HF_HOME at import; the default already matches, this just locks it).
+os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
+
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("vllm==0.6.3", "fastapi[standard]")
@@ -73,7 +77,6 @@ class InferenceWorker:
     def load(self) -> None:
         from vllm import LLM, SamplingParams
 
-        os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
         self.llm = LLM(
             model=MODEL_ID,
             tensor_parallel_size=1,
