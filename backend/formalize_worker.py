@@ -75,8 +75,9 @@ def _prompt(system: str, text: str) -> str:
     gpu="L40S:2",
     secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
     timeout=60 * 15,
-    # Minimum allowed (2s): GPUs effectively off after every run.
-    scaledown_window=2,
+    # 5s idle shutoff: gaps between chunks are milliseconds, but a >2s
+    # hiccup would cold-start the 70B mid-run (minutes lost for ~3s saved).
+    scaledown_window=5,
 )
 class FormalizeWorker:
     @modal.enter()

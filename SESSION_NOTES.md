@@ -733,3 +733,6 @@ comment corrected; old note left as history.
   maps to the actionable proxy-token message in the batch caller too
   (was single-only) via shared isModalAuthRejection. VERIFIED: tsc
   clean, 10/10 addressFormalize. No DB writes.
+- Formalize scaledown 2s → 5s per user: a >2s inter-chunk hiccup would
+  cold-start the 70B mid-run; 5s costs ~3 idle seconds per run. Needs a
+  redeploy to take effect. VERIFIED: py_compile. No DB writes.
