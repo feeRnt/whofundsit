@@ -593,6 +593,17 @@ export default function App() {
           <MapErrorBoundary>
             <MapGlobe entities={shownEntities} allEntities={entities} flows={visibleFlows} allFlows={flows} verification={verification} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} funderIds={funderIds} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
           </MapErrorBoundary>
+        )}
+        {loading && !error && (
+          <div className="loading-disclaimer" role="status">
+            <p className="loading-disclaimer-title">Something off?</p>
+            <p>
+              Note: This is a work-in-progress project and the data you
+              see may not be accurate. Used for Educational and
+              Entertainment Purposes only. Not a substitute for real
+              financial documents and data.
+            </p>
+          </div>
         )}</main>
     </div>
   );

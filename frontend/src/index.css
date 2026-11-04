@@ -196,6 +196,35 @@ body {
   z-index: 20;
 }
 
+/* Loading disclaimer: centered card while the backend fetch is in flight. */
+.loading-disclaimer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 24px;
+  text-align: center;
+  background: #05070d;
+  z-index: 20;
+}
+
+.loading-disclaimer p {
+  margin: 0;
+  max-width: 520px;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.loading-disclaimer-title {
+  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
 .spinner {
   width: 44px;
   height: 44px;
