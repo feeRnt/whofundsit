@@ -79,6 +79,10 @@ const FOCUS_ZOOM = 12;
 // Dot clicks from country/state distance dive to street level; already
 // at street level (or closer) the camera stays put.
 const DOT_STREET_ZOOM = 15;
+// Nested-circle hover cards only at/above this zoom: zoomed out, stacked
+// dots share one pixel and the card flickers between members as the
+// cursor moves. Singles always tooltip; clicks (expand/select) always work.
+const STACK_TOOLTIP_MIN_ZOOM = 5;
 // Spiderfy ring spacing: one ring per 34 screen pixels from the stack
 // center (hex-packed 6/12/18… per ring), degrees from zoom at move-end.
 const RING_GAP_PX = 34;
@@ -94,9 +98,20 @@ function tooltip(
   { object }: PickingInfo,
   verification: VerificationReport | null,
   pool: Entity[] = [],
-  stackCounts?: Map<string, number>,
+  stackCounts: Map<string, number> | undefined,
+  zoom: number,
+  stackedIds: Set<string>,
 ) {
   if (!object) {
+    return null;
+  }
+  // Nested dots share one pixel when zoomed out; skip their hover card
+  // so it stops flickering between members. Arcs keep theirs.
+  if (
+    !("flowType" in object) &&
+    zoom < STACK_TOOLTIP_MIN_ZOOM &&
+    stackedIds.has((object as Entity).id)
+  ) {
     return null;
   }
   if ("flowType" in object) {
@@ -257,11 +272,9 @@ export default function MapGlobe({
   const [selected, setSelected] = useState<Entity | null>(null);
   // Expanded coincident stack (ring visible); null collapses all badges.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  // Zoom for spiderfy-ring and badge-half sizing, tracked live: dots are
-  // meter-based so deck resizes them every frame mid-gesture, and the
-  // data-space geometry must follow or visibly disagree until release.
-  // Only the small memos (spread, halves) key off this; the 100k-path
-  // memos don't, so per-frame cost stays flat.
+  // Zoom for spiderfy-ring sizing, snapped on move-end. Live tracking
+  // rebuilt every layer per gesture frame (fine at 250 arcs, jank at
+  // 100k), and nothing data-space needs it now the halves are gone.
   const [zoom, setZoom] = useState(HOME.zoom);
   // Last camera, re-applied as initialViewState when the map remounts
   // on projection toggle so the user keeps their view.
@@ -362,6 +375,21 @@ export default function MapGlobe({
     for (const [key, s] of stacks) {
       if (key !== expandedKey && s.companies.length > 1) {
         out.set(s.companies[0]!.id, s.companies.length);
+      }
+    }
+    return out;
+  }, [stacks, expandedKey]);
+  // Every member id of collapsed multi-company stacks: hover cards for
+  // these wait until STACK_TOOLTIP_MIN_ZOOM (expanded stacks tooltip
+  // normally — the user put them there on purpose).
+  const stackedIds = useMemo(() => {
+    const out = new Set<string>();
+    for (const [key, s] of stacks) {
+      if (key === expandedKey || s.companies.length < 2) {
+        continue;
+      }
+      for (const m of s.members) {
+        out.add(m.id);
       }
     }
     return out;
@@ -836,14 +864,13 @@ export default function MapGlobe({
       mapLib={maplibregl}
       mapStyle={MAP_STYLES[basemap]}
       initialViewState={cameraRef.current}
-      onMove={(e) => {
-        cameraRef.current = {
+      onMove={(e) =>
+        (cameraRef.current = {
           longitude: e.viewState.longitude,
           latitude: e.viewState.latitude,
           zoom: e.viewState.zoom,
-        };
-        setZoom(e.viewState.zoom);
-      }}
+        })
+      }
       onMoveEnd={(e) => setZoom(e.viewState.zoom)}
       projection={projection}
       style={{ background: SPACE_BG[basemap] }}
@@ -872,7 +899,9 @@ export default function MapGlobe({
         <DeckGLOverlay
           key={`${projection}-${basemap}-${mapTick}`}
           layers={layers}
-          getTooltip={(info) => tooltip(info, verification, allEntities, repCounts)}
+          getTooltip={(info) =>
+            tooltip(info, verification, allEntities, repCounts, zoom, stackedIds)
+          }
           onClick={handleClick}
         />
       )}
