@@ -575,12 +575,42 @@ export default function MapGlobe({
       : d.flowType === "ownership"
         ? 1.95 // 1.3x: thin red ownership arcs were hard to hit
         : Math.max(1, Math.min(3, Math.sqrt(d.amount) / 2));
+  // Funder group keys: id heads, so sibling concept rows share the test.
+  const funderGroups = useMemo(() => {
+    const out = new Set<string>();
+    for (const id of funderIds) {
+      out.add(companyGroupKey(id));
+    }
+    return out;
+  }, [funderIds]);
+  // Mixed-stack rep: collapsed multi-company stack holding both a funder
+  // and a plain company. Its dot goes transparent — the halves overlay
+  // paints both sides, so no third color leaks at the seam.
+  const isMixedRep = (id: string): boolean => {
+    const key = stackOfMember.get(id);
+    if (!key || key === expandedKey) {
+      return false;
+    }
+    const s = stacks.get(key);
+    if (!s || s.companies.length < 2 || s.companies[0]!.id !== id) {
+      return false;
+    }
+    const hasFunder = s.companies.some((c) => funderGroups.has(companyGroupKey(c.id)));
+    const hasPlain = s.companies.some((c) => !funderGroups.has(companyGroupKey(c.id)));
+    return hasFunder && hasPlain;
+  };
+  // Company green on dark tiles, near-black navy on light ones (teal
+  // washes out on pale tiles). Amber universities, purple funders.
   const dotColor = (d: Entity): [number, number, number, number] =>
     d.type.toLowerCase() === "education"
       ? [251, 191, 36, 210]
       : funderIds.has(d.id)
         ? [168, 85, 247, 210]
-        : [45, 212, 191, 200];
+        : isMixedRep(d.id)
+          ? [0, 0, 0, 0]
+          : basemap === "light"
+            ? [30, 58, 95, 255]
+            : [45, 212, 191, 200];
 
   // Dot size uses the same primary metric as hover/popup (assets, or
   // holdings for funds), precomputed per row so sibling concept rows at
@@ -605,28 +635,22 @@ export default function MapGlobe({
   }, [entities, allEntities]);
 
   // Mixed-stack badges: a collapsed multi-company stack holding both a
-  // funder and a plain company reads half-and-half. The rep dot beneath
-  // paints the rep's half; one semicircle polygon paints the other side
-  // (left green + right purple for a company rep, mirrored for a funder
-  // rep). Radius mirrors the entities layer (badge reps render base x2,
-  // selected x3, clamped to the same pixel caps).
+  // funder and a plain company reads half-and-half — left company color,
+  // right funder purple. Both halves are polygons from ONE shared radius
+  // (the rep dot beneath is transparent), so they can't disagree in size
+  // the way dot-vs-polygon could. Company side follows the basemap like
+  // the dots. Radius mirrors the entities layer (badge reps render base
+  // x2, selected x3, clamped to the same pixel caps).
   const halfData = useMemo(() => {
     const out: { polygon: [number, number][]; color: [number, number, number, number] }[] = [];
-    const funderGroups = new Set<string>();
-    for (const id of funderIds) {
-      funderGroups.add(companyGroupKey(id));
-    }
-    for (const [key, s] of stacks) {
-      if (key === expandedKey || s.companies.length < 2) {
+    const company: [number, number, number, number] =
+      basemap === "light" ? [30, 58, 95, 255] : [45, 212, 191, 200];
+    const funder: [number, number, number, number] = [168, 85, 247, 210];
+    for (const s of stacks.values()) {
+      const rep = s.companies[0];
+      if (!rep || !isMixedRep(rep.id)) {
         continue;
       }
-      const hasFunder = s.companies.some((c) => funderGroups.has(companyGroupKey(c.id)));
-      const hasPlain = s.companies.some((c) => !funderGroups.has(companyGroupKey(c.id)));
-      if (!hasFunder || !hasPlain) {
-        continue;
-      }
-      const rep = s.companies[0]!;
-      const repIsFunder = funderGroups.has(companyGroupKey(rep.id));
       const base = (8000 + Math.sqrt(radiusVolumes.get(rep.id) ?? rep.fundsVolume) * 2) / Math.SQRT2;
       const meters = base * (selected?.id === rep.id ? 3 : 2);
       const latRad = (s.lat * Math.PI) / 180;
@@ -637,20 +661,21 @@ export default function MapGlobe({
       const px = Math.min(11, Math.max(3, meters / metersPerPixel));
       const dLat = (metersPerPixel * px) / 111320;
       const dLng = dLat / Math.max(0.2, Math.cos(latRad));
-      const a0 = repIsFunder ? Math.PI / 2 : -Math.PI / 2;
       const steps = 20;
-      const polygon: [number, number][] = [[s.lng, s.lat]];
-      for (let i = 0; i <= steps; i += 1) {
-        const a = a0 + (Math.PI * i) / steps;
-        polygon.push([s.lng + Math.cos(a) * dLng, s.lat + Math.sin(a) * dLat]);
+      for (const [a0, color] of [[Math.PI / 2, company], [-Math.PI / 2, funder]] as const) {
+        const polygon: [number, number][] = [[s.lng, s.lat]];
+        for (let i = 0; i <= steps; i += 1) {
+          const a = a0 + (Math.PI * i) / steps;
+          polygon.push([s.lng + Math.cos(a) * dLng, s.lat + Math.sin(a) * dLat]);
+        }
+        out.push({ polygon, color });
       }
-      out.push({
-        polygon,
-        color: repIsFunder ? [45, 212, 191, 200] : [168, 85, 247, 210],
-      });
     }
     return out;
-  }, [stacks, expandedKey, funderIds, radiusVolumes, selected, zoom]);
+    // isMixedRep closes over stacks/expandedKey/funderGroups; listing the
+    // memo would retrigger on every render, so list its inputs instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stacks, expandedKey, funderGroups, radiusVolumes, selected, zoom, basemap]);
 
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
@@ -700,7 +725,9 @@ export default function MapGlobe({
       filled: true,
       stroked: true,
       lineWidthUnits: "pixels",
-      getLineWidth: (d) => (selected?.id === d.id ? 2.5 : 0.75),
+      // No ring on plain dots: the 0.75px white stroke fringed every dot
+      // with a gray outline on dark tiles. Selection keeps its teal ring.
+      getLineWidth: (d) => (selected?.id === d.id ? 2.5 : 0),
       getPosition: (d) => spreadPositions.get(d.id) ?? [d.lng, d.lat],
       // Half the area (÷√2 radius); the money×2 multiplier stays.
       // Selected node renders 3x for visibility.
@@ -988,7 +1015,7 @@ export default function MapGlobe({
         {legendOpen ? (
           <>
             <span className="legend-item">
-              <span className="legend-dot" style={{ background: "#2dd4bf" }} />
+              <span className="legend-dot" style={{ background: basemap === "light" ? "#1e3a5f" : "#2dd4bf" }} />
               Company
             </span>
             <span className="legend-item">
