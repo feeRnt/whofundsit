@@ -2,11 +2,11 @@
 
 Many people want to know, when making a purchase, buying a subscription, or reading a medical study, what the primary incentives are behind the service or who are its prime beneficiaries. The best way to understand this information is to see what funding is behind any company, organization or even an educational institution.
 
-This webapp is an interactive global corporate financing map that showcases the flow and source of money, with bigger graphical representation to places with more funds, e.g., BlackRock. Including banks or hedge-funds to bring out the scale of debt, the sources for this mapping will be stocks, equity, large donations and the like, and AI - Open-Weighted Llama - is used for the processing of the public databases to create a human-intuitive map from the hard data.
+This webapp is an interactive global corporate financing map that showcases the flow and source of money, with bigger graphical representation to places with more funds, e.g., BlackRock. Including banks or hedge-funds to bring out the scale of debt, the sources for this mapping will be stocks, equity, large donations and the like, and AI - Open-Weighted Muse Glimmer - is used to process hard-to-map business addresses on the map, and to test the soundness of the data collected using a random methodological test on our outputs.
 
 ## How to run
 
-### Prereqs (Windows, macOS, Linux)
+### Prereqs (for Windows, macOS, Linux)
 
 - Node.js 20+ and npm
 - PostgreSQL 14+ with a `whofundsit` database. Easiest on every OS: Docker
@@ -99,7 +99,7 @@ npm run verify:all           # verify:claims + deadlines:snapshot + db:export (r
 ```
 
 LLM repair loop for ungeocoded rows (needs the Modal server deployed:
-`modal deploy backend/formalize_worker.py`, then smoke-test it):
+`modal deploy backend/formalize_worker.py`, then,
 ```bash
 npm run formalize:addresses -- --pass=1   # Glimmer-30B parses DB failures -> llm-pass-1.json
 npm run coords:populate -- --llm-1        # Census + structured Nominatim, marks outcomes
@@ -137,11 +137,26 @@ Then commit the updated seed files. Report suspected duplicates with
 ## Scripts reference
 
 All npm scripts and what they do live in [NPM_SCRIPTS.md](NPM_SCRIPTS.md).
-Data-source licenses and cache locations: [DATASETS.md](DATASETS.md).
 
 ## License & credits
 Apache 2.0. See LICENSE for the full license text.
 
-All data is courtesy of and thanks to: SEC EDGAR, Wikidata, GLEIF, OpenFIGI, OpenStreetMap contributors (Nominatim), the US Census Bureau, OpenAlex, Yahoo Finance, XBRL International (ESEF), the Taiwan Stock Exchange, and Wikipedia (index snapshots). Please check the licenses/copyright of the presented data in LICENSE and [DATASETS.md](DATASETS.md).
+All data is courtesy of and thanks to: 
+- SEC EDGAR, 
+- Wikidata,
+- GLEIF, 
+- OpenFIGI, 
+- OpenStreetMap contributors (Nominatim),
+- the US Census Bureau,
+- OpenAlex,
+- Yahoo Finance, 
+- XBRL International (ESEF)
+- the Taiwan Stock Exchange,
+- and Wikipedia (index snapshots).
 
-They're the real heroes <3
+Please check the licenses/copyright and a detailed usage of the presented data in LICENSE and [DATASETS.md](DATASETS.md). They're the real heroes <3
+
+## AI use notice:
+This project was made with the help of Muse Code \[95% of codebase\], using Muse-Spark-1.3-Contributor (bulk load of the code, fixes, and real time changes), Muse-Wonder-1.0 (initial architectural planning, implementation and design; cleanups), during the 2026 Meta AI Developer Hackathon running from Oct 26 to November 4.
+
+The code optionally uses the Muse-Glimmer-30B model to formalize broken addresses, and to generate a human-friendly action report on the validity of the displayed data.
