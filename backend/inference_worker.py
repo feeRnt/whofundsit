@@ -26,11 +26,13 @@ import os
 
 import modal
 
-MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
+#MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
+MODEL_ID = "meta-models/Muse-Glimmer-30B"
 
 # T4 is a 16 GB card and 8B bf16 weights are ~16 GB: tight, may OOM on
 # deploy. If it does, flip to "L4" (24 GB, still cheap) and redeploy.
-GPU = "T4:1"
+#GPU = "T4:1"
+GPU="A100-80GB"
 
 # Modal secret holding HF_TOKEN. Deploy-time only: `modal deploy` reads your
 # local shell env, not backend/.env — export MODAL_HF_SECRET_NAME=<name>
@@ -43,9 +45,10 @@ os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    # Same pin as the 70B worker: latest transformers crashes vllm 0.6.3
-    # tokenizer init (all_special_tokens_extended removed).
-    .pip_install("vllm==0.6.3", "transformers==4.45.2", "fastapi[standard]")
+    # Unpinned: vLLM pulls the torch/transformers it was built against.
+    # (No extra index: everything here is on plain PyPI; the pytorch.org
+    # homepage is not a PEP 503 index and breaks the image build.)
+    .pip_install("vllm", "transformers", "fastapi[standard]")
 )
 
 app = modal.App("whofundsit-inference")
@@ -53,12 +56,18 @@ app = modal.App("whofundsit-inference")
 # Persistent HF cache: 8B weights download once (~16 GB), later cold starts
 # reuse it. Free under Modal's 1 TB monthly volume allowance. Auto-created
 # on first deploy; separate from the 70B cache (different weights).
-hf_cache_8b = modal.Volume.from_name("hf-hub-cache-8b", create_if_missing=True)
+hf_cache = modal.Volume.from_name("hf-hub-cache", create_if_missing=True)
 
 DIAGNOSE_SYSTEM_PROMPT = (
+    #"You explain data-audit flags. Given one flag plus its known facts, "
+    #'reply with ONLY a JSON object: {"diagnosis": string} — 4-6 sentences '
+    #"on why the flag likely fired and how to confirm or fix it. Use ONLY "
+    #"the facts given plus general methodology knowledge. Never invent "
+    #"live values; never assume an outside lookup was made. No prose, "
+    #"no code fences."
     "You explain data-audit flags. Given one flag plus its known facts, "
-    'reply with ONLY a JSON object: {"diagnosis": string} — 2-3 sentences '
-    "on why the flag likely fired and how to confirm or fix it. Use ONLY "
+    'reply with ONLY a JSON object: {"diagnosis": string} — 4-6 sentences '
+    "on why the flag likely fired and how to confirm or fix it. Use "
     "the facts given plus general methodology knowledge. Never invent "
     "live values; never assume an outside lookup was made. No prose, "
     "no code fences."
@@ -69,13 +78,13 @@ DIAGNOSE_SYSTEM_PROMPT = (
     image=image,
     gpu=GPU,
     secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
-    volumes={"/root/.cache/huggingface": hf_cache_8b},
+    volumes={"/root/.cache/huggingface": hf_cache},
     # Download (~16 GB) gets startup room like the 70B class; without it
     # the 15-min execution timeout is the cold-start ceiling.
-    startup_timeout=60 * 30,
+    startup_timeout=60 * 60,
     timeout=60 * 15,
-    # Minimum allowed (2s): GPU effectively off after every run.
-    scaledown_window=2,
+    # Minimum allowed (45s): GPU effectively off after every run.
+    scaledown_window=45,
 )
 class InferenceWorker:
     @modal.enter()
@@ -90,7 +99,9 @@ class InferenceWorker:
         )
         # Persist freshly downloaded weights so the next cold start skips the
         # download (cheap no-op when the cache is already full).
-        hf_cache_8b.commit()
+        hf_cache.commit()
+        # both inference and formalize funcs have this commit. If hf-hub-cache
+        # exists, then it just recaches it, no biggie
         self.diag_sampling = SamplingParams(temperature=0.2, max_tokens=320)
 
     def _ask(self, system: str, text: str, sampling) -> str:
