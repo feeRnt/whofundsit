@@ -7,7 +7,7 @@ import {
   MapLibreOverlay,
   type MapLibreOverlayProps,
 } from "@deck.gl/maplibre";
-import { PathLayer, ScatterplotLayer, SolidPolygonLayer, TextLayer } from "@deck.gl/layers";
+import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -586,34 +586,51 @@ export default function MapGlobe({
     }
     return out;
   }, [funderIds]);
-  // Mixed-stack rep: collapsed multi-company stack holding both a funder
-  // and a plain company. Its dot goes transparent — the halves overlay
-  // paints both sides, so no third color leaks at the seam.
-  const isMixedRep = (id: string): boolean => {
+  // Badge-dot majority rule: a collapsed multi-stack rep wears its
+  // stack's most common layer — funder purple, uni amber, else the
+  // mode's company color (ties break toward funders, then unis).
+  // Singles fall through to their own layer color.
+  const stackTopColor = (id: string): [number, number, number, number] | null => {
     const key = stackOfMember.get(id);
     if (!key || key === expandedKey) {
-      return false;
+      return null;
     }
     const s = stacks.get(key);
     if (!s || s.companies.length < 2 || s.companies[0]!.id !== id) {
-      return false;
+      return null;
     }
-    const hasFunder = s.companies.some((c) => funderGroups.has(companyGroupKey(c.id)));
-    const hasPlain = s.companies.some((c) => !funderGroups.has(companyGroupKey(c.id)));
-    return hasFunder && hasPlain;
+    let funder = 0;
+    let uni = 0;
+    for (const c of s.companies) {
+      if (c.type.toLowerCase() === "education") {
+        uni += 1;
+      } else if (funderGroups.has(companyGroupKey(c.id))) {
+        funder += 1;
+      }
+    }
+    const company = s.companies.length - funder - uni;
+    if (funder >= company && funder >= uni) {
+      return [168, 85, 247, 210];
+    }
+    if (uni >= company && uni >= funder) {
+      return [251, 191, 36, 210];
+    }
+    if (company > 0) {
+      return basemap === "light" ? [30, 58, 95, 255] : [45, 212, 191, 200];
+    }
+    return null;
   };
   // Company green on dark tiles, near-black navy on light ones (teal
   // washes out on pale tiles). Amber universities, purple funders.
   const dotColor = (d: Entity): [number, number, number, number] =>
-    d.type.toLowerCase() === "education"
+    stackTopColor(d.id) ??
+    (d.type.toLowerCase() === "education"
       ? [251, 191, 36, 210]
       : funderIds.has(d.id)
         ? [168, 85, 247, 210]
-        : isMixedRep(d.id)
-          ? [0, 0, 0, 0]
-          : basemap === "light"
-            ? [30, 58, 95, 255]
-            : [45, 212, 191, 200];
+        : basemap === "light"
+          ? [30, 58, 95, 255]
+          : [45, 212, 191, 200]);
 
   // Dot size uses the same primary metric as hover/popup (assets, or
   // holdings for funds), precomputed per row so sibling concept rows at
@@ -636,49 +653,6 @@ export default function MapGlobe({
     }
     return out;
   }, [entities, allEntities]);
-
-  // Mixed-stack badges: a collapsed multi-company stack holding both a
-  // funder and a plain company reads half-and-half — left company color,
-  // right funder purple. Both halves are polygons from ONE shared radius
-  // (the rep dot beneath is transparent), so they can't disagree in size
-  // the way dot-vs-polygon could. Company side follows the basemap like
-  // the dots. Radius mirrors the entities layer (badge reps render base
-  // x2, selected x3, clamped to the same pixel caps).
-  const halfData = useMemo(() => {
-    const out: { polygon: [number, number][]; color: [number, number, number, number] }[] = [];
-    const company: [number, number, number, number] =
-      basemap === "light" ? [30, 58, 95, 255] : [45, 212, 191, 200];
-    const funder: [number, number, number, number] = [168, 85, 247, 210];
-    for (const s of stacks.values()) {
-      const rep = s.companies[0];
-      if (!rep || !isMixedRep(rep.id)) {
-        continue;
-      }
-      const base = (8000 + Math.sqrt(radiusVolumes.get(rep.id) ?? rep.fundsVolume) * 2) / Math.SQRT2;
-      const meters = base * (selected?.id === rep.id ? 3 : 2);
-      const latRad = (s.lat * Math.PI) / 180;
-      const metersPerPixel = (156543.03392 * Math.cos(latRad)) / Math.pow(2, zoom);
-      if (!(metersPerPixel > 0)) {
-        continue;
-      }
-      const px = Math.min(11, Math.max(3, meters / metersPerPixel));
-      const dLat = (metersPerPixel * px) / 111320;
-      const dLng = dLat / Math.max(0.2, Math.cos(latRad));
-      const steps = 20;
-      for (const [a0, color] of [[Math.PI / 2, company], [-Math.PI / 2, funder]] as const) {
-        const polygon: [number, number][] = [[s.lng, s.lat]];
-        for (let i = 0; i <= steps; i += 1) {
-          const a = a0 + (Math.PI * i) / steps;
-          polygon.push([s.lng + Math.cos(a) * dLng, s.lat + Math.sin(a) * dLat]);
-        }
-        out.push({ polygon, color });
-      }
-    }
-    return out;
-    // isMixedRep closes over stacks/expandedKey/funderGroups; listing the
-    // memo would retrigger on every render, so list its inputs instead.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stacks, expandedKey, funderGroups, radiusVolumes, selected, zoom, basemap]);
 
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
@@ -749,14 +723,6 @@ export default function MapGlobe({
       getLineColor: (d) =>
         selected?.id === d.id ? [45, 212, 191, 255] : [255, 255, 255, 90],
     }),
-    new SolidPolygonLayer<{ polygon: [number, number][]; color: [number, number, number, number] }>({
-      id: "stack-halves",
-      data: halfData,
-      pickable: false,
-      filled: true,
-      getPolygon: (d) => d.polygon,
-      getFillColor: (d) => d.color,
-    }),
     new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows",
       data: drawnFlows,
@@ -790,7 +756,7 @@ export default function MapGlobe({
     // either toggle, and a fresh overlay needs fresh layer instances
     // (reused ones stay bound to the dead Deck instance and vanish).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [dotEntities, spreadPositions, badgeData, halfData, repCounts, drawnFlows, flowEndpoints, funderIds, selected, projection, basemap, mapTick, radiusVolumes]);
+  ], [dotEntities, spreadPositions, badgeData, repCounts, drawnFlows, flowEndpoints, funderIds, selected, projection, basemap, mapTick, radiusVolumes]);
 
   // Arc ping-pong: first click flies to the funded end, clicking the same
   // arc again flies to the funder; any dot click resets to funded-first.

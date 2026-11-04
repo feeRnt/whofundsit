@@ -81,30 +81,42 @@ export default function App() {
   // Dots slider: moneyed/money-less round-robin, biggest-first per bucket.
   // Arcs follow automatically — MapGlobe only draws arcs whose ends are shown.
   const shownEntities = useMemo(() => {
-    // Round-robin moneyed/money-less so zero-volume rows (global sync,
-    // universities) show up instead of sinking under the asset sort.
+    // University carve-out: works counts (hundreds) lose every dollar
+    // contest, so no uni survives a volume cut — zero of 278 make the
+    // default 14k. Reserved seats mirror the backend quota (limit/12);
+    // unis anchor grant arcs too, since arcs drop endpoints without dots.
     // Each bucket stays biggest-first; filter() copies, so sort() is safe.
-    const moneyed = visibleEntities.filter((e) => e.fundsVolume > 0);
-    const broke = visibleEntities.filter((e) => !(e.fundsVolume > 0));
+    const isUni = (e: Entity) => e.type.toLowerCase() === "education";
+    const unis = visibleEntities
+      .filter(isUni)
+      .sort((a, b) => b.fundsVolume - a.fundsVolume);
+    const rest = visibleEntities.filter((e) => !isUni(e));
+    const moneyed = rest.filter((e) => e.fundsVolume > 0);
+    const broke = rest.filter((e) => !(e.fundsVolume > 0));
     moneyed.sort((a, b) => b.fundsVolume - a.fundsVolume);
     broke.sort((a, b) => b.fundsVolume - a.fundsVolume);
     if (dotLimit == null) {
-      return [...moneyed, ...broke];
+      return [...unis, ...moneyed, ...broke];
     }
+    const kept = unis.slice(
+      0,
+      Math.min(unis.length, dotLimit, Math.max(2, Math.floor(dotLimit / 12))),
+    );
+    const room = dotLimit - kept.length;
     const out: typeof moneyed = [];
     for (
       let i = 0;
-      out.length < dotLimit && (i < moneyed.length || i < broke.length);
+      out.length < room && (i < moneyed.length || i < broke.length);
       i++
     ) {
-      if (i < moneyed.length && out.length < dotLimit) {
+      if (i < moneyed.length && out.length < room) {
         out.push(moneyed[i]);
       }
-      if (i < broke.length && out.length < dotLimit) {
+      if (i < broke.length && out.length < room) {
         out.push(broke[i]);
       }
     }
-    return out;
+    return [...kept, ...out];
   }, [visibleEntities, dotLimit]);
 
   const toggleSource = (key: string) =>
