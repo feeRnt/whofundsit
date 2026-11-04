@@ -33,7 +33,7 @@ README's maintainer section; this file is the what-and-why per script.
 | `tickers:global` | Backfill primary tickers on `lei:` rows via ISIN→OpenFIGI (same `GLOBAL_LIMIT` as the sync) |
 | `regional:esef` | EU/UK financial facts onto `lei:` rows, native currency (`ESEF_LIMIT`) |
 | `regional:twse` | Taiwan balance-sheet facts onto `lei:` rows in TWD (`TWSE_LIMIT`) |
-| `names:sync` | Backfill legal filer names from the local archive (`--list` previews every rename, `--yes` approves) |
+| `names:sync` | Backfill legal filer names from the local archive (`--list` previews every rename, `--yes` approves; declines are cached in gitignored `data/cache/names-sync.json`, `--cached` reviews past skips) |
 | `industry:sync` | Backfill SIC industry + normalize `type` from the local archive (offline) |
 | `coords:global` | Place unplaced `lei:` rows from Wikidata P625 (100-LEI VALUES batches; run before `coords:populate`) |
 | `coords:p625` | Deprecated dry-run stub — use `coords:global` (this script only prints its contract and exits) |

@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { jsonEntries } from "../services/bulkLoad.js";
+import {
+  loadSkipped,
+  partitionChanged,
+  saveSkipped,
+  type SkippedMap,
+} from "../services/namesCache.js";
 
 // One-shot backfill: `npm run names:sync` rewrites Entity.name to the legal
 // filer name from the local submissions archive (offline, no reseed).
@@ -14,17 +20,17 @@ import { jsonEntries } from "../services/bulkLoad.js";
 // to no. `--yes` approves non-interactively (overnight chain); without a TTY
 // and without --yes the script aborts instead of guessing. `--list` prints
 // every affected CIK as old -> legal name (read-only detail, no prompt skip).
-async function askConfirm(ciks: number, rows: number): Promise<boolean> {
+// Declined CIKs are remembered in gitignored data/cache/names-sync.json, so
+// repeat runs stop re-asking; `--cached` lists those past skips for review
+// (and applies them on yes), `--cached --yes` applies them directly.
+async function askConfirm(question: string): Promise<boolean> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
   try {
     const answer = await new Promise<string>((resolve) => {
-      rl.question(
-        `[names] rename ${rows} rows across ${ciks} CIKs to legal filer names? [y/N] `,
-        resolve,
-      );
+      rl.question(question, resolve);
     });
     return answer.trim().toLowerCase().startsWith("y");
   } finally {
@@ -37,6 +43,7 @@ if (!process.env.DATABASE_URL) {
 }
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ZIP = path.join(here, "..", "..", "data", "submissions.zip");
+const CACHE = path.join(here, "..", "..", "data", "cache", "names-sync.json");
 
 const names = new Map<number, string>();
 for await (const { json } of jsonEntries(ZIP)) {
@@ -62,18 +69,30 @@ try {
     select: { id: true, name: true },
   });
   const changed = new Map<number, string>();
+  const current = new Map<number, string>();
   for (const row of rows) {
     const m = /^(\d+):/.exec(row.id);
     if (!m) {
       continue;
     }
-    const want = names.get(Number(m[1]));
+    const cik = Number(m[1]);
+    if (!current.has(cik)) {
+      current.set(cik, row.name);
+    }
+    const want = names.get(cik);
     if (want && want !== row.name) {
-      changed.set(Number(m[1]), want);
+      changed.set(cik, want);
     }
   }
+  const args = process.argv.slice(2);
+  const cachedMode = args.includes("--cached");
+  const skipped: SkippedMap = loadSkipped(CACHE);
+  const { fresh, revisit, stale } = partitionChanged(changed, current, skipped);
+  const targets = cachedMode
+    ? new Map(revisit.map((r) => [r.cik, r.want]))
+    : fresh;
   // Affected rows, counted from the same read (no second query).
-  const prefixes = new Set([...changed.keys()].map((cik) => `${cik}:`));
+  const prefixes = new Set([...targets.keys()].map((cik) => `${cik}:`));
   let affected = 0;
   for (const row of rows) {
     const m = /^(\d+):/.exec(row.id);
@@ -85,40 +104,71 @@ try {
     scanned: rows.length,
     ciksChanged: changed.size,
     rowsAffected: affected,
+    skippedBefore: revisit.length,
   });
-  const args = process.argv.slice(2);
   if (args.includes("--list")) {
     // Dry-run detail: one old -> legal line per CIK, sorted. Read-only.
-    const current = new Map<number, string>();
-    for (const row of rows) {
-      const m = /^(\d+):/.exec(row.id);
-      if (m && changed.has(Number(m[1])) && !current.has(Number(m[1]))) {
-        current.set(Number(m[1]), row.name);
+    if (cachedMode) {
+      for (const r of [...revisit].sort((a, b) => a.cik - b.cik)) {
+        console.log(`[names] ${r.cik}: ${r.old} -> ${r.want}`);
+      }
+    } else {
+      const skippedCiks = new Set(revisit.map((r) => r.cik));
+      for (const [cik, want] of [...changed.entries()].sort((a, b) => a[0] - b[0])) {
+        const mark = skippedCiks.has(cik) ? " (skipped before)" : "";
+        console.log(`[names] ${cik}: ${current.get(cik)} -> ${want}${mark}`);
       }
     }
-    for (const [cik, want] of [...changed.entries()].sort((a, b) => a[0] - b[0])) {
-      console.log(`[names] ${cik}: ${current.get(cik)} -> ${want}`);
-    }
+  }
+  if (!cachedMode && revisit.length > 0) {
+    console.log(
+      `[names] ${revisit.length} previously-skipped (re-run with --cached to review)`,
+    );
   }
   let approved = args.includes("--yes");
-  if (!approved && changed.size > 0) {
+  if (!approved && targets.size > 0) {
     if (!process.stdin.isTTY) {
       console.log("[names] non-interactive without --yes: no rows written");
     } else {
-      approved = await askConfirm(changed.size, affected);
+      const question = cachedMode
+        ? `[names] apply ${targets.size} previously-skipped renames (${affected} rows)? [y/N] `
+        : `[names] rename ${affected} rows across ${targets.size} CIKs to legal filer names? [y/N] `;
+      approved = await askConfirm(question);
       if (!approved) {
         console.log("[names] aborted: no rows written");
+        // Remember the decline so the next run stops re-asking.
+        const at = new Date().toISOString();
+        for (const [cik, want] of targets) {
+          skipped[String(cik)] = {
+            old: current.get(cik) ?? "",
+            want,
+            at,
+          };
+        }
+        for (const key of stale) {
+          delete skipped[key];
+        }
+        saveSkipped(CACHE, skipped);
       }
     }
   }
   let updated = 0;
   if (approved) {
-    for (const [cik, name] of changed) {
+    for (const [cik, name] of targets) {
       const r = await prisma.entity.updateMany({
         where: { id: { startsWith: `${cik}:` } },
         data: { name },
       });
       updated += r.count;
+    }
+    if (cachedMode && updated > 0) {
+      for (const cik of targets.keys()) {
+        delete skipped[String(cik)];
+      }
+      for (const key of stale) {
+        delete skipped[key];
+      }
+      saveSkipped(CACHE, skipped);
     }
   }
   console.log({ rowsUpdated: updated });
