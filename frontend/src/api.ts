@@ -138,7 +138,7 @@ export interface Entity {
 // (backend serves the built frontend). VITE_API_URL overrides for split setups.
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
-export async function fetchEntities(limit = 50000): Promise<Entity[]> {
+export async function fetchEntities(limit = 500000): Promise<Entity[]> {
   const res = await fetch(`${API_BASE}/api/entities?limit=${limit}`);
   if (!res.ok) {
     throw new Error(`API ${res.status}`);
@@ -165,7 +165,7 @@ export interface Flow {
   targetEntity: FlowEndpoint;
 }
 
-export async function fetchFlows(limit = 50000): Promise<Flow[]> {
+export async function fetchFlows(limit = 500000): Promise<Flow[]> {
   const res = await fetch(`${API_BASE}/api/flows?limit=${limit}`);
   if (!res.ok) {
     throw new Error(`API ${res.status}`);
