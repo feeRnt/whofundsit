@@ -117,8 +117,11 @@ Express backend on any Node host (Render/Railway/Fly/VPS). Same-origin
 2. Create the Neon database and copy its URL **verbatim** (it carries
    `?sslmode=require`). Point local `DATABASE_URL` at it just for the
    seed step, then run `db:push` + `db:seed` once from your laptop.
-3. Deploy the backend with `DATABASE_URL` (Neon URL), `PORT`, and the
-   existing server-side env (`MODAL_*`, user-agent ids — never `VITE_*`).
+3. Deploy the backend — `Dockerfile` image or `npm start` — on a
+   container/process host (Render/Railway/Fly/VPS; Vercel can't run a
+   persistent Express server, it hosts only the frontend). Give it
+   `DATABASE_URL` (Neon URL), `PORT`, and the existing server-side env
+   (`MODAL_*`, user-agent ids — never `VITE_*`).
 4. On Vercel: Root Directory `frontend`, build `npm run build`, env
    `VITE_API_URL=https://<backend-host>` — baked in at build time, so
    rebuild after changing it. No rewrites needed: the app is one page.
