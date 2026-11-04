@@ -16,6 +16,17 @@
       bloat db:export seeds by tens of thousands of hidden rows — decide export-all
       vs export-placed-only first. Design sketched, code untouched per user.)
 
+- [ ] **13F match-all: dry-run preview first, harden only if we keep it.**
+      (Verify with zero DB writes: reuse the cached SEC filing docs + current
+      entities, run the match-all + `13ft:<cusip>` stub logic in memory, and
+      report per-company tracked-$ / untracked-% deltas for a few big names
+      (Apple today: 179 stakes / $1.27T tracked / ~73% untracked). If we keep
+      it, harden before building: stub-key stability across reruns (same
+      CUSIP → same stub), skipDuplicates race safety under concurrency,
+      export-all-vs-placed decision (stubs bloat seeds), coords:populate
+      must skip `13ft:` rows it can't place, and API/legend copy so hidden
+      stub rows never leak onto the map.)
+
 ## Post-demo: revisit quarterly SEC cache (demo shortcut, see 95c061b)
 
 - [ ] **Mid-quarter late filings are invisible under the quarterly cache.**

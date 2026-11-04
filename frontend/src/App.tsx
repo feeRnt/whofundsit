@@ -96,7 +96,7 @@ export default function App() {
     moneyed.sort((a, b) => b.fundsVolume - a.fundsVolume);
     broke.sort((a, b) => b.fundsVolume - a.fundsVolume);
     if (dotLimit == null) {
-      return [...unis, ...moneyed, ...broke];
+      return [...moneyed, ...broke, ...unis];
     }
     const kept = unis.slice(
       0,
@@ -116,7 +116,9 @@ export default function App() {
         out.push(broke[i]);
       }
     }
-    return [...kept, ...out];
+    // Unis paint last (on top): later draws cover earlier ones, so lead
+    // seats would bury them under company dots in dense areas.
+    return [...out, ...kept];
   }, [visibleEntities, dotLimit]);
 
   const toggleSource = (key: string) =>
