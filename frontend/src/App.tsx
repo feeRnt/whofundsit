@@ -81,9 +81,9 @@ export default function App() {
   // Dots slider: moneyed/money-less round-robin, biggest-first per bucket.
   // Arcs follow automatically — MapGlobe only draws arcs whose ends are shown.
   const shownEntities = useMemo(() => {
-    // University carve-out: works counts (hundreds) lose every dollar
+    // University priority: works counts (hundreds) lose every dollar
     // contest, so no uni survives a volume cut — zero of 278 make the
-    // default 14k. Reserved seats mirror the backend quota (limit/12);
+    // default 14k. After the first 100 companies, ALL unis load next;
     // unis anchor grant arcs too, since arcs drop endpoints without dots.
     // Each bucket stays biggest-first; filter() copies, so sort() is safe.
     const isUni = (e: Entity) => e.type.toLowerCase() === "education";
@@ -98,27 +98,23 @@ export default function App() {
     if (dotLimit == null) {
       return [...moneyed, ...broke, ...unis];
     }
-    const kept = unis.slice(
-      0,
-      Math.min(unis.length, dotLimit, Math.max(2, Math.floor(dotLimit / 12))),
-    );
-    const room = dotLimit - kept.length;
-    const out: typeof moneyed = [];
-    for (
-      let i = 0;
-      out.length < room && (i < moneyed.length || i < broke.length);
-      i++
-    ) {
-      if (i < moneyed.length && out.length < room) {
-        out.push(moneyed[i]);
+    // Load order: first 100 companies (round-robin moneyed/broke,
+    // biggest-first), then ALL unis, then remaining companies fill the cap.
+    const companies: typeof moneyed = [];
+    for (let i = 0; i < moneyed.length || i < broke.length; i++) {
+      if (i < moneyed.length) {
+        companies.push(moneyed[i]);
       }
-      if (i < broke.length && out.length < room) {
-        out.push(broke[i]);
+      if (i < broke.length) {
+        companies.push(broke[i]);
       }
     }
+    const head = companies.slice(0, 100);
+    const tailRoom = Math.max(0, dotLimit - head.length - unis.length);
+    const tail = companies.slice(head.length, head.length + tailRoom);
     // Unis paint last (on top): later draws cover earlier ones, so lead
-    // seats would bury them under company dots in dense areas.
-    return [...out, ...kept];
+    // companies would bury them under company dots in dense areas.
+    return [...head, ...tail, ...unis];
   }, [visibleEntities, dotLimit]);
 
   const toggleSource = (key: string) =>
