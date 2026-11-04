@@ -144,7 +144,7 @@ Apache 2.0. See LICENSE for the full license text.
 All data is courtesy of and thanks to:
 - [SEC EDGAR](https://www.sec.gov/edgar) (company facts, 13F holdings),
 - [Wikidata](https://www.wikidata.org) (company crosswalk, industries, coordinates),
-- [GLEIF](https://www.gleif.org) (LEI records, HQ addresses, corporate children),
+- [GLEIF](https://www.gleif.org) (LEI records, HQ addresses, corporate subsidiaries),
 - [OpenFIGI](https://www.openfigi.com) (CUSIP/ISIN to ticker mapping),
 - [OpenStreetMap](https://nominatim.openstreetmap.org) contributors via Nominatim (geocoding),
 - the [US Census Bureau](https://geocoding.geo.census.gov) (bulk US geocoding),
@@ -154,9 +154,11 @@ All data is courtesy of and thanks to:
 - the [Taiwan Stock Exchange](https://www.twse.com.tw) (Taiwan financial facts),
 - and [Wikipedia](https://en.wikipedia.org) (index snapshots).
 
-Please check the licenses/copyright and a detailed usage of the presented data in LICENSE and [DATASETS.md](DATASETS.md). They're the real heroes <3
+More datasets are planned to come soon!
+
+Please check the licenses/copyright and a detailed usage of the presented data in [LICENSE](LICENSE) and [DATASETS.md](DATASETS.md). They're the real heroes <3
 
 ## AI use notice:
 This project was made with the help of Muse Code \[95% of codebase\], using Muse-Spark-1.3-Contributor (bulk load of the code, fixes, and real time changes), Muse-Wonder-1.0 (initial architectural planning, implementation and design; cleanups), during the 2026 Meta AI Developer Hackathon running from Oct 26 to November 4.
 
-The code optionally uses the Muse-Glimmer-30B model to formalize broken addresses, and to generate a human-friendly action report on the validity of the displayed data.
+The code optionally uses the Muse-Glimmer-30B model to formalize broken addresses, and to generate a human-friendly action report on the validity of the displayed data.(TODO: please fix its bugs and get it working ASAP)
