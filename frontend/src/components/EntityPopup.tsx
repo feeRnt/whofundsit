@@ -380,11 +380,12 @@ export default function EntityPopup({
       : overallCell && overallCell.pctVerified !== null
         ? { cell: overallCell, scope: "overall" }
         : null;
-  // Ring view switch: available whenever a market cap exists. When
-  // tracked $ exceeds it (overlapping filings) the ring itself falls
-  // back to tracked-relative and says so — hiding the toggle made
-  // share-% look "gone" (regression in 9f2939a, which also dropped
-  // this missing-input diagnosis).
+  // Ring view switch: available whenever a market cap exists, but the
+  // popup always opens on tracked $ ("13F funding") — Real % is one
+  // click away. When tracked $ exceeds it (overlapping filings) the
+  // ring itself falls back to tracked-relative and says so — hiding
+  // the toggle made share-% look "gone" (regression in 9f2939a, which
+  // also dropped this missing-input diagnosis).
   const canTrue = marketCap !== null && marketCap > 0;
   const capNote =
     marketCap !== null
@@ -396,7 +397,7 @@ export default function EntityPopup({
           : shares === null
             ? "True % needs a 10-K share count — none on file for this CIK."
             : "True % needs shares + price — quote fetch failed.";
-  const [ringTrue, setRingTrue] = useState(true);
+  const [ringTrue, setRingTrue] = useState(false);
   return (
     <div className="entity-popup">
       <h2>{entity.name}</h2>

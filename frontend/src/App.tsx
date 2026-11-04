@@ -126,6 +126,16 @@ export default function App() {
     }
     return ids;
   }, [flows]);
+  // Purple dots (legend "Funder/Hedge"): flow SOURCES only. Targets —
+  // held companies like Apple — stay green; endpoints-of-either would
+  // paint every held company purple.
+  const funderIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const f of flows) {
+      ids.add(f.sourceEntityId);
+    }
+    return ids;
+  }, [flows]);
 
   const { funders13f, fundersGrants, fundersOwnership } = useMemo(() => {
     const byId = new Map<string, FunderInfo>();
@@ -532,7 +542,6 @@ export default function App() {
           >
             <span className="slider-text">
               Dots {shownEntities.length}
-              {shownEntities.length > LAG_WARN_AT ? " ⚠" : ""}
             </span>
             <input
               type="range"
@@ -551,8 +560,8 @@ export default function App() {
             title="Max arcs shown, biggest first"
           >
             <span className="slider-text">
-              Arcs {anyArcsOn ? visibleFlows.length : 0}/{anyArcsOn ? eligibleFlows.length : 0}
-              {anyArcsOn && flowLimit > LAG_WARN_AT ? " ⚠" : ""}
+              Arcs {anyArcsOn && flowLimit > LAG_WARN_AT ? "⚠ " : ""}
+              {anyArcsOn ? visibleFlows.length : 0}
             </span>
             <input
               type="range"
@@ -568,7 +577,7 @@ export default function App() {
       </header>
       <main className="map">{!loading && !error && (
           <MapErrorBoundary>
-            <MapGlobe entities={shownEntities} allEntities={entities} flows={visibleFlows} allFlows={flows} verification={verification} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
+            <MapGlobe entities={shownEntities} allEntities={entities} flows={visibleFlows} allFlows={flows} verification={verification} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} funderIds={funderIds} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
           </MapErrorBoundary>
         )}</main>
     </div>

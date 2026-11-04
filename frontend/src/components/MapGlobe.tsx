@@ -7,7 +7,7 @@ import {
   MapLibreOverlay,
   type MapLibreOverlayProps,
 } from "@deck.gl/maplibre";
-import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
+import { PathLayer, ScatterplotLayer, SolidPolygonLayer, TextLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
@@ -214,6 +214,7 @@ export default function MapGlobe({
   focused,
   focusTick,
   flowEndpoints,
+  funderIds,
   companyFlowsHidden,
   onToggleCompanyFlows,
   focusCompanyId,
@@ -236,6 +237,9 @@ export default function MapGlobe({
   focused: Entity | null;
   focusTick: number;
   flowEndpoints: Set<string>;
+  // Flow sources only: purple dots (legend "Funder/Hedge"). flowEndpoints
+  // covers both ends and stays the popup's has-flows check.
+  funderIds: Set<string>;
   companyFlowsHidden: Set<string>;
   onToggleCompanyFlows: (id: string) => void;
   focusCompanyId: string | null;
@@ -512,6 +516,53 @@ export default function MapGlobe({
       })),
     [drawableFlows],
   );
+  // Expanded members spiderfy away from their stack point, but arc paths
+  // are baked from original coords — re-anchor arcs touching an expanded
+  // member to its displaced dot. deck redraws on the new data, no manual
+  // refresh. Membership (not zoom) gates the base layer, so zoom only
+  // recomputes the few displaced arcs while the ring breathes.
+  const expandedMemberIds = useMemo(() => {
+    const out = new Set<string>();
+    if (!expandedKey) {
+      return out;
+    }
+    for (const m of stacks.get(expandedKey)?.members ?? []) {
+      out.add(m.id);
+    }
+    return out;
+  }, [stacks, expandedKey]);
+  const basePathFlows = useMemo(
+    () =>
+      expandedMemberIds.size === 0
+        ? pathFlows
+        : pathFlows.filter(
+            (f) => !expandedMemberIds.has(f.sourceEntityId) && !expandedMemberIds.has(f.targetEntityId),
+          ),
+    [pathFlows, expandedMemberIds],
+  );
+  const displacedArcPaths = useMemo(() => {
+    if (expandedMemberIds.size === 0) {
+      return [];
+    }
+    const touched = drawableFlows.filter(
+      (f) => expandedMemberIds.has(f.sourceEntityId) || expandedMemberIds.has(f.targetEntityId),
+    );
+    return touched.map((f) => {
+      const sPos = spreadPositions.get(f.sourceEntityId) ?? [f.sourceEntity.lng, f.sourceEntity.lat];
+      const tPos = spreadPositions.get(f.targetEntityId) ?? [f.targetEntity.lng, f.targetEntity.lat];
+      return {
+        ...f,
+        path: greatCirclePath(
+          [sPos[0] ?? 0, sPos[1] ?? 0],
+          [tPos[0] ?? 0, tPos[1] ?? 0],
+        ),
+      };
+    });
+  }, [drawableFlows, expandedMemberIds, spreadPositions]);
+  const drawnFlows = useMemo(
+    () => [...basePathFlows, ...displacedArcPaths],
+    [basePathFlows, displacedArcPaths],
+  );
   const arcColor = (d: Flow): [number, number, number, number] =>
     d.flowType === "grant"
       ? [61, 174, 233, 150]
@@ -527,7 +578,7 @@ export default function MapGlobe({
   const dotColor = (d: Entity): [number, number, number, number] =>
     d.type.toLowerCase() === "education"
       ? [251, 191, 36, 210]
-      : flowEndpoints.has(d.id)
+      : funderIds.has(d.id)
         ? [168, 85, 247, 210]
         : [45, 212, 191, 200];
 
@@ -552,6 +603,54 @@ export default function MapGlobe({
     }
     return out;
   }, [entities, allEntities]);
+
+  // Mixed-stack badges: a collapsed multi-company stack holding both a
+  // funder and a plain company reads half-and-half. The rep dot beneath
+  // paints the rep's half; one semicircle polygon paints the other side
+  // (left green + right purple for a company rep, mirrored for a funder
+  // rep). Radius mirrors the entities layer (badge reps render base x2,
+  // selected x3, clamped to the same pixel caps).
+  const halfData = useMemo(() => {
+    const out: { polygon: [number, number][]; color: [number, number, number, number] }[] = [];
+    const funderGroups = new Set<string>();
+    for (const id of funderIds) {
+      funderGroups.add(companyGroupKey(id));
+    }
+    for (const [key, s] of stacks) {
+      if (key === expandedKey || s.companies.length < 2) {
+        continue;
+      }
+      const hasFunder = s.companies.some((c) => funderGroups.has(companyGroupKey(c.id)));
+      const hasPlain = s.companies.some((c) => !funderGroups.has(companyGroupKey(c.id)));
+      if (!hasFunder || !hasPlain) {
+        continue;
+      }
+      const rep = s.companies[0]!;
+      const repIsFunder = funderGroups.has(companyGroupKey(rep.id));
+      const base = (8000 + Math.sqrt(radiusVolumes.get(rep.id) ?? rep.fundsVolume) * 2) / Math.SQRT2;
+      const meters = base * (selected?.id === rep.id ? 3 : 2);
+      const latRad = (s.lat * Math.PI) / 180;
+      const metersPerPixel = (156543.03392 * Math.cos(latRad)) / Math.pow(2, zoom);
+      if (!(metersPerPixel > 0)) {
+        continue;
+      }
+      const px = Math.min(11, Math.max(3, meters / metersPerPixel));
+      const dLat = (metersPerPixel * px) / 111320;
+      const dLng = dLat / Math.max(0.2, Math.cos(latRad));
+      const a0 = repIsFunder ? Math.PI / 2 : -Math.PI / 2;
+      const steps = 20;
+      const polygon: [number, number][] = [[s.lng, s.lat]];
+      for (let i = 0; i <= steps; i += 1) {
+        const a = a0 + (Math.PI * i) / steps;
+        polygon.push([s.lng + Math.cos(a) * dLng, s.lat + Math.sin(a) * dLat]);
+      }
+      out.push({
+        polygon,
+        color: repIsFunder ? [45, 212, 191, 200] : [168, 85, 247, 210],
+      });
+    }
+    return out;
+  }, [stacks, expandedKey, funderIds, radiusVolumes, selected, zoom]);
 
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
@@ -581,7 +680,7 @@ export default function MapGlobe({
       id: "flows-glow",
       // Light basemap: no glow under the orange 13F arcs (reads as smear
       // on pale tiles); grant/ownership keep a faint halo.
-      data: basemap === "light" ? pathFlows.filter((f) => f.flowType !== "13f") : pathFlows,
+      data: basemap === "light" ? drawnFlows.filter((f) => f.flowType !== "13f") : drawnFlows,
       pickable: false,
       wrapLongitude: true,
       getPath: (d) => d.path,
@@ -615,14 +714,22 @@ export default function MapGlobe({
       },
       radiusMinPixels: 3,
       radiusMaxPixels: 11,
-      // Amber universities, purple flow endpoints, teal everything else.
+      // Amber universities, purple funders, teal everything else.
       getFillColor: dotColor,
       getLineColor: (d) =>
         selected?.id === d.id ? [45, 212, 191, 255] : [255, 255, 255, 90],
     }),
+    new SolidPolygonLayer<{ polygon: [number, number][]; color: [number, number, number, number] }>({
+      id: "stack-halves",
+      data: halfData,
+      pickable: false,
+      filled: true,
+      getPolygon: (d) => d.polygon,
+      getFillColor: (d) => d.color,
+    }),
     new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows",
-      data: pathFlows,
+      data: drawnFlows,
       pickable: true,
       wrapLongitude: true,
       getPath: (d) => d.path,
@@ -653,7 +760,7 @@ export default function MapGlobe({
     // either toggle, and a fresh overlay needs fresh layer instances
     // (reused ones stay bound to the dead Deck instance and vanish).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [dotEntities, spreadPositions, badgeData, repCounts, pathFlows, flowEndpoints, selected, projection, basemap, mapTick, radiusVolumes]);
+  ], [dotEntities, spreadPositions, badgeData, halfData, repCounts, drawnFlows, flowEndpoints, funderIds, selected, projection, basemap, mapTick, radiusVolumes]);
 
   // Arc ping-pong: first click flies to the funded end, clicking the same
   // arc again flies to the funder; any dot click resets to funded-first.
@@ -785,6 +892,7 @@ export default function MapGlobe({
           onClose={() => setSelected(null)}
         >
           <EntityPopup
+            key={selected.id}
             entity={selected}
             entities={allEntities}
             verification={verification}
@@ -885,7 +993,7 @@ export default function MapGlobe({
             </span>
             <span className="legend-item">
               <span className="legend-dot" style={{ background: "#a855f7" }} />
-              Has flows
+              Funder/Hedge
             </span>
             <span className="legend-item">
               <span className="legend-dot" style={{ background: "#fbbf24" }} />
@@ -893,7 +1001,7 @@ export default function MapGlobe({
             </span>
             <span className="legend-item">
               <span className="legend-line" style={{ background: "#fb923c" }} />
-              13F holding
+              Funding
             </span>
             <span className="legend-item">
               <span className="legend-line" style={{ background: "#ef4444" }} />
