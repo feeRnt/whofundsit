@@ -653,21 +653,19 @@ export default function MapGlobe({
       return [251, 191, 36, 210];
     }
     if (company > 0) {
-      return basemap === "light" ? [30, 58, 95, 255] : [45, 212, 191, 200];
+      return [45, 212, 191, 200];
     }
     return null;
   };
-  // Company green on dark tiles, near-black navy on light ones (teal
-  // washes out on pale tiles). Amber universities, purple funders.
+  // Company teal on both tiles (old teal one shade darker for
+  // light-tile legibility). Amber universities, purple funders.
   const dotColor = (d: Entity): [number, number, number, number] =>
     stackTopColor(d.id) ??
     (d.type.toLowerCase() === "education"
       ? [251, 191, 36, 210]
       : funderIds.has(d.id)
         ? [168, 85, 247, 210]
-        : basemap === "light"
-          ? [30, 58, 95, 255]
-          : [45, 212, 191, 200]);
+        : [45, 212, 191, 200]);
 
   // Dot size uses the same primary metric as hover/popup (assets, or
   // holdings for funds), precomputed per row so sibling concept rows at
@@ -1017,7 +1015,7 @@ export default function MapGlobe({
         {legendOpen ? (
           <>
             <span className="legend-item">
-              <span className="legend-dot" style={{ background: basemap === "light" ? "#1e3a5f" : "#2dd4bf" }} />
+              <span className="legend-dot" style={{ background: "#2dd4bf" }} />
               Company
             </span>
             <span className="legend-item">
