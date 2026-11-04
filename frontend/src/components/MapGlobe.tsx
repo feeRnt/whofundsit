@@ -272,6 +272,11 @@ export default function MapGlobe({
   const [selected, setSelected] = useState<Entity | null>(null);
   // Expanded coincident stack (ring visible); null collapses all badges.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  // Badge tapped while zoomed out: the flight lands first, the ring opens
+  // on arrival (move-end). Expanding mid-flight spiderfies members for the
+  // OLD zoom — far-apart data coords that read as an empty map at street
+  // level (e.g. a lone stack seen from a country view in a sparse area).
+  const pendingExpandKey = useRef<string | null>(null);
   // Zoom for spiderfy-ring sizing, snapped on move-end. Live tracking
   // rebuilt every layer per gesture frame (fine at 250 arcs, jank at
   // 100k), and nothing data-space needs it now the halves are gone.
@@ -477,7 +482,11 @@ export default function MapGlobe({
       // is clickable (single-company groups already show their rep).
       const key = stackOfMember.get(focused.id);
       if (key && (stacks.get(key)?.companies.length ?? 0) > 1) {
-        setExpandedKey(key);
+        if (mapRef.current && mapRef.current.getZoom() < DOT_STREET_ZOOM) {
+          pendingExpandKey.current = key;
+        } else {
+          setExpandedKey(key);
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -799,10 +808,13 @@ export default function MapGlobe({
       const entity = object as unknown as Entity;
       const stackKey = repStacks.get(entity.id);
       if (stackKey && stackKey !== expandedKey) {
-        // Count badge: expand the ring instead of opening a popup.
-        setExpandedKey(stackKey);
+        // Count badge: expand the ring instead of opening a popup — but
+        // only once the flight lands when zoomed out (see pendingExpandKey).
         if (mapRef.current && mapRef.current.getZoom() < DOT_STREET_ZOOM) {
+          pendingExpandKey.current = stackKey;
           flyToPoint(entity.lat, entity.lng, DOT_STREET_ZOOM);
+        } else {
+          setExpandedKey(stackKey);
         }
         return;
       }
@@ -848,7 +860,8 @@ export default function MapGlobe({
         return;
       }
     }
-    // Empty click collapses the ring too.
+    // Empty click collapses the ring too (and drops a mid-flight expansion).
+    pendingExpandKey.current = null;
     setExpandedKey(null);
     setSelected(null);
   }
@@ -871,7 +884,16 @@ export default function MapGlobe({
           zoom: e.viewState.zoom,
         })
       }
-      onMoveEnd={(e) => setZoom(e.viewState.zoom)}
+      onMoveEnd={(e) => {
+        setZoom(e.viewState.zoom);
+        // Deferred badge expansion lands here: spread positions and the
+        // displaced arcs both derive from this zoom, so dots and arcs
+        // redraw together exactly once, on arrival.
+        if (pendingExpandKey.current) {
+          setExpandedKey(pendingExpandKey.current);
+          pendingExpandKey.current = null;
+        }
+      }}
       projection={projection}
       style={{ background: SPACE_BG[basemap] }}
       onLoad={(e) => {

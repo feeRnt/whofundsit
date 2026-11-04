@@ -1,16 +1,81 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="WhoFundsIt logo">
-  <!-- Square tab variant of the header lockup: same tilted wireframe globe
-       (lucide-style) with a stroked dollar sign below it. The $ is vector
-       paths, not <text>: Inkscape substitutes its own fonts for system-ui,
-       which moved and reshaped the old glyph. Drop the header's underscore
-       here — at 16px the taller $ reads better. -->
-  <g transform="translate(12,3) rotate(8 12 12)" fill="none" stroke="#5eead4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M2 12h20" />
-    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-  </g>
-  <g fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round">
-    <path d="M28.5 33.5 C28.5 31.3 26.3 30.2 24 30.2 C21 30.2 19 31.8 19 33.8 C19 35.6 20.8 36.5 23 36.9 L25.2 37.3 C27.4 37.7 29.2 38.6 29.2 40.6 C29.2 42.6 27.2 44 24.5 44 C22.2 44 20.2 43 19.8 41.4" />
-    <path d="M24 28.5 V45.5" />
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) Edited by Muse-Code, resized to normal favicon dimensions from 2304x2304 -->
+
+<svg
+   width="48"
+   height="48"
+   viewBox="0 0 48 48"
+   version="1.1"
+   id="svg2"
+   sodipodi:docname="favicon2.svg"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     inkscape:zoom="0.1767767"
+     inkscape:cx="1105.3785"
+     inkscape:cy="640.24328"
+     inkscape:window-width="1920"
+     inkscape:window-height="1001"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g2"
+       transform="translate(12,3)">
+      <g
+         id="g1"
+         transform="rotate(8,12,12)"
+         fill="none"
+         stroke="#5eead4"
+         stroke-width="1.8"
+         stroke-linecap="round"
+         stroke-linejoin="round">
+        <circle
+           cx="12"
+           cy="12"
+           r="10"
+           id="circle1" />
+        <path
+           d="M 2,12 H 22"
+           id="path1" />
+        <path
+           d="M 12,2 A 15.3,15.3 0 0 1 16,12 15.3,15.3 0 0 1 12,22 15.3,15.3 0 0 1 8,12 15.3,15.3 0 0 1 12,2 Z"
+           id="path2" />
+      </g>
+      <rect
+         x="4"
+         y="31.5"
+         width="12"
+         height="3"
+         rx="1.5"
+         fill="#5eead4"
+         id="rect2" />
+      <text
+         x="17"
+         y="41"
+         font-size="27.5px"
+         fill="#ededed"
+         id="text2">$
+                    </text>
+    </g>
   </g>
 </svg>
