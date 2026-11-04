@@ -257,8 +257,11 @@ export default function MapGlobe({
   const [selected, setSelected] = useState<Entity | null>(null);
   // Expanded coincident stack (ring visible); null collapses all badges.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  // Zoom for spiderfy-ring sizing, snapped on move-end (live-zoom
-  // staleness mid-gesture is invisible; per-frame state is not worth it).
+  // Zoom for spiderfy-ring and badge-half sizing, tracked live: dots are
+  // meter-based so deck resizes them every frame mid-gesture, and the
+  // data-space geometry must follow or visibly disagree until release.
+  // Only the small memos (spread, halves) key off this; the 100k-path
+  // memos don't, so per-frame cost stays flat.
   const [zoom, setZoom] = useState(HOME.zoom);
   // Last camera, re-applied as initialViewState when the map remounts
   // on projection toggle so the user keeps their view.
@@ -867,13 +870,14 @@ export default function MapGlobe({
       mapLib={maplibregl}
       mapStyle={MAP_STYLES[basemap]}
       initialViewState={cameraRef.current}
-      onMove={(e) =>
-        (cameraRef.current = {
+      onMove={(e) => {
+        cameraRef.current = {
           longitude: e.viewState.longitude,
           latitude: e.viewState.latitude,
           zoom: e.viewState.zoom,
-        })
-      }
+        };
+        setZoom(e.viewState.zoom);
+      }}
       onMoveEnd={(e) => setZoom(e.viewState.zoom)}
       projection={projection}
       style={{ background: SPACE_BG[basemap] }}
