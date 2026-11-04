@@ -141,18 +141,18 @@ All npm scripts and what they do live in [NPM_SCRIPTS.md](NPM_SCRIPTS.md).
 ## License & credits
 Apache 2.0. See LICENSE for the full license text.
 
-All data is courtesy of and thanks to: 
-- SEC EDGAR, 
-- Wikidata,
-- GLEIF, 
-- OpenFIGI, 
-- OpenStreetMap contributors (Nominatim),
-- the US Census Bureau,
-- OpenAlex,
-- Yahoo Finance, 
-- XBRL International (ESEF)
-- the Taiwan Stock Exchange,
-- and Wikipedia (index snapshots).
+All data is courtesy of and thanks to:
+- [SEC EDGAR](https://www.sec.gov/edgar) (company facts, 13F holdings),
+- [Wikidata](https://www.wikidata.org) (company crosswalk, industries, coordinates),
+- [GLEIF](https://www.gleif.org) (LEI records, HQ addresses, corporate children),
+- [OpenFIGI](https://www.openfigi.com) (CUSIP/ISIN to ticker mapping),
+- [OpenStreetMap](https://nominatim.openstreetmap.org) contributors via Nominatim (geocoding),
+- the [US Census Bureau](https://geocoding.geo.census.gov) (bulk US geocoding),
+- [OpenAlex](https://openalex.org) (grant funders, works, institutions),
+- [Yahoo Finance](https://finance.yahoo.com) (day-change quotes),
+- [XBRL International](https://filings.xbrl.org) (ESEF EU/UK filings),
+- the [Taiwan Stock Exchange](https://www.twse.com.tw) (Taiwan financial facts),
+- and [Wikipedia](https://en.wikipedia.org) (index snapshots).
 
 Please check the licenses/copyright and a detailed usage of the presented data in LICENSE and [DATASETS.md](DATASETS.md). They're the real heroes <3
 
