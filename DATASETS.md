@@ -130,13 +130,15 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   empties instead of errors — never speed this up without re-checking.
 - **Local copies (gitignored):** `backend/data/cache/regional/twse-*.json`.
 
-## Stooq (day-change quotes for popups)
+## Yahoo Finance (day-change quotes for popups)
 
-- **What we take:** one-row daily CSV per ticker
-  (`/q/l/?s={ticker}.us&f=sd2t2ohlcv&h&e=csv`), proxied through
-  `GET /api/quote` with a 15-minute cache — fetched only when a popup opens.
-- **Terms:** free CSV for personal/demo use, no key. Polite by design:
-  cached, per-popup, no bulk pulls.
+- **What we take:** day-change quote per ticker via the public chart
+  endpoint, proxied through `GET /api/quote` with a 24-hour cache —
+  fetched only when a popup opens. (Stooq was the previous source; it
+  now serves bot-wall HTML/JS to server-side fetches.)
+- **Terms:** no key; unofficial endpoint, same one every OSS quote widget
+  uses. Polite by design: 1 req/s self-pacing, per-ticker 24h cache,
+  popup-only pulls — if it ever 429s the popup just hides the row.
 - **Local copies (gitignored):** `backend/data/cache/quotes/*.json`.
 
 ## Wikipedia (index snapshots)

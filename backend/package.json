@@ -10,7 +10,7 @@
     "ingest": "tsx src/scripts/ingest.ts",
     "pipeline": "tsx src/scripts/pipeline.ts",
     "bulk": "tsx src/scripts/bulk.ts",
-    "coords:populate": "tsx src/scripts/coords_populate.ts",
+    "coords:populate": "tsx src/scripts/coords-populate.ts",
     "ingest:all": "npm run ingest && npm run coords:populate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
