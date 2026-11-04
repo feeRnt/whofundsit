@@ -219,6 +219,10 @@ body {
   line-height: 1.5;
 }
 
+.loading-disclaimer p.loading-pulse {
+  margin: 0 0 1.5em;
+}
+
 .loading-disclaimer-title {
   color: #f8fafc;
   font-size: 1rem;

@@ -596,6 +596,7 @@ export default function App() {
         )}
         {loading && !error && (
           <div className="loading-disclaimer" role="status">
+            <p className="loading-pulse"><em>Loading . . .</em></p>
             <p className="loading-disclaimer-title">Something off?</p>
             <p>
               Note: This is a work-in-progress project and the data you
