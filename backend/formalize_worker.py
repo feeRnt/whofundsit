@@ -72,7 +72,7 @@ app = modal.App("whofundsit-formalize")
 N_GPU = 1
 MINUTES = 60
 VLLM_PORT = 8000
-ROUTING_REGION = "us_east"
+ROUTING_REGION = "us-east"
 
 # the vllm server which takes a model, tmieouts, and port (vllm servers gpu 
 # thru a network port on the local machine)
@@ -111,6 +111,7 @@ class Server:
             str(VLLM_PORT),
             "--uvicorn-log-level=info",
             "--async-scheduling",
+        ]
 
         # enforce-eager disables both Torch compilation and CUDA graph capture
         # default is no-enforce-eager. see the --compilation-config flag for tighter control
@@ -153,6 +154,10 @@ class Server:
 
         self.process = subprocess.Popen(cmd)
 
+    @modal.exit()
+    def stop(self):
+        self.process.terminate()
+
 @app.local_entrypoint()
 async def test(test_timeout=15 * MINUTES, content=None, twice=True):
     import asyncio
@@ -160,25 +165,8 @@ async def test(test_timeout=15 * MINUTES, content=None, twice=True):
 
     url = await Server.get_url.aio()
 
-   # system_prompt = {
-   #     "role": "system",
-   #     "content": "You are a pirate who can't help but drop sly reminders that he went to Harvard.",
-    system_prompt = {
-         "You parse postal addresses. Given one raw address, reply with ONLY a "
-         'JSON object: {"houseNumber": string|null, "street": string|null, '
-         '"city": string|null, "stateOrRegion": string|null, '
-         '"postalCode": string|null, "country": string|null, '
-         '"countryCode": string|null, "confidence": number, "notes": string, '
-         '"failureCause": string|null} — never invent a house number, postal '
-         "code, or coordinates; drop suite/floor/unit designators into notes. "
-         "When the text cannot be formalized, set unsupported fields to null, "
-         "confidence low, failureCause to one of po-box, "
-         "missing-house-number, missing-postal-code, ambiguous-country, "
-         "registrant-name-not-address, multi-address, other, and explain the "
-         "cause in notes. No prose, no code fences."
-    }
-#
-    }
+    # Same contract the TS client sends: rules as system, raw address as user.
+    system_prompt = {"role": "system", "content": SYSTEM_PROMPT}
     if content is None:
         content = "Tell me that I was fed nothig, so there is nothing for me to parse."
 
@@ -207,11 +195,19 @@ async def test(test_timeout=15 * MINUTES, content=None, twice=True):
         print(f"Successful health check for server at {url}")
 
         print(f"Sending messages to {url}:", *messages, sep="\n\t")
-        await _send_request(session, "llm", messages)
+        await _send_request(session, MODEL_NAME, messages)
         if twice:
             messages[0]["content"] = "You are Jar Jar Binks."
             print(f"Sending messages to {url}:", *messages, sep="\n\t")
-            await _send_request(session, "llm", messages)
+            await _send_request(session, MODEL_NAME, messages)
+
+        # The actual job: two real addresses must come back as parseable
+        # fields JSON. Non-streaming, like the client reads it.
+        for address in [
+            "1600 Amphitheatre Parkway, Mountain View, CA 94043",
+            "C/O FUNDROCK MANAGEMENT COMPANY, 4TH FLOOR CATNIA BUILDING, 7530 CAPE TOWN, ZA",
+        ]:
+            await _send_parse_check(session, address)
 
 
 async def _send_request(
@@ -219,8 +215,6 @@ async def _send_request(
 ) -> None:
     # `stream=True` tells an OpenAI-compatible backend to stream chunks
     payload: dict[str, Any] = {"messages": messages, "model": model, "stream": True}
-    # explicitly enable thinking for this model
-    payload["chat_template_kwargs"] = {"enable_thinking": True}
 
     headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
 
@@ -252,73 +246,54 @@ async def _send_request(
                 print("\n", chunk)
     print()
 
-       
 
-    @modal.exit()
-    def stop(self):
-        self.process.terminate()
-
-        self.llm = LLM(
-            model=MODEL_ID,
-            tensor_parallel_size=2,
-            # Load-bearing: Glimmer's 131k native context would size the
-            # KV cache into an OOM; addresses need a fraction of this.
-            max_model_len=4096,
-            gpu_memory_utilization=0.90,
-        )
-        hf_cache.commit()
-        self.sampling = SamplingParams(temperature=0.0, max_tokens=224)
-    @modal.method()
-    def formalize(self, text: str) -> str:
-        return self.llm.generate([_prompt(text)], self.sampling)[0].outputs[0].text.strip()
-    @modal.method()
-    def formalize_batch(self, texts: list) -> list:
-        outputs = self.llm.generate([_prompt(t) for t in texts], self.sampling)
-        return [o.outputs[0].text.strip() for o in outputs]
-
-def _parse(raw: str, original: str) -> dict:
-    cleaned = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+async def _send_parse_check(session: aiohttp.ClientSession, address: str) -> None:
+    """Non-streaming formalize probe using the same contract the TS client
+    sends: rules as system, raw address as user. The reply must parse as
+    the fields JSON object with every contract key present."""
+    payload = {
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": address},
+        ],
+        "model": MODEL_NAME,
+        "temperature": 0.0,
+        "max_tokens": 224,
+        "stream": False,
+    }
+    async with session.post("/v1/chat/completions", json=payload) as resp:
+        resp.raise_for_status()
+        body = await resp.json()
+    try:
+        content = body["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as e:
+        raise AssertionError(f"unexpected chat shape: {body!r}") from e
+    print(f"[parse-check] {address[:60]!r} -> {str(content)[:200]}")
+    cleaned = (
+        str(content)
+        .removeprefix("```json")
+        .removeprefix("```")
+        .removesuffix("```")
+        .strip()
+    )
     try:
         parsed = json.loads(cleaned)
-        if isinstance(parsed, dict):
-            return parsed
-    except json.JSONDecodeError:
-        pass
-    return {
-        "houseNumber": None,
-        "street": None,
-        "city": None,
-        "stateOrRegion": None,
-        "postalCode": None,
-        "country": None,
-        "countryCode": None,
-        "confidence": None,
-        "notes": f"unparsable model output for {original!r}: {raw[:200]}",
-        "failureCause": "llm-unparsable-output",
-    }
-def _prompt(text: str) -> str:
-    return (
-    f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{SYSTEM_PROMPT}<|eot_id|>"
-    f"<|start_header_id|>user<|end_header_id|>\n\n{text}<|eot_id|>"
-    "<|start_header_id|>assistant<|end_header_id|>\n\n"
-    )
+    except json.JSONDecodeError as e:
+        raise AssertionError(f"reply is not JSON: {content!r}") from e
+    assert isinstance(parsed, dict), f"reply is not an object: {parsed!r}"
+    for key in (
+        "houseNumber",
+        "street",
+        "city",
+        "country",
+        "confidence",
+        "notes",
+        "failureCause",
+    ):
+        assert key in parsed, f"missing key {key!r} in {parsed!r}"
+    print(f"[parse-check] PASS ({len(parsed)} keys)")
 
-
-@app.function(image=image, timeout=1320)
-@modal.fastapi_endpoint(method="POST", label="formalize", requires_proxy_auth=True)
-def formalize_endpoint(payload: dict):
-    """HTTP webhook: {"text": ...} -> object; {"texts": [...]} -> list."""
-    worker = FormalizeWorker()
-    if isinstance(payload.get("texts"), list):
-        texts = [str(t) for t in payload["texts"] if str(t).strip()]
-        if not texts:
-            return []
-        outs = worker.formalize_batch.remote(texts)
-        return [_parse(o, t) for o, t in zip(outs, texts)]
-    text = str(payload.get("text", "")).strip()
-    if not text:
-        return {"error": "missing 'text'"}
-    return _parse(worker.formalize.remote(text), text)
+       
 
 SYSTEM_PROMPT = (
 "You parse postal addresses. Given one raw address, reply with ONLY a "

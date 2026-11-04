@@ -106,6 +106,7 @@ describe("warnIfNotEndpointUrl", () => {
       warnIfNotEndpointUrl("https://modal.com/apps/abc");
       warnIfNotEndpointUrl("https://foo--bar.modal.run");
       warnIfNotEndpointUrl("https://foo--bar.modal.run/");
+      warnIfNotEndpointUrl("https://whofundsit--us-east.modal.direct");
     } finally {
       console.warn = orig;
     }

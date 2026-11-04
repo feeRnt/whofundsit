@@ -142,37 +142,70 @@ export function parseFormalizeResponse(raw: unknown, original: string): Formaliz
 
 export type FormalizeCaller = (text: string) => Promise<unknown>;
 
-// Production caller: POST one address to the Modal formalize endpoint.
-export function modalFormalizeCaller(timeoutMs = 120000): FormalizeCaller {
-  const url = process.env.MODAL_FORMALIZE_URL;
-  if (!url) {
+// OpenAI-chat contract (stock vLLM server): system rules + full address
+// prompt as user, reply must be the fields JSON object.
+// MODAL_FORMALIZE_URL holds the server base (https://....modal.direct);
+// the client appends /v1/chat/completions. Same proxy-token auth as
+// before: servers require it unless deployed unauthenticated.
+const FORMALIZE_CHAT_PATH = "/v1/chat/completions";
+const FORMALIZE_CHAT_MODEL_FALLBACK = "meta-models/Muse-Glimmer-30B";
+const FORMALIZE_CHAT_SYSTEM =
+  "You are a postal address parser. Reply with ONLY the JSON object the user describes.";
+
+function formalizeChatRequest(text: string) {
+  return {
+    model: process.env.MODAL_FORMALIZE_MODEL ?? FORMALIZE_CHAT_MODEL_FALLBACK,
+    messages: [
+      { role: "system", content: FORMALIZE_CHAT_SYSTEM },
+      { role: "user", content: formalizePrompt(text) },
+    ],
+    temperature: 0,
+    max_tokens: 224,
+    stream: false,
+  };
+}
+
+function formalizeEndpoint(): { url: string; headers: Record<string, string> } {
+  const base = (process.env.MODAL_FORMALIZE_URL ?? "").replace(/\/+$/, "");
+  if (!base) {
     throw new Error(
       "MODAL_FORMALIZE_URL is not set (deploy backend/formalize_worker.py; see backend/.env.example)",
     );
   }
+  warnIfNotEndpointUrl(base);
   const auth = modalProxyHeaders();
   if (!auth) {
     throw new Error(`Modal proxy auth is not configured — ${MODAL_PROXY_ENV_HINT}`);
   }
-  warnIfNotEndpointUrl(url);
+  return {
+    url: `${base}${FORMALIZE_CHAT_PATH}`,
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
+      ...auth,
+    },
+  };
+}
+
+function chatContent(data: unknown): unknown {
+  const content = (data as { choices?: { message?: { content?: unknown } }[] } | null | undefined)
+    ?.choices?.[0]?.message?.content;
+  return content ?? data;
+}
+
+// Production caller: POST one address as OpenAI chat to the Modal server.
+export function modalFormalizeCaller(timeoutMs = 120000): FormalizeCaller {
+  const { url, headers } = formalizeEndpoint();
   return async (text: string) => {
     apiLog("POST", url);
     console.log(`[formalize] >> 1 text to ${url}`);
     console.log(`[formalize] >> [0] ${text}`);
     let data: unknown;
     try {
-      ({ data } = await axios.post(
-        url,
-        { text },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
-            ...auth,
-          },
-          timeout: timeoutMs,
-        },
-      ));
+      ({ data } = await axios.post(url, formalizeChatRequest(text), {
+        headers,
+        timeout: timeoutMs,
+      }));
       console.log(`[formalize] << [0] ${JSON.stringify(data)}`);
     } catch (err) {
       if (isModalAuthRejection(err)) {
@@ -182,7 +215,7 @@ export function modalFormalizeCaller(timeoutMs = 120000): FormalizeCaller {
       }
       throw err;
     }
-    return data as unknown;
+    return chatContent(data) as unknown;
   };
 }
 
@@ -220,68 +253,62 @@ export async function formalizeAddresses(
   return out;
 }
 
-// Texts per 70B call: 24 short addresses fit 2xL40S fp8 KV with headroom;
-// bigger chunks risk OOM, smaller ones waste cold starts.
+// Progress/log chunking: the server takes one address per request, so a
+// chunk is N sequential chat calls. 24 keeps logs readable and bounds a
+// chunk's runtime; smaller chunks waste cold starts.
 export const FORMALIZE_BATCH = 24;
 
-// The .env value must be the function's https endpoint (.modal.run), not the
+// The .env value must be the server base URL (.modal.direct), not the
 // Modal dashboard/deployment link — the dashboard 405s POSTs. Warn, don't
 // throw: custom domains exist.
 export function warnIfNotEndpointUrl(url: string): void {
-  if (!/^https:\/\/[^/]+\.modal\.run(\/|$)/.test(url)) {
+  if (!/^https:\/\/[^/]+\.modal\.(run|direct)(\/|$)/.test(url)) {
     console.warn(
-      `[formalize] ${url} does not look like a Modal endpoint URL — want the https://....modal.run function URL from \`modal deploy\`, not the dashboard link.`,
+      `[formalize] ${url} does not look like a Modal endpoint URL — want the https://....modal.run function URL or https://....modal.direct server URL from \`modal deploy\`, not the dashboard link.`,
     );
   }
 }
 
 export type FormalizeBatchCaller = (texts: string[]) => Promise<unknown[]>;
 
-// Production batch caller: POST {"texts": [...]} (one GPU generate).
-// 25 min: outlives the endpoint's 22-min wait so a slow cold start surfaces
-// the server's verdict instead of dying as a client timeout.
+// Sequential singles: the OpenAI server takes one address per request, so
+// a chunk fans out into N chat calls (kept sequential: one replica, one
+// request at a time). Returns message contents aligned with `texts`.
+// 3 min per address: parses take seconds; a slow cold start surfaces as
+// llm-call-failed rows, not a hung chunk.
 export function modalFormalizeBatchCaller(
-  timeoutMs = 1500000,
+  timeoutMs = 180000,
 ): FormalizeBatchCaller {
-  const url = process.env.MODAL_FORMALIZE_URL;
-  if (!url) {
-    throw new Error(
-      "MODAL_FORMALIZE_URL is not set (deploy backend/formalize_worker.py; see backend/.env.example)",
-    );
-  }
-  const auth = modalProxyHeaders();
-  if (!auth) {
-    throw new Error(`Modal proxy auth is not configured — ${MODAL_PROXY_ENV_HINT}`);
-  }
-  warnIfNotEndpointUrl(url);
+  const { url, headers } = formalizeEndpoint();
   return async (texts: string[]) => {
+    if (!Array.isArray(texts)) {
+      throw new Error(`modal formalize batch malformed: expected array, got ${typeof texts}`);
+    }
     apiLog("POST", url);
     console.log(`[formalize] >> ${texts.length} texts to ${url}`);
-    texts.forEach((t, i) => console.log(`[formalize] >> [${i}] ${t}`));
-    let data: unknown;
-    let status: number | undefined;
+    const out: unknown[] = [];
     try {
-      ({ data, status } = await axios.post(url, { texts }, {
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": userAgentFromEnv("MODAL_USER_AGENT", "WhoFundsIt/0.1"),
-          ...auth,
-        },
-        timeout: timeoutMs,
-      }));
+      for (let i = 0; i < texts.length; i += 1) {
+        const text = texts[i];
+        console.log(`[formalize] >> [${i}] ${text}`);
+        const { data } = await axios.post(url, formalizeChatRequest(String(text)), {
+          headers,
+          timeout: timeoutMs,
+        });
+        const content = chatContent(data);
+        console.log(`[formalize] << [${i}] ${JSON.stringify(content)}`);
+        out.push(content);
+      }
     } catch (err) {
       if (isModalAuthRejection(err)) {
         throw new Error(`Modal proxy auth rejected — ${MODAL_PROXY_ENV_HINT}`);
       }
       throw err;
     }
-    const replies = Array.isArray(data) ? data : [data];
-    console.log(`[formalize] << HTTP ${status}, ${replies.length} replies`);
-    replies.forEach((r, i) => console.log(`[formalize] << [${i}] ${JSON.stringify(r)}`));
-    if (!Array.isArray(data)) {
-      throw new Error("Modal formalizer returned a malformed batch");
+    if (out.length !== texts.length) {
+      throw new Error(`modal formalize batch short: got ${out.length} for ${texts.length}`);
     }
-    return data as unknown[];
+    return out as unknown[];
   };
 }
 
