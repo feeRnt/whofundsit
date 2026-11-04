@@ -98,13 +98,32 @@ npm run names:sync -- --yes  # legal filer names (asks first without --yes; --li
 npm run verify:all           # verify:claims + deadlines:snapshot + db:export (run and leave)
 ```
 
-LLM repair loop for ungeocoded rows (needs the Modal workers deployed):
+LLM repair loop for ungeocoded rows (needs the Modal server deployed:
+`modal deploy backend/formalize_worker.py`, then smoke-test it):
 ```bash
-npm run formalize:addresses -- --pass=1   # 70B parses DB failures -> llm-pass-1.json
+npm run formalize:addresses -- --pass=1   # Glimmer-30B parses DB failures -> llm-pass-1.json
 npm run coords:populate -- --llm-1        # Census + structured Nominatim, marks outcomes
 npm run formalize:addresses -- --pass=2   # retry prior misses (add --limit=K to cap)
 npm run coords:populate -- --llm-2        # ... and so on
 ```
+
+## Hosting (Neon Postgres + Vercel frontend)
+
+Split-origin: the frontend goes on Vercel, the database on Neon, and the
+Express backend on any Node host (Render/Railway/Fly/VPS). Same-origin
+`Dockerfile`/compose path stays in [DEPLOY.md](DEPLOY.md).
+
+1. `npm run db:export`, commit the seeds.
+2. Create the Neon database and copy its URL **verbatim** (it carries
+   `?sslmode=require`). Point local `DATABASE_URL` at it just for the
+   seed step, then run `db:push` + `db:seed` once from your laptop.
+3. Deploy the backend with `DATABASE_URL` (Neon URL), `PORT`, and the
+   existing server-side env (`MODAL_*`, user-agent ids — never `VITE_*`).
+4. On Vercel: Root Directory `frontend`, build `npm run build`, env
+   `VITE_API_URL=https://<backend-host>` — baked in at build time, so
+   rebuild after changing it. No rewrites needed: the app is one page.
+5. Open the Vercel URL and check dots, arcs, popups, and the verification
+   badge; the disclaimer covers backend cold starts.
 
 Then commit the updated seed files. Report suspected duplicates with
 `npm run dedupe:report`; fold approved ones with
@@ -143,7 +162,7 @@ From `whofundsit/backend/` (pipeline order):
 | `ingest:all` | `ingest` + `coords:populate` in one go |
 | `pipeline` | Geocode pending entities (≤100/run, single batch) |
 | `flows:openalex` | Grant arcs from OpenAlex funders (`OPENALEX_FUNDER_IDS` list, cursor-paged with key, cached) |
-| `flows:13f` | Fund arcs from every 13F-HR filer (core-scaled workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it, `THIRTEENF_SKIP_STALE=1` drops dead filers; unplaceable funds stub for coords retry) |
+| `flows:13f` | Fund arcs from every 13F-HR filer (core-scaled workers; `THIRTEENF_MAX_MANAGERS` caps it, `THIRTEENF_CONCURRENCY` tunes it, `THIRTEENF_SKIP_STALE=1` drops dead filers; unmatched holdings are skipped — keep-everything stubs are a parked TODO) |
 | `sync:global` | International companies (Wikidata → GLEIF) + ownership arcs (`GLOBAL_LIMIT`, `GLOBAL_MAX_CHILDREN`) |
 | `industry:global` | Backfill industry on lei: rows from Wikidata P452 (batched VALUES, cached, gated; `INDUSTRY_GLOBAL_LIMIT` caps it) |
 | `tickers:global` | Backfill primary tickers on `lei:` rows via ISIN→OpenFIGI (same `GLOBAL_LIMIT` as the sync) |
