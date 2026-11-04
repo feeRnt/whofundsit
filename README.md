@@ -111,7 +111,9 @@ npm run coords:populate -- --llm-2        # ... and so on
 
 Split-origin: the frontend goes on Vercel, the database on Neon, and the
 Express backend on any Node host (Render/Railway/Fly/VPS). Same-origin
-`Dockerfile`/compose path stays in [DEPLOY.md](DEPLOY.md).
+`Dockerfile`/compose path stays in [DEPLOY.md](DEPLOY.md). No Docker
+needed for this path: Neon replaces the local-Postgres step, and the
+backend hosts above take either the image or plain `npm start`.
 
 1. `npm run db:export`, commit the seeds.
 2. Create the Neon database and copy its URL **verbatim** (it carries
