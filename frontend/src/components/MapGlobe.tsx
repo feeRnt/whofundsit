@@ -693,28 +693,9 @@ export default function MapGlobe({
 
   // WebGL layers (never DOM/SVG nodes, per ground rules). Dots grow with
   // sqrt(fundsVolume) so massive capital nodes stand out; arcs fan from
-  // funders to grantees, width by works count. Sleek pass: a wide, faint
-  // halo/glow layer sits under each crisp core layer (same geometry, so
-  // dense hubs bloom softly instead of stacking into a solid blob).
+  // funders to grantees, width by works count. No halo under the dots: the
+  // faint under-layer read as a transparent outline on pale tiles.
   const layers = useMemo(() => [
-    new ScatterplotLayer<Entity>({
-      id: "entities-halo",
-      data: dotEntities,
-      pickable: false,
-      filled: true,
-      stroked: false,
-      getPosition: (d) => spreadPositions.get(d.id) ?? [d.lng, d.lat],
-      getRadius: (d) => {
-        const base = (8000 + Math.sqrt(radiusVolumes.get(d.id) ?? d.fundsVolume) * 2) / Math.SQRT2;
-        return (selected?.id === d.id ? base * 3 : base) * 1.4;
-      },
-      radiusMinPixels: 5,
-      radiusMaxPixels: 14,
-      getFillColor: (d) => {
-        const c = dotColor(d);
-        return [c[0], c[1], c[2], 6];
-      },
-    }),
     new PathLayer<Flow & { path: [number, number][] }>({
       id: "flows-glow",
       // Light basemap: no glow under the orange 13F arcs (reads as smear
