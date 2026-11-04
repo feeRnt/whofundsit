@@ -190,6 +190,13 @@
 
 - [x] **Verify grant arcs in the browser.** (Live: greenish arcs behind the "University Funds"
       dropdown; hover shows funder → university + funded-works count.)
+- [ ] **Reverse grant arm: works → grants, for author-only organizations.**
+      (Some organizations exist in OpenAlex only as author affiliations, with no
+      funder record — the funder → works route can never reach them. Add a pass
+      that pages their works and keeps records where the grants key is present
+      (absent = unfunded), then maps grants back to funder entities. Verify on
+      samples first; full runs are cheap but large. No company names here by
+      design — the arm takes any institution ID.)
 
 ## Hill's / OpenAlex caveats (found live, 2026-10-29)
 
