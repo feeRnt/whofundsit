@@ -15,10 +15,10 @@ This webapp is an interactive global corporate financing map that showcases the 
 
 ### Demo quickstart (~5 minutes, all three OSes)
 
-1. Clone the repo (any shell; on Windows `cmd.exe` run the npm lines one
-   at a time — it has no `\` continuation):
+1. Clone the repo (shallow, to save on space; any shell — on Windows
+   `cmd.exe` run the npm lines one at a time, it has no `\` continuation):
    ```bash
-   git clone --depth 1 https://github.com/feeRnt/whofundsit && cd whofundsit
+   git clone --depth=1 https://github.com/feeRnt/whofundsit && cd whofundsit
    cp backend/.env.example backend/.env
    npm install-scripts approve esbuild @prisma/engines prisma
    npm install
@@ -191,8 +191,12 @@ From `whofundsit/backend/` (pipeline order):
 
 Data-source licenses and cache locations: [DATASETS.md](DATASETS.md).
 
-## License:
+## License & credits
 Apache 2.0. See LICENSE for the full license text.
+
+All data is courtesy of and thanks to: SEC EDGAR, Wikidata, GLEIF, OpenFIGI, OpenStreetMap contributors (Nominatim), the US Census Bureau, OpenAlex, Yahoo Finance, XBRL International (ESEF), the Taiwan Stock Exchange, and Wikipedia (index snapshots). Please check the licenses/copyright of the presented data in LICENSE and [DATASETS.md](DATASETS.md).
+
+They're the real heroes <3
 
 ---
 
