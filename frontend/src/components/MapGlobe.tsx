@@ -281,6 +281,10 @@ export default function MapGlobe({
   // rebuilt every layer per gesture frame (fine at 250 arcs, jank at
   // 100k), and nothing data-space needs it now the halves are gone.
   const [zoom, setZoom] = useState(HOME.zoom);
+  // Slider thumb while dragging (cleared on release); the map itself only
+  // jumps on release so a drag doesn't rebuild the layers on every tick.
+  const [sliderZoom, setSliderZoom] = useState<number | null>(null);
+  const draggingZoom = useRef(false);
   // Last camera, re-applied as initialViewState when the map remounts
   // on projection toggle so the user keeps their view.
   const cameraRef = useRef(HOME);
@@ -1010,6 +1014,35 @@ export default function MapGlobe({
         >
           <RefreshCw size={16} />
         </button>
+      </div>
+      <div className="map-zoom" aria-label="Zoom slider">
+        <input
+          type="range"
+          min={1}
+          max={14}
+          step={0.1}
+          value={sliderZoom ?? zoom}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            setSliderZoom(v);
+            // Keyboard nudges commit live; mouse/touch drags commit on
+            // release so a drag doesn't rebuild the layers on every tick.
+            if (!draggingZoom.current) {
+              mapRef.current?.jumpTo({ zoom: v });
+            }
+          }}
+          onPointerDown={() => {
+            draggingZoom.current = true;
+          }}
+          onPointerUp={(e) => {
+            draggingZoom.current = false;
+            const v = Number(e.currentTarget.value);
+            setSliderZoom(null);
+            mapRef.current?.jumpTo({ zoom: v });
+          }}
+          title="Zoom"
+          aria-label="Zoom"
+        />
       </div>
       <div className={`map-legend${legendOpen ? "" : " collapsed"}`} aria-label="Map legend">
         {legendOpen ? (
