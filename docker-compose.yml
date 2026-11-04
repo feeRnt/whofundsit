@@ -1,0 +1,28 @@
+# Local demo stack: postgres + the app (same-origin serve).
+#
+#   docker compose up --build
+#
+# One-time seed (new terminal, repo root):
+#   DATABASE_URL=postgresql://postgres:whofundsit@localhost:5432/whofundsit npm --prefix backend run db:push
+#   DATABASE_URL=postgresql://postgres:whofundsit@localhost:5432/whofundsit npm --prefix backend run db:seed
+#
+# Then open http://localhost:4000
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: whofundsit
+      POSTGRES_DB: whofundsit
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  app:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://postgres:whofundsit@db:5432/whofundsit
+      PORT: 4000
+    depends_on:
+      - db
+volumes:
+  pgdata:
