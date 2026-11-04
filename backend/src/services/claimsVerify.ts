@@ -1,5 +1,5 @@
 import axios from "axios";
-import crypto from "node:crypto";
+
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,21 +28,21 @@ import { SP500_TICKERS } from "../data/sp500.js";
 //
 // Strata: entity SOURCE cells + REGION cells (us/non-us/unknown) + INDEX
 // cells (major/long-tail), and one cell per flow type. Every cell rolls
-// fresh members with a crypto-backed RNG, checks each against a live
-// primary source, and reports "% verified" (score >= 90) plus the mean
-// score. `npm run verify:claims`.
+// members with the fixed-seed RNG, checks each against a live primary
+// source, and reports "% verified" (score >= 90) plus the mean score.
+// `npm run verify:claims`.
 //
-// Rolls are truly random every run (crypto-backed): repeats across runs are
-// fair game, not bugs. VERIFY_SEED pins the RNG for one reproducible run.
+// Rolls use a fixed default seed: reruns draw the same sample, so scores
+// stay comparable across code changes. VERIFY_SEED overrides the seed for
+// a different sample.
 // Each run appends a slim entry to backend/data/verification-history.json
 // (gitignored trend log); the committed seed-data/verification.json snapshot
 // carries the rolling AVERAGE per arm across every accumulated run (latest
 // run's flags/diagnoses attached). `--clean` wipes the history first so the
 // snapshot restarts from that run alone. `verify:daily` is the small cron run.
 
-// Pin the RNG only when a run must be reproduced exactly; otherwise null.
-const SEED =
-  process.env.VERIFY_SEED !== undefined ? Number(process.env.VERIFY_SEED) : null;
+// Fixed default seed; VERIFY_SEED overrides it for a different sample.
+const SEED = Number(process.env.VERIFY_SEED ?? 20261104);
 // Fraction mode (default): 10% of each cell, capped at 5, full census of
 // tiny cells. VERIFY_FRACTION / VERIFY_MAX_PER_CELL tune it.
 // Original spec, kept behind a flag: fixed 25 seeded samples per cell —
@@ -89,12 +89,10 @@ export function sampleIndices(pop: number, n: number, rng: () => number): number
   return pool.slice(0, take);
 }
 
-// Fresh randomness every run; the VERIFY_SEED branch stays reproducible.
+// Deterministic per seed (fixed default): same sample every run unless
+// VERIFY_SEED overrides it.
 export function makeRng(): () => number {
-  if (SEED !== null) {
-    return mulberry32(SEED);
-  }
-  return () => crypto.randomInt(0, 1 << 30) / (1 << 30);
+  return mulberry32(SEED);
 }
 
 // --- Run history (gitignored trend log; the committed snapshot is latest-only) ---

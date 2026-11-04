@@ -33,7 +33,7 @@ export default function App() {
   // Bumped on every search pick so re-picking the same company re-flies.
   const [focusTick, setFocusTick] = useState(0);
   const [showFlows, setShowFlows] = useState(true);
-  const [showGrants, setShowGrants] = useState(false);
+  const [showGrants, setShowGrants] = useState(true);
   const [showOwnership, setShowOwnership] = useState(true);
   // Focus mode: arcs for one company only; dropdowns tick just its funders.
   const [focusCompany, setFocusCompany] = useState<string | null>(null);
