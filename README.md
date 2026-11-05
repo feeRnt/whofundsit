@@ -4,6 +4,8 @@ Many people want to know, when making a purchase, buying a subscription, or read
 
 This webapp is an interactive global corporate financing map that showcases the flow and source of money, with bigger graphical representation to places with more funds, e.g., BlackRock. Including banks or hedge-funds to bring out the scale of debt, the sources for this mapping will be stocks, equity, large donations and the like, and AI - Open-Weighted Muse Glimmer - is used to process hard-to-map business addresses on the map, and to test the soundness of the data collected using a random methodological test on our outputs.
 
+![WhoFundsIt map preview](preview.png)
+
 ## How to run
 
 ### Prereqs (for Windows, macOS, Linux)
