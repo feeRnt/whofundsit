@@ -218,6 +218,11 @@ async function resolveHost(): Promise<string> {
   if (process.env.npm_lifecycle_event === "dev") {
     return "127.0.0.1";
   }
+  // Hosted production (Docker/Render: NODE_ENV=production, no TTY, no
+  // HOST): bind all interfaces, or the platform's port scan never finds us.
+  if (process.env.NODE_ENV === "production") {
+    return "0.0.0.0";
+  }
   if (!process.stdin.isTTY) {
     return "127.0.0.1";
   }
