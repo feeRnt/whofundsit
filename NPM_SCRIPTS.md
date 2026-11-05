@@ -44,7 +44,7 @@ README's maintainer section; this file is the what-and-why per script.
 | `db:push` | Push the Prisma schema to Postgres |
 | `db:export` | Snapshot tables into `prisma/seed-data/` for committing |
 | `db:seed` | Wipe + reload tables from the committed seeds (judge path) |
-| `verify:claims` | Stochastic methodology audit: fixed-seed sample per source/region/index/flow cell vs live SEC + Nominatim, 0-100 scores, rolling tested-weighted `% verified` per arm in the committed snapshot, 8B why/how per flag (`VERIFY_FRACTION`, `VERIFY_MAX_PER_CELL`, `VERIFY_SEED` overrides the seed, `--clean` to restart averages) |
+| `verify:claims` | Stochastic methodology audit: fixed-seed sample per source/region/index/flow cell vs live SEC + Nominatim, 0-100 scores, rolling tested-weighted `% verified` per arm in the committed snapshot, Glimmer-30B why/how per flag (`VERIFY_FRACTION`, `VERIFY_MAX_PER_CELL`, `VERIFY_SEED` overrides the seed, `--clean` to restart averages) |
 | `verify:daily` | Cron-sized audit (~40 checks) + history append for the rolling snapshot |
 | `verify:all` | `verify:claims` + `deadlines:snapshot` + `db:export` in one run-and-leave command |
 | `test` | Backend unit suite (`tsx --test`) |
