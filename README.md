@@ -98,12 +98,12 @@ npm run coords:global        # place lei: rows from Wikidata P625 (before Nomina
 npm run coords:populate -- --all  # Nominatim geocoding, 1 req/s, biggest first
 npm run flows:13f            # fund arcs (all 13F filers; THIRTEENF_MAX_MANAGERS caps it)
 npm run industry:sync        # SIC industry backfill from the local archive (offline)
-npm run names:sync -- --yes  # legal filer names (asks first without --yes; --list previews)
+npm run names:sync -- --yes  # legal filer names (asks first without --yes; --list previews, --cached reviews past skips)
 npm run verify:all           # verify:claims + deadlines:snapshot + db:export (run and leave)
 ```
 
 LLM repair loop for ungeocoded rows (needs the Modal server deployed:
-`modal deploy backend/formalize_worker.py`, then,
+`modal deploy backend/formalize_worker.py`, then smoke-test it),
 ```bash
 npm run formalize:addresses -- --pass=1   # Glimmer-30B parses DB failures -> llm-pass-1.json
 npm run coords:populate -- --llm-1        # Census + structured Nominatim, marks outcomes

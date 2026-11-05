@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { clearHistory, runVerify } from "../services/claimsVerify.js";
 
-// Stochastic methodology audit: `npm run verify:claims` rolls fresh members
-// per source/region/index/flow cell against live SEC + Nominatim and writes
+// Stochastic methodology audit: `npm run verify:claims` rolls fixed-seed
+// members per source/region/index/flow cell against live SEC + Nominatim
+// and writes
 // data/verification-report.json plus the committed prisma/seed-data/
 // verification.json snapshot (trust badges: rolling per-arm averages).
 // `--clean` wipes the accumulated history first (averages restart here).

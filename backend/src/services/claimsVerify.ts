@@ -447,7 +447,8 @@ async function diagnoseOne(flag: string, cell: string): Promise<string> {
 }
 
 // First DIAGNOSE_MAX unique flags across cells, in cell order. Sequential:
-// one 70B serves the queue, parallelism buys nothing. Pure-ish (cached I/O).
+// one 8B inference worker serves the queue, parallelism buys nothing.
+// Pure-ish (cached I/O).
 async function diagnoseFlags(
   cells: { name: string; flags: string[] }[],
 ): Promise<{ byCell: Map<string, FlagDiagnosis[]>; error: Error | null }> {

@@ -31,12 +31,15 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   (`npm run geo:snapshot`, ODbL 1.0 share-alike, attribution in-file).
   Because these derive from ODbL data, any public deployment must keep the
   © OpenStreetMap attribution visible (see TODO: standalone-cache license).
-- **LLM address repair (adopted approach, 2026-11-02, not yet built):**
-  deformed address → open-weight LLM on Modal → structured JSON
+- **LLM address repair (built 2026-11-03, Modal OpenAI server):**
+  deformed address → Glimmer-30B on Modal (`formalize_worker.py`,
+  OpenAI-chat `/v1/chat/completions`) → structured JSON
   (house_number/street/city/state/postal) → Census batch (US) or Nominatim
-  string lookup (foreign) → lat/lng. The LLM parses, never geocodes:
-  coordinates come only from vetted engines (Census MAF/TIGER for US,
-  OSM-backed Nominatim for the rest; OpenCage/Gisgraphy as alternates).
+  string lookup (foreign) → lat/lng. Loop: `formalize:addresses -- --pass=N`
+  writes `llm-pass-N.json`, `coords:populate -- --llm-N` geocodes it and
+  marks outcomes. The LLM parses, never geocodes: coordinates come only
+  from vetted engines (Census MAF/TIGER for US, OSM-backed Nominatim for
+  the rest; OpenCage/Gisgraphy as alternates).
 
 ## US Census batch geocoder (US addresses, bulk)
 
