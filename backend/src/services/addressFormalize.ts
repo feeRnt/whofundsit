@@ -6,6 +6,15 @@ import {
   userAgentFromEnv,
 } from "./httpCache.js";
 
+// Canonical home is modalChat.ts (shared with the verify diagnose pass);
+// re-exported here so existing imports keep working.
+import {
+  isModalAuthRejection,
+  warnIfNotEndpointUrl,
+} from "./modalChat.js";
+
+export { isModalAuthRejection, warnIfNotEndpointUrl };
+
 // LLM address formalization (dead-lines consumer, step 1 of the adopted
 // pipeline): deformed address -> Llama on Modal -> structured fields ->
 // Census batch (US) / Nominatim (foreign) -> exact coords. The LLM only
@@ -258,17 +267,6 @@ export async function formalizeAddresses(
 // chunk's runtime; smaller chunks waste cold starts.
 export const FORMALIZE_BATCH = 24;
 
-// The .env value must be the server base URL (.modal.direct), not the
-// Modal dashboard/deployment link — the dashboard 405s POSTs. Warn, don't
-// throw: custom domains exist.
-export function warnIfNotEndpointUrl(url: string): void {
-  if (!/^https:\/\/[^/]+\.modal\.(run|direct)(\/|$)/.test(url)) {
-    console.warn(
-      `[formalize] ${url} does not look like a Modal endpoint URL — want the https://....modal.run function URL or https://....modal.direct server URL from \`modal deploy\`, not the dashboard link.`,
-    );
-  }
-}
-
 export type FormalizeBatchCaller = (texts: string[]) => Promise<unknown[]>;
 
 // Sequential singles: the OpenAI server takes one address per request, so
@@ -310,15 +308,6 @@ export function modalFormalizeBatchCaller(
     }
     return out as unknown[];
   };
-}
-
-// True when Modal rejected our proxy headers (wrong token pair — usually CLI
-// API tokens pasted where wk-/ws- proxy tokens belong). Pure.
-export function isModalAuthRejection(err: unknown): boolean {
-  return (
-    axios.isAxiosError(err) &&
-    (err.response?.status === 401 || err.response?.status === 403)
-  );
 }
 
 export function chunk<T>(items: T[], size: number): T[][] {

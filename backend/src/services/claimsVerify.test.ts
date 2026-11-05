@@ -15,6 +15,7 @@ import {
   makeRng,
   mulberry32,
   cellTake,
+  parseDiagnoseResponse,
   parseEntityRef,
   parseFlowRef,
   ownershipStructural,
@@ -245,5 +246,33 @@ describe("clearHistory", () => {
     assert.equal(clearHistory(file), true);
     assert.equal(fs.existsSync(file), false);
     assert.equal(clearHistory(file), false);
+  });
+});
+
+describe("parseDiagnoseResponse", () => {
+  it("accepts a plain diagnosis object", () => {
+    assert.equal(
+      parseDiagnoseResponse({ diagnosis: "Likely a stale count." }, "f"),
+      "Likely a stale count.",
+    );
+  });
+
+  it("strips code fences from a string reply", () => {
+    assert.equal(
+      parseDiagnoseResponse('```json\n{"diagnosis": "Check the filing."}\n```', "f"),
+      "Check the filing.",
+    );
+  });
+
+  it("throws loudly on garbage or empty diagnoses", () => {
+    assert.throws(() => parseDiagnoseResponse("not json", "f"), /unparsable/);
+    assert.throws(
+      () => parseDiagnoseResponse({ diagnosis: "" }, "f"),
+      /unparsable/,
+    );
+    assert.throws(
+      () => parseDiagnoseResponse({ nope: 1 }, "f"),
+      /unparsable/,
+    );
   });
 });

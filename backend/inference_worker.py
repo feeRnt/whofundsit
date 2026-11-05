@@ -1,147 +1,212 @@
-"""WhoFundsIt diagnosis worker — Modal + vLLM, Llama-3.1-8B on 1xT4.
+"""WhoFundsIt diagnosis worker — Modal + vLLM, Muse-Glimmer-30B on 1xA100-80GB.
 
-The 8B writes basic 3-4 line verify-flag commentary. Addressing (the hard
-parse) lives on the 70B worker (formalize_worker.py). (Name cleanup was
-removed 2026-11-02: names:sync owns CIK names from the SEC archive.)
+Same @app.server OpenAI architecture as formalize_worker.py (stock `vllm
+serve`, /v1/chat/completions): the two pipelines are 1:1 on purpose — one
+client pattern, one deploy pattern, one smoke test. The diagnose prompt
+lives client-side (DIAGNOSE_SYSTEM + diagnosisPrompt in
+backend/src/services/claimsVerify.ts); this server only serves the model.
+Replaces the old custom {"text"} -> {"diagnosis"} endpoint (removed;
+the model only ever reasons over facts the audit already fetched).
 
 TEMPLATE: not deployed from the coding sandbox. Deployment (Modal account):
-  1. Accept the Llama 3.1 license on Hugging Face for
-     meta-llama/Llama-3.1-8B-Instruct (the weights are gated).
+  1. No license step (Apache 2.0, public repo). HF_TOKEN only helps with
+     rate limits; set it via step 2 anyway.
   2. modal secret create <name> HF_TOKEN=<your HF token>
      (default name huggingface-secret; or --from-dotenv <file holding just
      HF_TOKEN>. If yours differs, export MODAL_HF_SECRET_NAME=<name> before
      deploying; the worker reads Modal's env, never your local .env)
   3. modal deploy backend/inference_worker.py
-  4. Put the printed endpoint URL in backend/.env as MODAL_INFERENCE_URL.
+  4. Put the printed server URL in backend/.env as MODAL_INFERENCE_URL.
   5. Create a Proxy Auth Token (modal.com/settings/proxy-auth-tokens)
      and store it as MODAL_TOKEN_ID/MODAL_TOKEN_SECRET in backend/.env —
      the endpoint enforces them natively (requires_proxy_auth).
-Contract: POST {"text": "..."} (+ Modal-Key / Modal-Secret headers) ->
-{"diagnosis": "..."}.
+Contract: OpenAI POST /v1/chat/completions {model, messages, temperature,
+max_tokens, stream:false} -> choices[0].message.content, parsed client-side
+as {"diagnosis": string}. The model only explains: it never fetches data.
 Never hardcode tokens in this file (ground rules).
 """
 
+# Reading the docs because AI builds are not working
 import json
 import os
-
+import aiohttp
 import modal
 
-#MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
-MODEL_ID = "meta-models/Muse-Glimmer-30B"
+from typing import Any
 
-# T4 is a 16 GB card and 8B bf16 weights are ~16 GB: tight, may OOM on
-# deploy. If it does, flip to "L4" (24 GB, still cheap) and redeploy.
-#GPU = "T4:1"
-GPU="A100-80GB"
-
-# Modal secret holding HF_TOKEN. Deploy-time only: `modal deploy` reads your
-# local shell env, not backend/.env — export MODAL_HF_SECRET_NAME=<name>
-# in the deploying shell when yours isn't the default.
+MODEL_NAME = "meta-models/Muse-Glimmer-30B"
+MODEL_REVISION = "cec94fcfd6512f2cfe708138c32533b346ea4f69"
 HF_SECRET_NAME = os.environ.get("MODAL_HF_SECRET_NAME", "huggingface-secret")
 
-# Pin the HF cache onto the volume mount BEFORE vllm is imported (hf_hub
-# freezes HF_HOME at import; the default already matches, this just locks it).
-os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
-
-image = (
-    modal.Image.debian_slim(python_version="3.12")
-    # Unpinned: vLLM pulls the torch/transformers it was built against.
-    # (No extra index: everything here is on plain PyPI; the pytorch.org
-    # homepage is not a PEP 503 index and breaks the image build.)
-    .pip_install("vllm", "transformers", "fastapi[standard]")
+vllm_image = (
+        modal.Image.from_registry("nvidia/cuda:12.9.0-devel-ubuntu22.04", add_python="3.12")
+        .entrypoint([])
+        .uv_pip_install("vllm==0.21.0")
+        .env(
+            {
+                "HF_XET_HIGH_PERFORMANCE": "1",
+            }
+        )
 )
+
+# Deploy-time only: `modal deploy` reads your local shell env, not
+# backend/.env — export MODAL_HF_SECRET_NAME=<name> when yours differs.
+
+# Existing cache volume (already holds Glimmer weights from the custom
+# endpoint era): keep the name so redeploys skip the ~60 GB download.
+hf_cache_vol = modal.Volume.from_name("hf-hub-cache", create_if_missing=True)
+vllm_cache_vol = modal.Volume.from_name("vllm-cache", create_if_missing=True)
+FAST_BOOT = False # Since we cache.
 
 app = modal.App("whofundsit-inference")
 
-# Persistent HF cache: 8B weights download once (~16 GB), later cold starts
-# reuse it. Free under Modal's 1 TB monthly volume allowance. Auto-created
-# on first deploy; separate from the 70B cache (different weights).
-hf_cache = modal.Volume.from_name("hf-hub-cache", create_if_missing=True)
+N_GPU = 1
+MINUTES = 60
+VLLM_PORT = 8000
+ROUTING_REGION = "us-east"
 
-DIAGNOSE_SYSTEM_PROMPT = (
-    #"You explain data-audit flags. Given one flag plus its known facts, "
-    #'reply with ONLY a JSON object: {"diagnosis": string} — 4-6 sentences '
-    #"on why the flag likely fired and how to confirm or fix it. Use ONLY "
-    #"the facts given plus general methodology knowledge. Never invent "
-    #"live values; never assume an outside lookup was made. No prose, "
-    #"no code fences."
-    "You explain data-audit flags. Given one flag plus its known facts, "
-    'reply with ONLY a JSON object: {"diagnosis": string} — 4-6 sentences '
-    "on why the flag likely fired and how to confirm or fix it. Use "
-    "the facts given plus general methodology knowledge. Never invent "
-    "live values; never assume an outside lookup was made. No prose, "
-    "no code fences."
-)
-
-
-@app.cls(
-    image=image,
-    gpu=GPU,
+# the vllm server which takes a model, timeouts, and port (vllm servers gpu
+# thru a network port on the local machine)
+@app.server(
+    image=vllm_image,
+    gpu=f"A100-80GB:{N_GPU}",
+    scaledown_window=2 * MINUTES, # die after 2 min of no reqs.
+    startup_timeout=20 * MINUTES, # doc gives 10 mins.
+    volumes={"/root/.cache/huggingface": hf_cache_vol,
+             "/root/.cache/vllm": vllm_cache_vol,
+    },
+    port=VLLM_PORT,
+    routing_region=ROUTING_REGION,
+    target_concurrency=2, # how many can one replica handle?
     secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
-    volumes={"/root/.cache/huggingface": hf_cache},
-    # Download (~16 GB) gets startup room like the 70B class; without it
-    # the 15-min execution timeout is the cold-start ceiling.
-    startup_timeout=60 * 60,
-    timeout=60 * 15,
-    # Minimum allowed (45s): GPU effectively off after every run.
-    scaledown_window=45,
 )
-class InferenceWorker:
+class Server:
     @modal.enter()
-    def load(self) -> None:
-        from vllm import LLM, SamplingParams
+    def start(self):
+        import subprocess
 
-        self.llm = LLM(
-            model=MODEL_ID,
-            tensor_parallel_size=1,
-            max_model_len=4096,
-            gpu_memory_utilization=0.90,
-        )
-        # Persist freshly downloaded weights so the next cold start skips the
-        # download (cheap no-op when the cache is already full).
-        hf_cache.commit()
-        # both inference and formalize funcs have this commit. If hf-hub-cache
-        # exists, then it just recaches it, no biggie
-        self.diag_sampling = SamplingParams(temperature=0.2, max_tokens=320)
+        cmd = [
+            "vllm",
+            "serve",
+            MODEL_NAME,
+            "--revision",
+            MODEL_REVISION,
+            "--served-model-name",
+            MODEL_NAME,
+            "llm",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(VLLM_PORT),
+            "--uvicorn-log-level=info",
+            "--async-scheduling",
+        ]
 
-    def _ask(self, system: str, text: str, sampling) -> str:
-        prompt = (
-            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
-            f"{system}<|eot_id|>"
-            "<|start_header_id|>user<|end_header_id|>\n\n"
-            f"{text}<|eot_id|>"
-            "<|start_header_id|>assistant<|end_header_id|>\n\n"
-        )
-        outputs = self.llm.generate([prompt], sampling)
-        return outputs[0].outputs[0].text.strip()
+        # enforce-eager disables both Torch compilation and CUDA graph capture
+        # default is no-enforce-eager. see the --compilation-config flag for tighter control
+        cmd += ["--enforce-eager" if FAST_BOOT else "--no-enforce-eager"]
 
-    @modal.method()
-    def diagnose(self, text: str) -> str:
-        """Explain one verify-audit flag in 2-3 sentences (JSON string)."""
-        return self._ask(DIAGNOSE_SYSTEM_PROMPT, text, self.diag_sampling)
+        # assume multiple GPUs are for splitting up large matrix multiplications
+        cmd += ["--tensor-parallel-size", str(N_GPU)]
+
+        cmd += ["--max-model-len", "4096"]
+
+        # add model-specific configuration
+        cmd += [
+            # skip multimedia support, just language
+            "--limit-mm-per-prompt",
+            json.dumps({"image": 0, "video": 0, "audio": 0}),
+        ]
+
+        print(*cmd)
+
+        self.process = subprocess.Popen(cmd)
+
+    @modal.exit()
+    def stop(self):
+        self.process.terminate()
+
+DIAGNOSE_SYSTEM = (
+"You explain data-audit flags. Reply with ONLY a JSON object: "
+'{"diagnosis": string} — 2-3 sentences on why the flag likely fired and '
+"how to confirm or fix it. Use ONLY the facts given plus general "
+"methodology knowledge. Never invent live values; never assume an "
+"outside lookup was made. No prose, no code fences."
+)
+
+@app.local_entrypoint()
+async def test(test_timeout=15 * MINUTES):
+    import asyncio
+    import time
+
+    url = await Server.get_url.aio()
+
+    async with aiohttp.ClientSession(base_url=url) as session:
+        print(f"Running health check for server at {url}")
+        deadline = time.time() + test_timeout - 1 * MINUTES
+        while time.time() < deadline:
+            async with session.get(
+                "/health", timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                if resp.status == 200:
+                    break
+                if resp.status == 503:
+                    await asyncio.sleep(1)
+                    continue
+                assert False, (
+                    f"Failed health check for server at {url}: HTTP {resp.status}"
+                )
+        else:
+            assert False, f"Failed health check for server at {url}"
+        print(f"Successful health check for server at {url}")
+
+        # The actual job: two real flags must come back as parseable
+        # {"diagnosis"} JSON. Non-streaming, like the client reads it.
+        for flag in [
+            "1653606:Assets: reverse country ca vs bucket us",
+            "lei:549300ITODCIPOGBMF68: reverse country us vs bucket non-us",
+        ]:
+            await _send_diagnose_check(session, flag)
 
 
-def _clean_json(raw: str) -> str:
-    return raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-
-
-# 22 min, matching formalize: the wrapper waits out a cold start.
-@app.function(image=image, timeout=60 * 22)
-@modal.fastapi_endpoint(method="POST", label="diagnose", requires_proxy_auth=True)
-def diagnose_endpoint(payload: dict) -> dict:
-    """Diagnose webhook: verify:claims POSTs {"text": flag} for a why/how."""
-    text = str(payload.get("text", "")).strip()
-    if not text:
-        return {"error": "missing 'text'"}
-    print(f"[diagnose] >> {len(text)} chars in")
-    print(f"[diagnose] >> {text}")
-    raw = InferenceWorker().diagnose.remote(text)
-    print(f"[diagnose] << raw out: {raw}")
-    raw = _clean_json(raw)
+async def _send_diagnose_check(
+    session: aiohttp.ClientSession, flag: str
+) -> None:
+    """Non-streaming diagnose probe using the same contract the TS client
+    sends: rules as system, flag as user. The reply must parse as
+    {"diagnosis": <non-empty string>}."""
+    payload: dict[str, Any] = {
+        "messages": [
+            {"role": "system", "content": DIAGNOSE_SYSTEM},
+            {"role": "user", "content": flag},
+        ],
+        "model": MODEL_NAME,
+        "temperature": 0.2,
+        "max_tokens": 320,
+        "stream": False,
+    }
+    async with session.post("/v1/chat/completions", json=payload) as resp:
+        resp.raise_for_status()
+        body = await resp.json()
     try:
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict) and isinstance(parsed.get("diagnosis"), str):
-            return {"diagnosis": parsed["diagnosis"]}
-        return {"diagnosis": raw}
-    except json.JSONDecodeError:
-        return {"diagnosis": raw}
+        content = body["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as e:
+        raise AssertionError(f"unexpected chat shape: {body!r}") from e
+    print(f"[diagnose-check] {flag[:60]!r} -> {str(content)[:200]}")
+    cleaned = (
+        str(content)
+        .removeprefix("```json")
+        .removeprefix("```")
+        .removesuffix("```")
+        .strip()
+    )
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        raise AssertionError(f"reply is not JSON: {content!r}") from e
+    assert isinstance(parsed, dict), f"reply is not an object: {parsed!r}"
+    diagnosis = parsed.get("diagnosis")
+    assert isinstance(diagnosis, str) and diagnosis, (
+        f"missing/empty diagnosis in {parsed!r}"
+    )
+    print(f"[diagnose-check] PASS ({len(diagnosis)} chars)")

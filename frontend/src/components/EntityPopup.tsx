@@ -401,6 +401,7 @@ export default function EntityPopup({
             ? "True % needs a 10-K share count — none on file for this CIK."
             : "True % needs shares + price — quote fetch failed.";
   const [ringTrue, setRingTrue] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
   return (
     <div className="entity-popup">
       <h2>{entity.name}</h2>
@@ -536,12 +537,45 @@ export default function EntityPopup({
         </p>
       )}
       {badgeCell && verification && (
-        <p
-          className="verify-badge"
-          title={`Methodology audit (${badgeCell.scope}): ${badgeCell.cell.passed}/${badgeCell.cell.tested} passed · ${verification.generatedAt.slice(0, 10)}`}
-        >
-          {badgeCell.cell.pctVerified}% verified
-        </p>
+        <>
+          <button
+            type="button"
+            className="verify-badge"
+            title={`Methodology audit (${badgeCell.scope}): ${badgeCell.cell.passed}/${badgeCell.cell.tested} passed · ${verification.generatedAt.slice(0, 10)} — click for the AI notes`}
+            onClick={() => setShowAudit((s) => !s)}
+            aria-expanded={showAudit}
+          >
+            {badgeCell.cell.pctVerified}% verified
+          </button>
+          {showAudit && (
+            <div className="verify-detail">
+              <p className="verify-detail-head">
+                Methodology audit ({badgeCell.scope}): {badgeCell.cell.passed}/
+                {badgeCell.cell.tested} checks passed
+                {badgeCell.cell.mean !== null &&
+                  ` · mean score ${badgeCell.cell.mean.toFixed(0)}`}
+              </p>
+              {badgeCell.cell.flags.length === 0 && (
+                <p className="verify-detail-empty">
+                  No flags — every sampled check passed.
+                </p>
+              )}
+              {badgeCell.cell.flags.map((flag) => {
+                const note = badgeCell.cell.diagnoses.find(
+                  (d) => d.flag === flag,
+                );
+                return (
+                  <div key={flag} className="verify-flag">
+                    <p className="verify-flag-text">{flag}</p>
+                    <p className="verify-flag-diagnosis">
+                      {note ? note.diagnosis : "No AI note yet — flag undiagnosed."}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
       <h3>Supporting documents</h3>
       <ul>

@@ -14,6 +14,11 @@ import {
   modalProxyHeaders,
   MODAL_PROXY_ENV_HINT,
 } from "./httpCache.js";
+import {
+  chatBody,
+  postChatCompletion,
+  resolveChatEndpoint,
+} from "./modalChat.js";
 import { infoTableXml, latest13F, parseInfoTable } from "./thirteenF.js";
 import { NASDAQ100_TICKERS } from "../data/nasdaq100.js";
 import { SP500_TICKERS } from "../data/sp500.js";
@@ -379,13 +384,14 @@ const sec = limiter(150); // SEC fair access: <= 10 req/s
 const nominatim = limiter(1100); // Nominatim usage policy: <= 1 req/s
 const modal = limiter(250); // our own GPU: spacing, not a ToS limit
 
-// --- 8B why/how diagnosis (Modal only, zero new outside data calls) ---
+// --- Glimmer-30B why/how diagnosis (Modal only, zero new outside data calls) ---
 //
 // The model reasons ONLY over facts already in hand — the stored-vs-live
 // numbers the check just fetched. Diagnosis adds Modal calls (cached per
 // flag, capped per run) and never touches SEC/Nominatim/outside sources.
-// Needs MODAL_INFERENCE_URL (diagnose endpoint in inference_worker.py) plus
-// the usual proxy tokens; without them flags ship undiagnosed (graceful).
+// Needs MODAL_INFERENCE_URL (OpenAI-chat server in inference_worker.py,
+// same @app.server architecture as formalize_worker.py) plus the usual
+// proxy tokens; without them flags ship undiagnosed (graceful).
 // A failed call when configured throws AFTER report files land: loud exit,
 // never a silent gap. VERIFY_DIAGNOSE=0 skips the pass;
 // VERIFY_DIAGNOSE_MAX caps flags per run.
@@ -408,35 +414,68 @@ export function diagnosisPrompt(flag: string, cell: string): string {
   ].join("\n");
 }
 
-async function diagnoseOne(flag: string, cell: string): Promise<string> {
-  const auth = modalProxyHeaders();
-  if (!auth || !INFERENCE_URL) {
-    throw new Error("MODAL_INFERENCE_URL or proxy auth is not set");
-  }
-  const prompt = diagnosisPrompt(flag, cell);
-  console.log(`[verify] >> diagnose ${cell}: ${flag}`);
-  console.log(`[verify] >> prompt: ${prompt}`);
+// Diagnose one flag via the Modal OpenAI server — the same chat contract as
+// formalize:addresses (system rules + user text, JSON-only reply, proxy
+// auth, full request/reply logging via modalChat). The prompt asks WHY the
+// flag fired and how to confirm/fix it; the model reasons only over facts
+// already in hand (stored-vs-live numbers), never new outside calls.
+const DIAGNOSE_MODEL_FALLBACK = "meta-models/Muse-Glimmer-30B";
+const DIAGNOSE_SYSTEM =
+  "You explain data-audit flags. Reply with ONLY a JSON object: " +
+  '{"diagnosis": string} — 2-3 sentences on why the flag likely fired and ' +
+  "how to confirm or fix it. Use ONLY the facts given plus general " +
+  "methodology knowledge. Never invent live values; never assume an " +
+  "outside lookup was made. No prose, no code fences.";
+const DIAGNOSE_TEMPERATURE = 0.2;
+const DIAGNOSE_MAX_TOKENS = 320;
+const DIAGNOSE_TIMEOUT_MS = 300000;
+
+// Validate one diagnose reply (object or fenced/raw string). Never silent:
+// bad output throws like a failed call so the run stays loud. Pure.
+export function parseDiagnoseResponse(raw: unknown, flag: string): string {
+  const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+  const cleaned = text.replace(/```json|```/g, "").trim();
   try {
-    const data = await cachedJson<{ diagnosis?: unknown }>(
+    const doc = JSON.parse(cleaned) as { diagnosis?: unknown };
+    if (doc && typeof doc.diagnosis === "string" && doc.diagnosis.length > 0) {
+      return doc.diagnosis;
+    }
+  } catch {
+    // fall through to the loud error below
+  }
+  throw new Error(`diagnose reply unparsable for flag: ${flag}`);
+}
+
+async function diagnoseOne(flag: string, cell: string): Promise<string> {
+  const endpoint = resolveChatEndpoint(
+    "MODAL_INFERENCE_URL",
+    process.env.MODAL_DIAGNOSE_MODEL ?? DIAGNOSE_MODEL_FALLBACK,
+  );
+  const prompt = diagnosisPrompt(flag, cell);
+  const body = chatBody(
+    endpoint.model,
+    [
+      { role: "system", content: DIAGNOSE_SYSTEM },
+      { role: "user", content: prompt },
+    ],
+    DIAGNOSE_TEMPERATURE,
+    DIAGNOSE_MAX_TOKENS,
+  );
+  try {
+    const raw = await cachedJson<unknown>(
       `verify/diag-${cacheKey(flag)}.json`,
       () =>
-        modal(async () => {
-          apiLog("POST", INFERENCE_URL);
-          const res = await axios.post(
-            INFERENCE_URL,
-            { text: prompt },
-            {
-              headers: { "Content-Type": "application/json", ...auth },
-              timeout: 300000,
-            },
-          );
-          return res.data as { diagnosis?: unknown };
-        }),
+        modal(async () =>
+          postChatCompletion(
+            endpoint,
+            body,
+            DIAGNOSE_TIMEOUT_MS,
+            "verify",
+            `diagnose ${cell}: ${flag}`,
+          ),
+        ),
     );
-    const d = data?.diagnosis;
-    if (typeof d !== "string" || d.length === 0) {
-      throw new Error("API replied with an empty diagnosis");
-    }
+    const d = parseDiagnoseResponse(raw, flag);
     console.log(`[verify] << diagnosis: ${d}`);
     return d;
   } catch (err) {
@@ -447,7 +486,7 @@ async function diagnoseOne(flag: string, cell: string): Promise<string> {
 }
 
 // First DIAGNOSE_MAX unique flags across cells, in cell order. Sequential:
-// one 8B inference worker serves the queue, parallelism buys nothing.
+// one Glimmer-30B worker serves the queue, parallelism buys nothing.
 // Pure-ish (cached I/O).
 async function diagnoseFlags(
   cells: { name: string; flags: string[] }[],
@@ -892,7 +931,7 @@ export async function runVerify(): Promise<{
       );
     }
 
-    // 8B explains the flags (Modal only; no new outside data calls).
+    // Glimmer-30B explains the flags (Modal only; no new outside data calls).
     // A diagnose failure throws AFTER files land (below): loud exit, safe scores.
     const { byCell: diagnosed, error: diagnoseError } = await diagnoseFlags(
       cells.map((c) => ({ name: c.cell, flags: c.flags })),

@@ -255,15 +255,53 @@ body {
   font-size: 1rem;
 }
 
-.verify-badge {
+button.verify-badge {
   display: inline-block;
   margin: 0.25rem 0 0;
   padding: 0.1rem 0.45rem;
+  font: inherit;
   font-size: 0.72rem;
   color: #a7f3d0;
   background: #0c2e25;
   border: 1px solid #2dd4bf;
   border-radius: 999px;
+  cursor: pointer;
+}
+
+.verify-detail {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  background: #0b1220;
+  border: 1px solid #334155;
+  border-radius: 8px;
+}
+
+.verify-detail-head,
+.verify-detail-empty,
+.verify-flag-text,
+.verify-flag-diagnosis {
+  margin: 0 0 0.35rem;
+}
+
+.verify-detail-head {
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.verify-flag {
+  padding-top: 0.35rem;
+  border-top: 1px solid #1e293b;
+}
+
+.verify-flag-text {
+  color: #fbbf24;
+}
+
+.verify-flag-diagnosis {
+  color: #cbd5e1;
+}
 }
 
 .stakes {

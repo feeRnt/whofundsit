@@ -208,6 +208,11 @@ export async function fetchQuote(ticker: string): Promise<Quote | null> {
 // Methodology-audit snapshot (verify:claims): cell-level "% verified"
 // scores. Null when no audit snapshot is deployed: badges hide instead
 // of erroring.
+export interface FlagDiagnosis {
+  flag: string;
+  diagnosis: string;
+}
+
 export interface VerificationCell {
   cell: string;
   n: number;
@@ -215,6 +220,8 @@ export interface VerificationCell {
   passed: number;
   pctVerified: number | null;
   mean: number | null;
+  flags: string[];
+  diagnoses: FlagDiagnosis[];
 }
 
 export interface VerificationReport {
