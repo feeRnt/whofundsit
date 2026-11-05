@@ -138,6 +138,10 @@ Then commit the updated seed files. Report suspected duplicates with
 `npm run dedupe:report`; fold approved ones with
 `npm run merge -- <keepId> <dropId>` (provenance is kept on the survivor).
 
+## Prompts log
+
+`prompts.md` (the running log of build prompts) is unfinished and removed for now — it will be completed later.
+
 ## Scripts reference
 
 All npm scripts and what they do live in [NPM_SCRIPTS.md](NPM_SCRIPTS.md).
