@@ -143,7 +143,10 @@ function StakesRing({
   // True-% mode sizes every slice against market cap (shares × live price).
   // Tracked must not exceed it — a stale count falls back to
   // tracked-relative instead of drawing a negative public slice.
-  const trueMode = marketCap !== null && marketCap > 0 && total <= marketCap;
+  // Parked for now: forced tracked-relative until the % story is solid.
+  const SHOW_TRUE_PCT = false;
+  const trueMode =
+    SHOW_TRUE_PCT && marketCap !== null && marketCap > 0 && total <= marketCap;
   const base = trueMode && marketCap !== null ? marketCap : total;
   const shown = stakes.slice(0, 6);
   const rest = stakes.slice(6);
