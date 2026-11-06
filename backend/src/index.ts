@@ -5,6 +5,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import compression from "compression";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
@@ -23,6 +24,8 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 const app = express();
+// Gzip the tens-of-MB JSON payloads (entities/flows) at the cost of CPU.
+app.use(compression());
 app.use(express.json());
 
 // CORS for split dev (Vite :5173 -> API :4000). Same-origin deploys don't need it.

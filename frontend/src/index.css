@@ -229,6 +229,18 @@ body {
   font-weight: 600;
 }
 
+.mini-spinner {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-right: 0.4rem;
+  vertical-align: -0.1rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #7dd3fc;
+  animation: spin 0.9s linear infinite;
+}
+
 .spinner {
   width: 44px;
   height: 44px;

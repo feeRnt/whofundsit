@@ -25,6 +25,10 @@ function groupOf(source: string): { key: string; label: string } {
 // Past this many dots/arcs the map may chug on weak GPUs — warn in the label.
 const LAG_WARN_AT = 15000;
 
+// Staged loading: preview rows paint the map in ~2s; the full tables
+// stream in behind spinnies, then controls unlock.
+const PREVIEW_LIMIT = 2000;
+
 export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
@@ -116,6 +120,14 @@ export default function App() {
     // companies would bury them under company dots in dense areas.
     return [...head, ...tail, ...unis];
   }, [visibleEntities, dotLimit]);
+
+  // Nav dropdowns stay shut until the full tables land — partial funder
+  // lists would silently drop entries.
+  const toggleMenu = (key: "hedge" | "grants" | "ownership" | "sources") => {
+    if (fullLoaded) {
+      setOpenMenu((m) => (m === key ? null : key));
+    }
+  };
 
   const toggleSource = (key: string) =>
     setDisabledSources((s) => {
@@ -402,6 +414,11 @@ export default function App() {
     : null;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Full tables landed (menus, sliders, counts need them — partial funder
+  // lists would silently drop entries). Preview paints first; this gates
+  // the controls until the background refetch finishes.
+  const [fullLoaded, setFullLoaded] = useState(false);
+  const [fullError, setFullError] = useState<string | null>(null);
   const [projection, setProjection] = useState<"globe" | "mercator">("mercator");
   // Dark basemap by default (matches the UI); choice persists per browser.
   const [basemap, setBasemap] = useState<Basemap>(() =>
@@ -412,17 +429,47 @@ export default function App() {
   }, [basemap]);
 
   useEffect(() => {
-    Promise.all([fetchEntities(), fetchFlows()])
-      .then(([fetchedEntities, fetchedFlows]) => {
-        setEntities(fetchedEntities);
-        setFlows(fetchedFlows);
-      })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "load failed"),
-      )
-      .finally(() => setLoading(false));
+    let live = true;
     // Non-fatal: badges simply hide when no audit snapshot is deployed.
-    fetchVerification().then(setVerification);
+    fetchVerification().then((v) => {
+      if (live) setVerification(v);
+    });
+    // Phase 1: preview rows for a fast first paint. Phase 2: the full
+    // tables replace them, then controls unlock.
+    let previewDone = false;
+    Promise.all([fetchEntities(PREVIEW_LIMIT), fetchFlows(PREVIEW_LIMIT)])
+      .then(([previewEntities, previewFlows]) => {
+        if (!live) return;
+        previewDone = true;
+        setEntities(previewEntities);
+        setFlows(previewFlows);
+        setLoading(false);
+      })
+      .then(() => {
+        if (!live) return undefined;
+        return Promise.all([fetchEntities(), fetchFlows()]);
+      })
+      .then((full) => {
+        if (!live || !full) return;
+        setEntities(full[0]);
+        setFlows(full[1]);
+        setFullLoaded(true);
+      })
+      .catch((err: unknown) => {
+        if (!live) return;
+        const msg = err instanceof Error ? err.message : "load failed";
+        // Preview failed: nothing to show. Full failed: keep the preview
+        // map and flag the gap instead of blanking the page.
+        if (previewDone) {
+          setFullError(msg);
+        } else {
+          setError(msg);
+          setLoading(false);
+        }
+      });
+    return () => {
+      live = false;
+    };
   }, []);
 
   return (
@@ -439,15 +486,17 @@ export default function App() {
             ? "Loading…"
             : error
               ? `API error: ${error} (is the backend running?)`
-              : `${shownEntities.length} entities · ${visibleFlows.length}/${flows.length} flows`}
-          {!loading && !error && presentGroups.length > 0 && (
+              : fullError
+                ? `Full dataset failed (${fullError}) — showing preview`
+                : !fullLoaded
+                  ? (<><span className="mini-spinner" aria-hidden="true" />Loading full dataset…</>)
+                  : `${shownEntities.length} entities · ${visibleFlows.length}/${flows.length} flows`}
+          {!loading && !error && fullLoaded && presentGroups.length > 0 && (
             <button
               type="button"
               className="flashcard"
               title="Data sources — click to toggle per database"
-              onClick={() =>
-                setOpenMenu((m) => (m === "sources" ? null : "sources"))
-              }
+              onClick={() => toggleMenu("sources")}
             >
               {(() => {
                 const g = presentGroups[sourceTick % presentGroups.length]!;
@@ -481,9 +530,7 @@ export default function App() {
           showFlows={showFlows}
           enabledFunders={effectiveFunders}
           open={openMenu === "hedge"}
-          onToggleOpen={() =>
-            setOpenMenu((m) => (m === "hedge" ? null : "hedge"))
-          }
+          onToggleOpen={() => toggleMenu("hedge")}
           onToggleMaster={() => setShowFlows((v) => !v)}
           onToggleFunder={toggleFunder}
           onSelectAll={selectAll(funders13f)}
@@ -496,9 +543,7 @@ export default function App() {
           showFlows={showGrants}
           enabledFunders={effectiveFunders}
           open={openMenu === "grants"}
-          onToggleOpen={() =>
-            setOpenMenu((m) => (m === "grants" ? null : "grants"))
-          }
+          onToggleOpen={() => toggleMenu("grants")}
           onToggleMaster={() => setShowGrants((v) => !v)}
           onToggleFunder={toggleFunder}
         />
@@ -509,9 +554,7 @@ export default function App() {
           showFlows={showOwnership}
           enabledFunders={effectiveFunders}
           open={openMenu === "ownership"}
-          onToggleOpen={() =>
-            setOpenMenu((m) => (m === "ownership" ? null : "ownership"))
-          }
+          onToggleOpen={() => toggleMenu("ownership")}
           onToggleMaster={() => setShowOwnership((v) => !v)}
           onToggleFunder={toggleFunder}
           onSelectAll={selectAll(fundersOwnership)}
@@ -526,7 +569,7 @@ export default function App() {
             aria-label="Data source visibility options"
             onClick={(e) => {
               e.preventDefault();
-              setOpenMenu((m) => (m === "sources" ? null : "sources"));
+              toggleMenu("sources");
             }}
           >
             Sources
@@ -559,6 +602,7 @@ export default function App() {
               max={visibleEntities.length}
               step={500}
               value={Math.min(dotLimit ?? visibleEntities.length, visibleEntities.length)}
+              disabled={!fullLoaded}
               onChange={(ev) => {
                 const v = Number(ev.target.value);
                 setDotLimit(v >= visibleEntities.length ? null : v);
@@ -579,7 +623,7 @@ export default function App() {
               max={eligibleFlows.length}
               step={1}
               value={Math.min(flowLimit, eligibleFlows.length)}
-              disabled={!anyArcsOn}
+              disabled={!anyArcsOn || !fullLoaded}
               onChange={(ev) => setFlowLimit(Number(ev.target.value))}
             />
           </label>
