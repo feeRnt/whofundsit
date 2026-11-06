@@ -15,6 +15,7 @@ import {
   type FlowType,
 } from "./services/regionQuotas.js";
 import { getQuote } from "./services/stockQuote.js";
+import { cachedBody } from "./services/responseCache.js";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set (see backend/.env)");
@@ -46,39 +47,11 @@ app.get("/health", (_req, res) => {
 // ten simultaneous first loads run ONE query, not ten. New data appears at
 // latest TTL after an ingest; restarting clears it. Size guard: arbitrary
 // ?limit= values can't grow the map without bound.
-const responseCache = new Map<string, { at: number; body: string }>();
-const inflightBuilds = new Map<string, Promise<string>>();
+// Responses are cached per limit (see services/responseCache.ts): tables
+// only change on ingest, so all visitors share one JSON string.
 const RESPONSE_CACHE_TTL_MS = Number(
   process.env.RESPONSE_CACHE_TTL_MS ?? 3600000,
 );
-
-async function cachedBody(
-  key: string,
-  build: () => Promise<unknown>,
-): Promise<string> {
-  const hit = responseCache.get(key);
-  if (hit && Date.now() - hit.at < RESPONSE_CACHE_TTL_MS) {
-    return hit.body;
-  }
-  const running = inflightBuilds.get(key);
-  if (running) {
-    return running;
-  }
-  const run = (async () => {
-    try {
-      const body = JSON.stringify(await build());
-      if (responseCache.size > 50) {
-        responseCache.clear();
-      }
-      responseCache.set(key, { at: Date.now(), body });
-      return body;
-    } finally {
-      inflightBuilds.delete(key);
-    }
-  })();
-  inflightBuilds.set(key, run);
-  return run;
-}
 
 // Read-only, capped list for the map. Largest funds first.
 app.get("/api/entities", async (req, res) => {
@@ -97,7 +70,10 @@ app.get("/api/entities", async (req, res) => {
     // Equal per-region floors (shortfall to Europe) so international rows
     // survive the volume sort instead of being buried under SEC giants, plus
     // a university carve-out (works counts can't contest dollar volumes).
-    const body = await cachedBody(`entities:${limit}`, async () => {
+    const body = await cachedBody(
+      `entities:${limit}`,
+      RESPONSE_CACHE_TTL_MS,
+      async () => {
       const placed = await prisma.entity.findMany({
         where: {
           lat: { not: 0 },
@@ -110,8 +86,9 @@ app.get("/api/entities", async (req, res) => {
           ],
         },
       });
-      return allocateRegionQuotas(placed, limit);
-    });
+        return allocateRegionQuotas(placed, limit);
+      },
+    );
     res.type("application/json").send(body);
   } catch (err) {
     console.error(err);
@@ -135,7 +112,10 @@ app.get("/api/flows", async (req, res) => {
     // Per-type quotas: one amount-desc take would fill the whole cap with
     // 13F dollars and starve grants + ownership (empty submenus). Amounts
     // stay desc within each type; the total never exceeds the limit.
-    const body = await cachedBody(`flows:${limit}`, async () => {
+    const body = await cachedBody(
+      `flows:${limit}`,
+      RESPONSE_CACHE_TTL_MS,
+      async () => {
       const counts = Object.fromEntries(
         await Promise.all(
           FLOW_TYPES.map(async (flowType) => [
@@ -162,8 +142,9 @@ app.get("/api/flows", async (req, res) => {
               }),
         ),
       );
-      return perType.flat();
-    });
+        return perType.flat();
+      },
+    );
     res.type("application/json").send(body);
   } catch (err) {
     console.error(err);
