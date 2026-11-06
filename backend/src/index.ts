@@ -40,6 +40,46 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+// Shared response cache: entities/flows tables only change when an ingest
+// pipeline runs (separate process), so one JSON string serves every visitor
+// instead of one Prisma fetch + stringify per request. In-flight dedup means
+// ten simultaneous first loads run ONE query, not ten. New data appears at
+// latest TTL after an ingest; restarting clears it. Size guard: arbitrary
+// ?limit= values can't grow the map without bound.
+const responseCache = new Map<string, { at: number; body: string }>();
+const inflightBuilds = new Map<string, Promise<string>>();
+const RESPONSE_CACHE_TTL_MS = Number(
+  process.env.RESPONSE_CACHE_TTL_MS ?? 3600000,
+);
+
+async function cachedBody(
+  key: string,
+  build: () => Promise<unknown>,
+): Promise<string> {
+  const hit = responseCache.get(key);
+  if (hit && Date.now() - hit.at < RESPONSE_CACHE_TTL_MS) {
+    return hit.body;
+  }
+  const running = inflightBuilds.get(key);
+  if (running) {
+    return running;
+  }
+  const run = (async () => {
+    try {
+      const body = JSON.stringify(await build());
+      if (responseCache.size > 50) {
+        responseCache.clear();
+      }
+      responseCache.set(key, { at: Date.now(), body });
+      return body;
+    } finally {
+      inflightBuilds.delete(key);
+    }
+  })();
+  inflightBuilds.set(key, run);
+  return run;
+}
+
 // Read-only, capped list for the map. Largest funds first.
 app.get("/api/entities", async (req, res) => {
   try {
@@ -57,19 +97,22 @@ app.get("/api/entities", async (req, res) => {
     // Equal per-region floors (shortfall to Europe) so international rows
     // survive the volume sort instead of being buried under SEC giants, plus
     // a university carve-out (works counts can't contest dollar volumes).
-    const placed = await prisma.entity.findMany({
-      where: {
-        lat: { not: 0 },
-        lng: { not: 0 },
-        // OR keeps NULL-concept rows (global/openalex/13f): plain `not`
-        // would drop them via three-valued logic.
-        OR: [
-          { conceptTag: null },
-          { conceptTag: { not: "EntityCommonStockSharesOutstanding" } },
-        ],
-      },
+    const body = await cachedBody(`entities:${limit}`, async () => {
+      const placed = await prisma.entity.findMany({
+        where: {
+          lat: { not: 0 },
+          lng: { not: 0 },
+          // OR keeps NULL-concept rows (global/openalex/13f): plain `not`
+          // would drop them via three-valued logic.
+          OR: [
+            { conceptTag: null },
+            { conceptTag: { not: "EntityCommonStockSharesOutstanding" } },
+          ],
+        },
+      });
+      return allocateRegionQuotas(placed, limit);
     });
-    res.json(allocateRegionQuotas(placed, limit));
+    res.type("application/json").send(body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load entities" });
@@ -92,33 +135,36 @@ app.get("/api/flows", async (req, res) => {
     // Per-type quotas: one amount-desc take would fill the whole cap with
     // 13F dollars and starve grants + ownership (empty submenus). Amounts
     // stay desc within each type; the total never exceeds the limit.
-    const counts = Object.fromEntries(
-      await Promise.all(
-        FLOW_TYPES.map(async (flowType) => [
-          flowType,
-          await prisma.capitalFlow.count({
-            where: { flowType, sourceEntity: placed, targetEntity: placed },
-          }),
-        ]),
-      ),
-    ) as Record<FlowType, number>;
-    const quotas = allocateFlowQuotas(counts, limit);
-    const perType = await Promise.all(
-      FLOW_TYPES.map((flowType) =>
-        quotas[flowType] === 0
-          ? []
-          : prisma.capitalFlow.findMany({
-              take: quotas[flowType],
-              orderBy: { amount: "desc" },
+    const body = await cachedBody(`flows:${limit}`, async () => {
+      const counts = Object.fromEntries(
+        await Promise.all(
+          FLOW_TYPES.map(async (flowType) => [
+            flowType,
+            await prisma.capitalFlow.count({
               where: { flowType, sourceEntity: placed, targetEntity: placed },
-              include: {
-                sourceEntity: { select: endpoint },
-                targetEntity: { select: endpoint },
-              },
             }),
-      ),
-    );
-    res.json(perType.flat());
+          ]),
+        ),
+      ) as Record<FlowType, number>;
+      const quotas = allocateFlowQuotas(counts, limit);
+      const perType = await Promise.all(
+        FLOW_TYPES.map((flowType) =>
+          quotas[flowType] === 0
+            ? []
+            : prisma.capitalFlow.findMany({
+                take: quotas[flowType],
+                orderBy: { amount: "desc" },
+                where: { flowType, sourceEntity: placed, targetEntity: placed },
+                include: {
+                  sourceEntity: { select: endpoint },
+                  targetEntity: { select: endpoint },
+                },
+              }),
+        ),
+      );
+      return perType.flat();
+    });
+    res.type("application/json").send(body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load flows" });
