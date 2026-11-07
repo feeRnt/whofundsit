@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# wrangler local secrets (wrangler.toml itself stays tracked as a template)
+.dev.vars
 
 # Private notes - no need to commit
 HANDOFF_CLEAR.md
