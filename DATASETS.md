@@ -6,6 +6,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 
 ## SEC EDGAR (frames, submissions, bulk ZIPs, 13F)
 
+Plain words: America's public company ledger. Listed firms must publish
+standardized financial facts here, so the US dots, money sizes, and
+fund-holding arcs come from this source.
+
 - **What we take:** XBRL company facts + frames (`data.sec.gov`), company
   submissions histories, `company_tickers.json`, the nightly bulk ZIPs, and
   13F-HR holdings tables.
@@ -20,6 +24,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   addresses, flows), `backend/src/data/*.ts` (via the ticker map).
 
 ## OpenStreetMap Nominatim (geocoding)
+
+Plain words: address-to-coordinates lookup on the free community world map.
+Every foreign dot position comes from here; US addresses try the Census
+batch first.
 
 - **What we take:** `lat`/`lng` for SEC business addresses, one lookup each.
 - **Terms:** OSM data is **ODbL** — free to use *with attribution* ("© OpenStreetMap
@@ -43,6 +51,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 
 ## US Census batch geocoder (US addresses, bulk)
 
+Plain words: the US government's free bulk geocoder. It places American
+addresses in batches instead of one by one; anything it cannot parse falls
+through to Nominatim.
+
 - **What we take:** `lat`/`lng` for US-parseable rows in one batched POST
   (SEC-shaped `street, city, ST ZIP`), ahead of Nominatim; misses and
   outages fall through to the normal path, never to failed.
@@ -56,6 +68,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
   retries; hits are written + marked placed, the rest stay failed.
 
 ## OpenAlex (grants: funders, works, institutions)
+
+Plain words: a free index of research papers and who funded them. It powers
+the grant arcs — funders and governments to universities, sized by funded
+works.
 
 - **What we take:** funder record + funded works + author institutions for
   grant arcs (`api.openalex.org`).
@@ -77,6 +93,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 
 ## Wikidata SPARQL (international company list)
 
+Plain words: Wikipedia's structured sibling — a free database of things and
+their facts. It gives us the non-US company list (names, market IDs,
+industries), so the map is global, not US-only.
+
 - **What we take:** bulk company crosswalk — name, ISIN, LEI, exchange,
   HQ — via `query.wikidata.org/sparql` (`npm run sync:global`), plus
   industry labels via P452 VALUES batches (`npm run industry:global`).
@@ -86,6 +106,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 - **Local copies (gitignored):** `backend/data/cache/global/wikidata-*.json`.
 
 ## GLEIF (legal addresses + corporate children)
+
+Plain words: the worldwide company-ID registry. One LEI number per legal
+entity, plus its official address and parent/child links — the backbone for
+placing foreign firms and drawing ownership.
 
 - **What we take:** per-LEI record (legal name + HQ address) and
   `direct-children` (full child records) via `api.gleif.org`.
@@ -98,6 +122,10 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 - **Committed derivatives:** `lei:*` entities + `ownership` flows in seeds.
 
 ## OpenFIGI (CUSIP → ticker for 13F matching)
+
+Plain words: a free dictionary from market ID codes (CUSIP/ISIN) to tickers.
+Fund filings list holdings by code, so this lets us match each holding to a
+real company.
 
 - **What we take:** ticker per holding CUSIP via `POST api.openfigi.com/v3/mapping`
   (batched 10 keyless / 100 with free `OPENFIGI_API_KEY`).
@@ -112,6 +140,9 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 
 ## ESEF repository (EU/UK financial facts)
 
+Plain words: Europe's answer to EDGAR — machine-readable filings from EU/UK
+listed firms. An optional backfill for European company facts.
+
 - **What we take:** per-LEI filing lookup + latest xBRL-JSON facts file
   (`filings.xbrl.org/api`, `npm run regional:esef`).
 - **Terms:** **no license stated** — XBRL International demonstrator whose
@@ -121,6 +152,9 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 - **Local copies (gitignored):** `backend/data/cache/regional/esef-*.json`.
 
 ## TWSE OpenAPI (Taiwan financial facts)
+
+Plain words: Taiwan's exchange open data — balance sheets and company
+basics. Same role as ESEF, for Taiwanese firms.
 
 - **What we take:** balance sheets per industry + company basics
   (`/v1/opendata/t187ap*`, `npm run regional:twse`).
@@ -134,6 +168,9 @@ maintainer's disk (gitignored); only small derived seeds ship in the repo.
 - **Local copies (gitignored):** `backend/data/cache/regional/twse-*.json`.
 
 ## Yahoo Finance (day-change quotes for popups)
+
+Plain words: stock quotes for the popup's day-change line. Cached a day,
+hidden on failure — decoration, never load-bearing.
 
 - **What we take:** day-change quote per ticker via the public chart
   endpoint, proxied through `GET /api/quote` with a 24-hour cache —
