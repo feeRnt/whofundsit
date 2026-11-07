@@ -7,6 +7,10 @@
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    if (!env.ORIGIN) {
+      console.error("[edge] ORIGIN is not set — add it via deploy.mjs or dashboard Variables");
+      return new Response("edge origin not configured", { status: 500 });
+    }
     const origin = new URL(url.pathname + url.search, env.ORIGIN);
     if (req.method !== "GET" || !url.pathname.startsWith("/api/")) {
       return fetch(new Request(origin, req));
@@ -27,13 +31,17 @@ export default {
     const cache = caches.default;
     const key = new Request(origin, { method: "GET", headers: fwd });
     const hit = await cache.match(key);
+    const tag = `${url.pathname}${url.search}`;
     if (hit) {
+      console.log(`[edge] HIT ${tag}`);
       return hit;
     }
     const res = await fetch(key);
     if (!res.ok) {
+      console.error(`[edge] MISS ${tag} -> origin ${res.status}`);
       return res;
     }
+    console.log(`[edge] MISS ${tag} -> origin ${res.status}, stored`);
     // clones: one to the edge, one to the visitor.
     ctx.waitUntil(cache.put(key, res.clone()));
     return res;
