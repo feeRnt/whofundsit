@@ -50,10 +50,10 @@ app.get("/health", (_req, res) => {
 // zero-copy, ETag/304 included), so repeat loads hold ~no heap.
 // Responses are cached per limit: tables only change on ingest, so all
 // visitors share one file. Set RESPONSE_CACHE_TTL_MS=Infinity on a frozen
-// dataset (traction demo) to cache until restart; the default hourly TTL
-// is for the live pipeline-backed deploy.
+// dataset (traction demo) to cache until restart; the 15h default covers
+// a full judging day on the pipeline-backed deploy.
 const RESPONSE_CACHE_TTL_MS = Number(
-  process.env.RESPONSE_CACHE_TTL_MS ?? 3600000,
+  process.env.RESPONSE_CACHE_TTL_MS ?? 54000000,
 );
 
 // Rows are emitted in small pages (never the whole table at once). Chunked
