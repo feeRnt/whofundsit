@@ -6,6 +6,7 @@ Ground rules:
 * Change only files in `whofundsit/`, giving me a solid green message before writing a file. Don't touch the `whofundsit/.git` directory.
 * When I ask for something, build only that, then stop and report. Write the smallest readable code that does what I asked, but this is waivable. Just don't break things if you don't understand something and need confirmation.
 * Don't open `.env`, and never print or log API keys or populated environment values.
+* Similarly do not open `.env_wrangler`. Don't add it to commit history, and don't print anything from it.
 * Ignore the files `whofundsit/prompts.md`, it's for documenting our prompts and responses only.
 
 ## Architecture Constraints

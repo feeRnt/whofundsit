@@ -145,20 +145,7 @@ body {
   }
   /* Legend reads over the map instead of boxing it out. */
   .map-legend {
-    background: rgba(26, 32, 48, 0.5);
-  }
-  /* Slider flush to the page bottom; attribution ("i") floats clear
-     above it with room to spare (the slider box runs ~2.5rem tall, so
-     2.9rem tucked it behind the slider's top edge at z-10 — the "i"
-     only peeked out on the left). !important guards against MapLibre's
-     own positioning. */
-  .map-zoom {
-    bottom: 0.5rem;
-    right: 0.5rem;
-  }
-  .map .maplibregl-ctrl-bottom-right {
-    bottom: 3.6rem !important;
-    right: 0.5rem;
+    background: rgba(26, 32, 48, 0.6);
   }
 }
 
