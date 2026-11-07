@@ -35,7 +35,9 @@
     "deadlines:snapshot": "tsx src/scripts/deadlines_snapshot.ts",
     "geo:snapshot": "tsx src/scripts/geo_snapshot.ts",
     "formalize:addresses": "tsx src/scripts/formalize_addresses.ts",
-    "coords:p625": "tsx src/scripts/coords_p625.ts"
+    "coords:p625": "tsx src/scripts/coords_p625.ts",
+    "setup:modal-inference-worker": "node scripts/modal-deploy.mjs inference_worker.py",
+    "setup:modal-formalize-worker": "node scripts/modal-deploy.mjs formalize_worker.py"
   },
   "keywords": [],
   "type": "module",
