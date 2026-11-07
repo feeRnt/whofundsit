@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { cachedBody, clearResponseCache } from "./responseCache.js";
+import fs from "node:fs";
+import { cachedBody, cachedStream, clearResponseCache } from "./responseCache.js";
 
 describe("responseCache", () => {
   it("builds once then serves the cached string", async () => {
@@ -70,5 +71,68 @@ describe("responseCache", () => {
       return -1;
     });
     assert.equal(rebuilds, 1);
+  });
+});
+
+describe("cachedStream", () => {
+  it("writes emitted rows as one JSON array, byte-identical to stringify", async () => {
+    clearResponseCache();
+    const rows = Array.from({ length: 2500 }, (_, i) => ({ i, s: `row-${i}` }));
+    const file = await cachedStream("s", 60000, async (emit) => {
+      for (const row of rows) {
+        // eslint-disable-next-line no-await-in-loop
+        await emit(row);
+      }
+    });
+    assert.equal(fs.readFileSync(file, "utf8"), JSON.stringify(rows));
+  });
+
+  it("reuses the file within TTL and rebuilds after expiry", async () => {
+    clearResponseCache();
+    let builds = 0;
+    const build = async (emit: (row: unknown) => Promise<void>) => {
+      builds += 1;
+      await emit(builds);
+    };
+    const first = await cachedStream("t", 60000, build);
+    assert.equal(fs.readFileSync(first, "utf8"), "[1]");
+    assert.equal(await cachedStream("t", 60000, build), first);
+    assert.equal(builds, 1);
+    assert.equal(fs.readFileSync(await cachedStream("t", 0, build), "utf8"), "[2]");
+    assert.equal(builds, 2);
+  });
+
+  it("writes [] for no rows and never caches failures", async () => {
+    clearResponseCache();
+    const empty = await cachedStream("e", 60000, async () => {});
+    assert.equal(fs.readFileSync(empty, "utf8"), "[]");
+
+    let builds = 0;
+    const failing = async (emit: (row: unknown) => Promise<void>): Promise<void> => {
+      builds += 1;
+      await emit({ half: true });
+      throw new Error("boom");
+    };
+    await assert.rejects(() => cachedStream("f", 60000, failing), /boom/);
+    await assert.rejects(() => cachedStream("f", 60000, failing), /boom/);
+    assert.equal(builds, 2);
+  });
+
+  it("dedups concurrent first builds into one file", async () => {
+    clearResponseCache();
+    let builds = 0;
+    const build = async (emit: (row: unknown) => Promise<void>) => {
+      builds += 1;
+      await new Promise((r) => setTimeout(r, 20));
+      await emit("shared");
+    };
+    const files = await Promise.all([
+      cachedStream("d", 60000, build),
+      cachedStream("d", 60000, build),
+      cachedStream("d", 60000, build),
+    ]);
+    assert.deepEqual(files, [files[0], files[0], files[0]]);
+    assert.equal(fs.readFileSync(files[0], "utf8"), '["shared"]');
+    assert.equal(builds, 1);
   });
 });
