@@ -107,6 +107,10 @@ body {
     display: flex;
   }
   .nav-controls .search {
+    /* Kill the desktop flex-basis: in a column it becomes dead height
+       between the search box and the menus. */
+    flex: none;
+    width: 100%;
     max-width: none;
   }
   .nav-controls .search input {
@@ -138,6 +142,17 @@ body {
   .nav-controls .sliders .arcs-control input[type="range"] {
     flex: 1;
     width: auto;
+  }
+  /* Legend reads over the map instead of boxing it out. */
+  .map-legend {
+    background: rgba(26, 32, 48, 0.8);
+  }
+  /* Attribution ("i") floats above the zoom slider, not under it. */
+  .map-zoom {
+    bottom: 1rem;
+  }
+  .map .maplibregl-ctrl-bottom-right {
+    bottom: 3.2rem;
   }
 }
 

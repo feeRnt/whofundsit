@@ -499,7 +499,12 @@ export default function MapGlobe({
   // Manual tile refresh: bump to force a fresh Map (purple/corrupt tile
   // buffers die with the old instance; no page reload needed).
   const [mapTick, setMapTick] = useState(0);
-  const [legendOpen, setLegendOpen] = useState(true);
+  // Collapsed on small screens (bar space is precious); desktop stays open.
+  const [legendOpen, setLegendOpen] = useState(
+    () =>
+      typeof window === "undefined" ||
+      !window.matchMedia("(max-width: 720px)").matches,
+  );
 
   // The map remounts on projection/basemap/refresh; show the spinner until onLoad.
   useEffect(() => {
