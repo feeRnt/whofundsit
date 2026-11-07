@@ -662,14 +662,16 @@ export default function MapGlobe({
     return null;
   };
   // Company teal on both tiles (old teal one shade darker for
-  // light-tile legibility). Amber universities, purple funders.
+  // light-tile legibility). Amber universities, purple funders. Opaque
+  // fills: translucent dots stacked a dark antialiased rim on every
+  // overlap; solid dots union cleanly instead.
   const dotColor = (d: Entity): [number, number, number, number] =>
     stackTopColor(d.id) ??
     (d.type.toLowerCase() === "education"
-      ? [251, 191, 36, 210]
+      ? [251, 191, 36, 255]
       : funderIds.has(d.id)
-        ? [168, 85, 247, 210]
-        : [45, 212, 191, 200]);
+        ? [168, 85, 247, 255]
+        : [45, 212, 191, 255]);
 
   // Dot size uses the same primary metric as hover/popup (assets, or
   // holdings for funds), precomputed per row so sibling concept rows at
