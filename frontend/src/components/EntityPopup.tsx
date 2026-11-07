@@ -402,8 +402,19 @@ export default function EntityPopup({
             : "True % needs shares + price — quote fetch failed.";
   const [ringTrue, setRingTrue] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // New company, new card: the MapLibre scroll node survives across
+  // popups, so reset it — otherwise B opens with A's scroll position.
+  useEffect(() => {
+    const scroller = rootRef.current?.closest(
+      ".maplibregl-popup-content",
+    ) as HTMLElement | null;
+    if (scroller) {
+      scroller.scrollTop = 0;
+    }
+  }, [entity.id]);
   return (
-    <div className="entity-popup">
+    <div className="entity-popup" ref={rootRef}>
       <h2>{entity.name}</h2>
       <p className="entity-value">
         {noFinancials ? "Listed company — financials not yet loaded" : `${label}: ${valueText}`}

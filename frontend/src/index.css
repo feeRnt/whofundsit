@@ -514,6 +514,9 @@ div.maplibregl-popup-content {
   max-height: 62vh;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Late quote/shares inserts near the top would otherwise drag the card
+     to the bottom via scroll anchoring; the popup pins itself instead. */
+  overflow-anchor: none;
 }
 
 /* Tip color follows the anchor MapLibre chose (incl. corner combos). */
