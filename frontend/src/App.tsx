@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import logoUrl from "./assets/logo.svg";
 import MapGlobe, { type Basemap } from "./components/MapGlobe";
 import MapErrorBoundary from "./components/MapErrorBoundary";
@@ -339,6 +339,10 @@ export default function App() {
   // One dropdown open at a time (accordion); layers stay independent.
   const [openMenu, setOpenMenu] = useState<"hedge" | "grants" | "ownership" | "sources" | null>(null);
 
+  // Mobile (<720px CSS): the bar's controls hide behind a hamburger.
+  // Desktop is untouched — the toggle hides itself up there.
+  const [navOpen, setNavOpen] = useState(false);
+
   // Any click outside the menus collapses the open dropdown (map, search,
   // sliders, popups). Clicks inside a menu toggle normally.
   useEffect(() => {
@@ -505,12 +509,23 @@ export default function App() {
             </button>
           )}
         </p>
+        <button
+          type="button"
+          className="toggle menu-toggle"
+          aria-label={navOpen ? "Close menu" : "Open menu"}
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen((v) => !v)}
+        >
+          {navOpen ? <X size={16} /> : <Menu size={16} />}
+        </button>
+        <div className={navOpen ? "nav-controls open" : "nav-controls"}>
         <SearchBox
           entities={visibleEntities}
           onSelect={(e) => {
             setFocused(e);
             setFocusTick((t) => t + 1);
             setOpenMenu(null);
+            setNavOpen(false);
           }}
         />
         {focusCompany && (
@@ -627,6 +642,7 @@ export default function App() {
               onChange={(ev) => setFlowLimit(Number(ev.target.value))}
             />
           </label>
+        </div>
         </div>
       </header>
       <main className="map">{!loading && !error && (
