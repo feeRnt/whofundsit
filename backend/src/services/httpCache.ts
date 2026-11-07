@@ -81,14 +81,15 @@ export function userAgentFromEnv(
 
 // Modal proxy-auth headers for worker endpoints (requires_proxy_auth):
 // the Proxy Auth Token pair, or null when incomplete — callers decide
-// (throw or skip). Distinct from MODAL_TOKEN_ID/SECRET, which authenticate
-// deploys to Modal, never webhooks.
+// (throw or skip). Deliberately NOT MODAL_TOKEN_ID/SECRET: those authenticate
+// `modal deploy` to Modal (the CLI reads them too), never webhooks —
+// sharing one pair across both was a convenience hack that Modal rejects.
 export const MODAL_PROXY_ENV_HINT =
-  "create a Proxy Auth Token at modal.com/settings/proxy-auth-tokens and set MODAL_TOKEN_ID/MODAL_TOKEN_SECRET in backend/.env";
+  "create a Proxy Auth Token at modal.com/settings/proxy-auth-tokens and set MODAL_PROXY_TOKEN_ID/MODAL_PROXY_TOKEN_SECRET in backend/.env";
 
 export function modalProxyHeaders(): Record<string, string> | null {
-  const key = process.env.MODAL_TOKEN_ID;
-  const secret = process.env.MODAL_TOKEN_SECRET;
+  const key = process.env.MODAL_PROXY_TOKEN_ID;
+  const secret = process.env.MODAL_PROXY_TOKEN_SECRET;
   if (!key || !secret) {
     return null;
   }

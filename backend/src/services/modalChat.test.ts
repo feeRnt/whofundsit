@@ -23,11 +23,11 @@ describe("modalChat", () => {
 
   it("resolves the endpoint from env, stripping trailing slashes", () => {
     const oldUrl = process.env.MODAL_INFERENCE_URL;
-    const oldId = process.env.MODAL_TOKEN_ID;
-    const oldSecret = process.env.MODAL_TOKEN_SECRET;
+    const oldId = process.env.MODAL_PROXY_TOKEN_ID;
+    const oldSecret = process.env.MODAL_PROXY_TOKEN_SECRET;
     process.env.MODAL_INFERENCE_URL = "https://example.modal.direct/";
-    process.env.MODAL_TOKEN_ID = "wk-id";
-    process.env.MODAL_TOKEN_SECRET = "ws-secret";
+    process.env.MODAL_PROXY_TOKEN_ID = "wk-id";
+    process.env.MODAL_PROXY_TOKEN_SECRET = "ws-secret";
     try {
       const ep = resolveChatEndpoint("MODAL_INFERENCE_URL", "model-x");
       assert.equal(ep.url, `https://example.modal.direct${CHAT_COMPLETIONS_PATH}`);
@@ -40,14 +40,14 @@ describe("modalChat", () => {
         process.env.MODAL_INFERENCE_URL = oldUrl;
       }
       if (oldId === undefined) {
-        delete process.env.MODAL_TOKEN_ID;
+        delete process.env.MODAL_PROXY_TOKEN_ID;
       } else {
-        process.env.MODAL_TOKEN_ID = oldId;
+        process.env.MODAL_PROXY_TOKEN_ID = oldId;
       }
       if (oldSecret === undefined) {
-        delete process.env.MODAL_TOKEN_SECRET;
+        delete process.env.MODAL_PROXY_TOKEN_SECRET;
       } else {
-        process.env.MODAL_TOKEN_SECRET = oldSecret;
+        process.env.MODAL_PROXY_TOKEN_SECRET = oldSecret;
       }
     }
   });
