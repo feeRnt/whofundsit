@@ -47,7 +47,11 @@ console.error(
 if (!origin) {
   process.exit(2);
 }
-const result = spawnSync("npx", ["wrangler", "deploy", "--var", `ORIGIN:${origin}`], {
+const vars = [`ORIGIN:${origin}`];
+// --keep-vars: dashboard-held vars survive the upload no matter what, so a
+// file-only local config can never wipe remote ORIGIN on deploy; --var
+// re-asserts this run's value on top.
+const result = spawnSync("npx", ["wrangler", "deploy", "--keep-vars", "--var", ...vars], {
   stdio: "inherit",
   cwd: here,
 });
