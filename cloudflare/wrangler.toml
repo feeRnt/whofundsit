@@ -6,3 +6,11 @@
 name = "whofundsit-edge"
 main = "worker.mjs"
 compatibility_date = "2026-11-01"
+
+# Workers Logs stay on across deploys (otherwise every upload flips the
+# dashboard toggles off and the HIT/MISS lines go silent). 100% sampling
+# while debugging; lower head_sampling_rate later. If wrangler rejects
+# these keys, its error names the exact schema — paste it back.
+[observability]
+enabled = true
+head_sampling_rate = 1
