@@ -1,6 +1,6 @@
 # Who Funds It (?)
 
-## **Live demo: [whofundsit.vercel.app](https://whofundsit.vercel.app) — open it in a browser, no setup needed.**
+## **Live demo: [whofundsit.netlify.app](https://whofundsit.netlify.app) — open it in a browser, no setup needed.**
 
 Many people want to know, when making a purchase, buying a subscription, or reading a medical study, what the primary incentives are behind the service or who are its prime beneficiaries. The best way to understand this information is to see what funding is behind any company, organization or even an educational institution.
 
