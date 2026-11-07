@@ -32,6 +32,46 @@ export function yahooSymbol(ticker: string): string | null {
   return t;
 }
 
+// Browser-initiated guard for /api/quote: only serve tickers to pages we
+// run (Referer/Origin allowlist). Spoofable by design — it stops casual
+// hotlinking and dumb bots, not determined callers; the SQL membership
+// check below and the edge rate limit are the real backstops. Empty
+// allowlist = open (dev default); set QUOTE_ALLOWED_ORIGINS to lock down.
+export function parseAllowedOrigins(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map((s) => {
+      try {
+        return new URL(s).origin;
+      } catch {
+        return "";
+      }
+    })
+    .filter((s) => s.length > 0);
+}
+
+export function isQuoteRequestAllowed(
+  origin: string | undefined,
+  referer: string | undefined,
+  allowed: string[],
+): boolean {
+  if (allowed.length === 0) {
+    return true;
+  }
+  const candidates = [origin, referer].filter(
+    (v): v is string => typeof v === "string" && v.length > 0,
+  );
+  return candidates.some((c) => {
+    try {
+      return allowed.includes(new URL(c).origin);
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function parseYahooChart(
   json: unknown,
 ): { previousClose: number; price: number; date: string } | null {

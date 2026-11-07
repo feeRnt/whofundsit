@@ -14,7 +14,12 @@ import {
   allocateRegionQuotas,
   type FlowType,
 } from "./services/regionQuotas.js";
-import { getQuote } from "./services/stockQuote.js";
+import {
+  getQuote,
+  isQuoteRequestAllowed,
+  parseAllowedOrigins,
+  yahooSymbol,
+} from "./services/stockQuote.js";
 import { cachedStream } from "./services/responseCache.js";
 
 if (!process.env.DATABASE_URL) {
@@ -66,6 +71,14 @@ const EDGE_TTL_S = Number.isFinite(RESPONSE_CACHE_TTL_MS)
   ? Math.floor(RESPONSE_CACHE_TTL_MS / 1000)
   : 31536000;
 const EDGE_ENTITIES = `public, max-age=60, s-maxage=${EDGE_TTL_S}`;
+
+// Lock /api/quote to browser traffic from these origins (comma-separated).
+// Unset = open (dev default; judged deploy stays as-is). Requests also 404
+// unless the ticker is in our entity tickers[], which is the real
+// enumeration backstop — popups only ever request tickers we track.
+const QUOTE_ALLOWED_ORIGINS = parseAllowedOrigins(
+  process.env.QUOTE_ALLOWED_ORIGINS,
+);
 
 // Rows are emitted in small pages (never the whole table at once). Chunked
 // stringify is byte-identical to one big stringify, so the wire format is
@@ -211,6 +224,36 @@ app.get("/api/flows", async (req, res) => {
 app.get("/api/quote", async (req, res) => {
   try {
     const ticker = String(req.query.ticker ?? "");
+    // Format first (cheapest): the tested normalizer rejects junk before
+    // it can reach Yahoo or poison the quote cache.
+    const symbol = yahooSymbol(ticker);
+    if (!symbol) {
+      res.status(400).json({ error: "bad ticker" });
+      return;
+    }
+    // Browser-initiated only (allowlist; open when unset for dev).
+    if (
+      !isQuoteRequestAllowed(
+        req.get("origin"),
+        req.get("referer"),
+        QUOTE_ALLOWED_ORIGINS,
+      )
+    ) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    // Must be a ticker we actually track (raw or normalized form):
+    // unknown tickers 404 exactly like tickers with no quote data.
+    const known = await prisma.entity.findFirst({
+      where: {
+        tickers: { hasSome: [ticker.trim(), ticker.trim().toUpperCase(), symbol] },
+      },
+      select: { id: true },
+    });
+    if (!known) {
+      res.status(404).json({ quote: null });
+      return;
+    }
     const quote = await getQuote(ticker);
     if (!quote) {
       res.status(404).json({ quote: null });

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   QUOTE_MIN_INTERVAL_MS,
   changePct,
+  isQuoteRequestAllowed,
+  parseAllowedOrigins,
   parseYahooChart,
   quoteLimit,
   yahooSymbol,
@@ -73,5 +75,44 @@ describe("api pacing", () => {
     const t0 = Date.now();
     await Promise.all([quoteLimit(async () => {}), quoteLimit(async () => {})]);
     assert.ok(Date.now() - t0 >= 800, "quote calls unpaced");
+  });
+});
+
+describe("parseAllowedOrigins", () => {
+  it("normalizes to origins and drops junk", () => {
+    assert.deepEqual(
+      parseAllowedOrigins("https://a.example/x, http://b.example:4000, nope, "),
+      ["https://a.example", "http://b.example:4000"],
+    );
+    assert.deepEqual(parseAllowedOrigins(undefined), []);
+    assert.deepEqual(parseAllowedOrigins(""), []);
+  });
+});
+
+describe("isQuoteRequestAllowed", () => {
+  const allowed = ["https://edge.example"];
+  it("is open when no allowlist is configured", () => {
+    assert.equal(isQuoteRequestAllowed(undefined, undefined, []), true);
+  });
+  it("accepts a matching origin or referer", () => {
+    assert.equal(
+      isQuoteRequestAllowed("https://edge.example", undefined, allowed),
+      true,
+    );
+    assert.equal(
+      isQuoteRequestAllowed(undefined, "https://edge.example/p?q=1", allowed),
+      true,
+    );
+  });
+  it("rejects strangers, missing headers, and garbage", () => {
+    assert.equal(
+      isQuoteRequestAllowed("https://evil.example", undefined, allowed),
+      false,
+    );
+    assert.equal(isQuoteRequestAllowed(undefined, undefined, allowed), false);
+    assert.equal(
+      isQuoteRequestAllowed("not a url", "also not", allowed),
+      false,
+    );
   });
 });
