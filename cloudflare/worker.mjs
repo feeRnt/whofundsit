@@ -11,13 +11,26 @@ export default {
     if (req.method !== "GET" || !url.pathname.startsWith("/api/")) {
       return fetch(new Request(origin, req));
     }
+    // Refresh-proofing: browsers send revalidation directives on reload
+    // (Cache-Control: max-age=0, If-None-Match...), which make Cloudflare
+    // bypass the edge and report DYNAMIC forever. This API is fully public
+    // (no cookies/auth/personalization), so strip those directives: a
+    // refresh becomes indistinguishable from a fresh GET and hits the edge.
+    // Everything else (Accept-Encoding for gzip variants, etc.) passes
+    // through untouched.
+    const fwd = new Headers(req.headers);
+    fwd.delete("cache-control");
+    fwd.delete("pragma");
+    fwd.delete("if-none-match");
+    fwd.delete("if-modified-since");
+    fwd.delete("if-range");
     const cache = caches.default;
-    const key = new Request(origin, { method: "GET" });
+    const key = new Request(origin, { method: "GET", headers: fwd });
     const hit = await cache.match(key);
     if (hit) {
       return hit;
     }
-    const res = await fetch(new Request(origin, req));
+    const res = await fetch(key);
     if (!res.ok) {
       return res;
     }
