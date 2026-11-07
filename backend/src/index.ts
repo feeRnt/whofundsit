@@ -38,7 +38,9 @@ app.use((_req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true });
+  // Never cached: the uptime pinger must always reach the origin so a
+  // sleeping Render stays warm (an edge hit would let it doze off).
+  res.set("Cache-Control", "no-store").json({ ok: true });
 });
 
 // Shared file cache: entities/flows tables only change when an ingest
@@ -55,6 +57,15 @@ app.get("/health", (_req, res) => {
 const RESPONSE_CACHE_TTL_MS = Number(
   process.env.RESPONSE_CACHE_TTL_MS ?? 54000000,
 );
+
+// Edge TTL mirrors the origin file cache (seconds, capped at 1y — the
+// largest widely-honored delta). Infinity origin cache -> 1y edge.
+// Browsers revalidate after max-age via ETag (cheap 304s); the edge holds
+// the full s-maxage, so only edge misses reach Render/Neon.
+const EDGE_TTL_S = Number.isFinite(RESPONSE_CACHE_TTL_MS)
+  ? Math.floor(RESPONSE_CACHE_TTL_MS / 1000)
+  : 31536000;
+const EDGE_ENTITIES = `public, max-age=60, s-maxage=${EDGE_TTL_S}`;
 
 // Rows are emitted in small pages (never the whole table at once). Chunked
 // stringify is byte-identical to one big stringify, so the wire format is
@@ -118,7 +129,7 @@ app.get("/api/entities", async (req, res) => {
         }
       },
     );
-    res.type("application/json").sendFile(file);
+    res.type("application/json").set("Cache-Control", EDGE_ENTITIES).sendFile(file);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load entities" });
@@ -188,7 +199,7 @@ app.get("/api/flows", async (req, res) => {
         }
       },
     );
-    res.type("application/json").sendFile(file);
+    res.type("application/json").set("Cache-Control", EDGE_ENTITIES).sendFile(file);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load flows" });
@@ -205,7 +216,9 @@ app.get("/api/quote", async (req, res) => {
       res.status(404).json({ quote: null });
       return;
     }
-    res.json({ ticker: ticker.toUpperCase(), ...quote });
+    res
+      .set("Cache-Control", "public, max-age=3600, s-maxage=86400")
+      .json({ ticker: ticker.toUpperCase(), ...quote });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "failed to load quote" });

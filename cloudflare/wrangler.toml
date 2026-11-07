@@ -1,0 +1,9 @@
+# Traction-demo edge cache. Deploy with `wrangler deploy` (or paste
+# worker.mjs in the dashboard) AFTER creating the new Render service, then
+# set ORIGIN to its URL. Never point this at the judged backend.
+name = "whofundsit-edge"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+
+# [vars]
+# ORIGIN = "https://whofundsit-traction.onrender.com"
