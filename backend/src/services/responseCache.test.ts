@@ -118,6 +118,20 @@ describe("cachedStream", () => {
     assert.equal(builds, 2);
   });
 
+  it("treats Infinity TTL as cache-until-restart", async () => {
+    clearResponseCache();
+    let builds = 0;
+    const file = await cachedStream("inf", Infinity, async (emit) => {
+      builds += 1;
+      await emit(builds);
+    });
+    assert.equal(await cachedStream("inf", Infinity, async () => {}), file);
+    assert.equal(fs.readFileSync(file, "utf8"), "[1]");
+    assert.equal(builds, 1);
+    assert.equal(await cachedBody("inf", Infinity, async () => 1), "1");
+    assert.equal(await cachedBody("inf", Infinity, async () => 2), "1");
+  });
+
   it("dedups concurrent first builds into one file", async () => {
     clearResponseCache();
     let builds = 0;
