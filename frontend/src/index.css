@@ -67,8 +67,9 @@ body {
   width: 16rem;
 }
 
-/* Hamburger: mobile only. Desktop keeps the full bar, always visible. */
-.menu-toggle {
+/* Hamburger: mobile only. Desktop keeps the full bar, always visible.
+   Specificity beats .toggle below (equal weight, later in file). */
+.bar .menu-toggle {
   display: none;
 }
 
@@ -90,7 +91,7 @@ body {
     margin-left: 0.5rem;
     font-size: 0.8rem;
   }
-  .menu-toggle {
+  .bar .menu-toggle {
     display: inline-flex;
     margin-left: auto;
   }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { fetchQuote, fetchShares, formatMoney, primaryMetric, verificationCell, type Entity, type Flow, type Quote, type VerificationReport } from "../api";
 
 const CONCEPT_LABELS: Record<string, string> = {
@@ -342,9 +342,12 @@ export default function EntityPopup({
   // openalex: rows have no 10-K share count.
   const cik = /^\d+$/.test(entity.id.split(":")[0] ?? "") ? (entity.id.split(":")[0] as string) : null;
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteDone, setQuoteDone] = useState(false);
   const [shares, setShares] = useState<number | null>(null);
+  const [sharesDone, setSharesDone] = useState(false);
   useEffect(() => {
     setQuote(null);
+    setQuoteDone(false);
     if (!ticker) {
       return;
     }
@@ -352,6 +355,7 @@ export default function EntityPopup({
     fetchQuote(ticker).then((q) => {
       if (live) {
         setQuote(q);
+        setQuoteDone(true);
       }
     });
     return () => {
@@ -360,6 +364,7 @@ export default function EntityPopup({
   }, [ticker]);
   useEffect(() => {
     setShares(null);
+    setSharesDone(false);
     if (!cik) {
       return;
     }
@@ -367,6 +372,7 @@ export default function EntityPopup({
     fetchShares(cik).then((s) => {
       if (live) {
         setShares(s);
+        setSharesDone(true);
       }
     });
     return () => {
@@ -383,13 +389,9 @@ export default function EntityPopup({
       : overallCell && overallCell.pctVerified !== null
         ? { cell: overallCell, scope: "overall" }
         : null;
-  // Ring view switch: available whenever a market cap exists, but the
-  // popup always opens on tracked $ ("13F funding") — Real % is one
-  // click away. When tracked $ exceeds it (overlapping filings) the
-  // ring itself falls back to tracked-relative and says so — hiding
-  // the toggle made share-% look "gone" (regression in 9f2939a, which
-  // also dropped this missing-input diagnosis).
-  const canTrue = marketCap !== null && marketCap > 0;
+  // No ring-mode toggle: the % story stays parked until it is solid,
+  // so the ring is always tracked-relative. The footer under it says
+  // which input a true % would still need.
   const capNote =
     marketCap !== null
       ? null
@@ -400,12 +402,13 @@ export default function EntityPopup({
           : shares === null
             ? "True % needs a 10-K share count — none on file for this CIK."
             : "True % needs shares + price — quote fetch failed.";
-  const [ringTrue, setRingTrue] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   // New company, new card: the MapLibre scroll node survives across
-  // popups, so reset it — otherwise B opens with A's scroll position.
-  useEffect(() => {
+  // popups, so pin it synchronously before paint — a post-paint reset
+  // flashes, and the quote/shares lines below land late at the top and
+  // drag the view down behind a post-paint reset.
+  useLayoutEffect(() => {
     const scroller = rootRef.current?.closest(
       ".maplibregl-popup-content",
     ) as HTMLElement | null;
@@ -433,34 +436,22 @@ export default function EntityPopup({
           {new Intl.NumberFormat("en-US", { notation: "compact" }).format(shares)}
         </p>
       )}
+      {/* Skeletons reserve the late lines' height so their arrival
+          shifts nothing above the viewport (no scroll drag). */}
+      {ticker && !quoteDone && <p className="entity-value">Today: …</p>}
+      {cik && !sharesDone && (
+        <p className="entity-value">Outstanding shares: …</p>
+      )}
       {secondary.map((s) => (
         <p key={s.id} className="entity-value sibling">
           {CONCEPT_LABELS[s.conceptTag ?? ""] ?? s.conceptTag}:{" "}
           {formatMoney(s.fundsVolume, s.currency)}
         </p>
       ))}
-      {canTrue && (
-        <div className="ring-toggle" role="group" aria-label="Ownership ring mode">
-          <button
-            type="button"
-            className={ringTrue ? "" : "active"}
-            onClick={() => setRingTrue(false)}
-          >
-            13F funding
-          </button>
-          <button
-            type="button"
-            className={ringTrue ? "active" : ""}
-            onClick={() => setRingTrue(true)}
-          >
-            Real %
-          </button>
-        </div>
-      )}
       <StakesRing
         stakes={stakes}
         entities={entities}
-        marketCap={ringTrue ? marketCap : null}
+        marketCap={marketCap}
         capNote={capNote}
       />
       {hasFlows && (
