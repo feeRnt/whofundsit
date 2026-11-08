@@ -1095,8 +1095,15 @@ export default function MapGlobe({
       </div>
     </Map>
     {!mapReady && !mapError && (
-      <div className="map-loading" aria-label="Loading map">
+      <div className="map-loading map-loading-disclaimer" aria-label="Loading map">
         <div className="spinner" />
+        <p className="loading-disclaimer-title">Something off?</p>
+        <p>
+          Note: This is a work-in-progress project and the information you
+          see may not be accurate. Used for Educational and
+          Entertainment Purposes only. Not a substitute for real
+          financial documents and data.
+        </p>
       </div>
     )}
     {showHint && <ZoomHint onGone={hideHint} />}

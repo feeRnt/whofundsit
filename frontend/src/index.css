@@ -324,6 +324,22 @@ body {
   animation: spin 0.9s linear infinite;
 }
 
+/* Same disclaimer text as the fetch phase, stacked under the spinner. */
+.map-loading-disclaimer {
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.map-loading-disclaimer p {
+  margin: 0;
+  max-width: 520px;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .spinner {
   width: 44px;
   height: 44px;
