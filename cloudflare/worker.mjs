@@ -24,28 +24,19 @@ export default {
     if (req.method !== "GET" || !cacheable) {
       return fetch(new Request(origin, req));
     }
-    // Refresh-proofing: browsers send revalidation directives on reload
-    // (Cache-Control: max-age=0, If-None-Match...), which make Cloudflare
-    // bypass the edge and report DYNAMIC forever. This API is fully public
-    // (no cookies/auth/personalization), so strip those directives: a
-    // refresh becomes indistinguishable from a fresh GET and hits the edge.
-    // Everything else (Accept-Encoding for gzip variants, etc.) passes
-    // through untouched.
-    const fwd = new Headers(req.headers);
-    fwd.delete("cache-control");
-    fwd.delete("pragma");
-    fwd.delete("if-none-match");
-    fwd.delete("if-modified-since");
-    fwd.delete("if-range");
+    // Standard shape: clean cache key, original request forwarded so the
+    // origin sees validators and can answer 304. Refreshes may report
+    // DYNAMIC while revalidating — that label is fine; bytes are the
+    // metric that matters, and revalidations move almost none.
     const cache = caches.default;
-    const key = new Request(origin, { method: "GET", headers: fwd });
+    const key = new Request(origin, { method: "GET" });
     const hit = await cache.match(key);
     const tag = `${url.pathname}${url.search}`;
     if (hit) {
       console.log(`[edge] HIT ${tag}`);
       return hit;
     }
-    const res = await fetch(key);
+    const res = await fetch(new Request(origin, req));
     if (!res.ok) {
       console.error(`[edge] MISS ${tag} -> origin ${res.status}`);
       return res;
