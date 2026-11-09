@@ -2,7 +2,7 @@
 
 ## **Live demo: [whofundsit.netlify.app](https://whofundsit.netlify.app)**
 
-Many people might want to know when making a purchase, buying a subscription, or reading a medical study, what the primary incentives are behind the service or who are its prime beneficiaries. The best way to understand this information is to see what funding is behind any company, organization or even an educational institution. For journalists and researchers, this data hides behind [WORD] entries and filings, that take weeks or months to process visually. 
+Many people might want to know when making a purchase, buying a subscription, or reading a medical study, what the primary incentives are behind the service or who are its prime beneficiaries. The best way to understand this information is to see what funding is behind any company, organization or even an educational institution. For journalists and researchers, this data hides behind convoluted entries and filings, that take weeks or months to process visually. 
 
 That's why I made WhoFundsIt, an interactive webapp with a global corporate financing map that showcases the flow and source of money, with bigger graphical representation to places with more funds, e.g., BlackRock. Using data from various APIs and databases, stocks, equity, debt and assets are displayed for each company on the map, and relational connections are drawn between disparate companies and holdings agents. 
 Business addresses are geocoded to latitude and longitude using OpenStreetMap's Nominatim API, giving an accurate represenation of where the money flows, and from whom.
@@ -28,6 +28,10 @@ An Open-Weight LLM, Muse Glimmer 30B for now - is used for processing hard-to-tr
   Docker Desktop (the native commands below are Unix-only).
 
 ### Demo quickstart (~5 minutes, all three OSes)
+
+[Please note: only the docker run with sudo, and postgresql run in usermode was
+tested on a Linux machine. The rest of the commands are not hand-tested and AI
+generated.]
 
 1. Clone the repo (shallow, to save on space).   
 On Windows `cmd.exe` run the npm lines one at a time, it has no `\` continuation.  <br><br>
