@@ -342,6 +342,7 @@ export default function App() {
   // Mobile (<720px CSS): the bar's controls hide behind a hamburger.
   // Desktop is untouched — the toggle hides itself up there.
   const [navOpen, setNavOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Any click outside the menus collapses the open dropdown (map, search,
   // sliders, popups). Clicks inside a menu toggle normally.
@@ -643,9 +644,46 @@ export default function App() {
             />
           </label>
         </div>
+        <button
+          type="button"
+          className="toggle about-menu-btn"
+          onClick={() => {
+            setAboutOpen(true);
+            setNavOpen(false);
+          }}
+        >
+          About
+        </button>
         </div>
       </header>
-      <main className="map">{!loading && !error && (
+      <main className="map">
+        <button
+          type="button"
+          className="toggle about-fab"
+          aria-expanded={aboutOpen}
+          onClick={() => setAboutOpen((v) => !v)}
+        >
+          About
+        </button>
+        {aboutOpen && (
+          <div className="about-card" role="dialog" aria-label="About WhoFundsIt">
+            <p className="about-card-title">WhoFundsIt</p>
+            <p>
+              <a href="https://github.com/feeRnt/whofundsit" target="_blank" rel="noreferrer">
+                GitHub: feeRnt/whofundsit
+              </a>
+            </p>
+            <p>Made with ♥ by M-Monim</p>
+            <button
+              type="button"
+              className="toggle"
+              onClick={() => setAboutOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+        )}
+        {!loading && !error && (
           <MapErrorBoundary>
             <MapGlobe entities={shownEntities} allEntities={entities} flows={visibleFlows} allFlows={flows} verification={verification} projection={projection} focused={focused} focusTick={focusTick} flowEndpoints={flowEndpoints} funderIds={funderIds} companyFlowsHidden={companyFlowsHidden} onToggleCompanyFlows={toggleCompanyFlows} focusCompanyId={focusCompany} onToggleFocusCompany={toggleFocusCompany} onOpenPopup={() => setOpenMenu(null)} onToggleProjection={() => setProjection((p) => (p === "globe" ? "mercator" : "globe"))} basemap={basemap} onToggleBasemap={() => setBasemap((b) => (b === "dark" ? "light" : "dark"))} />
           </MapErrorBoundary>
