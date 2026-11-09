@@ -6,6 +6,9 @@ import MapErrorBoundary from "./components/MapErrorBoundary";
 import SearchBox from "./components/SearchBox";
 import FlowsDropdown, { type FunderInfo } from "./components/FlowsDropdown";
 import { fetchEntities, fetchFlows, type Entity, type Flow } from "./api";
+// VERIFICATION (disabled: /api/verification 404s on this deploy and spams
+// the logs — restore this import and the two blocks below to re-enable):
+// import { fetchVerification, type VerificationReport } from "./api";
 
 // Entity-source groups for the flashcard cycler + per-database toggles.
 // ESEF enriches `global` rows in place, so it shares that group.
@@ -32,8 +35,8 @@ const PREVIEW_LIMIT = 2000;
 export default function App() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
-  // Verification fetch disabled: /api/verification 404s on this deploy and
-  // spams the logs. Restore fetchVerification + this state to re-enable.
+  // VERIFICATION (disabled — uncomment to re-enable):
+  // const [verification, setVerification] = useState<VerificationReport | null>(null);
   const verification = null;
   const [focused, setFocused] = useState<Entity | null>(null);
   // Bumped on every search pick so re-picking the same company re-flies.
@@ -437,6 +440,11 @@ export default function App() {
 
   useEffect(() => {
     let live = true;
+
+    // VERIFICATION (disabled — uncomment to re-enable):
+    // fetchVerification().then((v) => {
+    //   if (live) setVerification(v);
+    // });
 
     // Phase 1: preview rows for a fast first paint. Phase 2: the full
     // tables replace them, then controls unlock.
