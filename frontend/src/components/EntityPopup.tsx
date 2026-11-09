@@ -404,17 +404,47 @@ export default function EntityPopup({
             : "True % needs shares + price — quote fetch failed.";
   const [showAudit, setShowAudit] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  // New company, new card: the MapLibre scroll node survives across
-  // popups, so pin it synchronously before paint — a post-paint reset
-  // flashes, and the quote/shares lines below land late at the top and
-  // drag the view down behind a post-paint reset.
-  useLayoutEffect(() => {
+  const userScrolled = useRef(false);
+  const pinTop = () => {
     const scroller = rootRef.current?.closest(
       ".maplibregl-popup-content",
     ) as HTMLElement | null;
     if (scroller) {
       scroller.scrollTop = 0;
     }
+    return scroller;
+  };
+  // New company, new card: the MapLibre scroll node survives across
+  // popups, so pin it synchronously before paint. The quote/shares lines
+  // land late at the top and drag the view down behind the pin (Firefox
+  // ignores the anchor opt-out), so re-pin as each settles — unless the
+  // user already scrolled, in which case hands off.
+  useLayoutEffect(() => {
+    userScrolled.current = false;
+    const scroller = pinTop();
+    if (scroller) {
+      scroller.onscroll = () => {
+        userScrolled.current = true;
+      };
+    }
+    return () => {
+      if (scroller) {
+        scroller.onscroll = null;
+      }
+    };
+  }, [entity.id]);
+  useEffect(() => {
+    if (!userScrolled.current) {
+      pinTop();
+    }
+  }, [quoteDone, sharesDone]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!userScrolled.current) {
+        pinTop();
+      }
+    }, 2000);
+    return () => clearTimeout(t);
   }, [entity.id]);
   return (
     <div className="entity-popup" ref={rootRef}>
