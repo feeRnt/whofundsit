@@ -200,5 +200,4 @@ Please check the licenses/copyright and a detailed usage of the presented data i
 ## AI use notice:
 This project was made with the help of Muse Code \[95% of codebase\], using Muse-Spark-1.3-Contributor (bulk load of the code, fixes, and real time changes), Muse-Wonder-1.0 (initial architectural planning, implementation and design; cleanups), during the 2026 Meta AI Developer Hackathon running from Oct 26 to November 4.
 
-The code optionally uses the Muse-Glimmer-30B model to formalize broken addresses, and to generate a human-friendly action report on the validity of the displayed data.  
-(TODO: please fix its bugs and get it working ASAP)
+The code optionally uses the Muse-Glimmer-30B model to formalize broken addresses, and to generate a human-friendly action report on the validity of the displayed data. (Work-in-progress)
