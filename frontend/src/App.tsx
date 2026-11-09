@@ -499,7 +499,7 @@ export default function App() {
             : error
               ? `API error: ${error} (is the backend running?)`
               : fullError
-                ? `Full dataset failed (${fullError}) — showing preview`
+                ? `Full dataset failed (${fullError}). Showing preview - Please refresh the page.`
                 : !fullLoaded
                   ? (<><span className="mini-spinner" aria-hidden="true" />Loading full dataset…</>)
                   : `${shownEntities.length} entities · ${visibleFlows.length}/${flows.length} flows`}
