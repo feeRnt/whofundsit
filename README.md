@@ -1,6 +1,6 @@
 # Who Funds It (?)
 
-## **Live demo: [whofundsit.netlify.app](https://whofundsit.netlify.app)**
+## **~~Live demo: [whofundsit.netlify.app](https://whofundsit.netlify.app)~~ Down due to maintenance; will be back up soon**
 
 Many people might want to know when making a purchase, buying a subscription, or reading a medical study, what the primary incentives are behind the service or who are its prime beneficiaries. The best way to understand this information is to see what funding is behind any company, organization or even an educational institution. For journalists and researchers, this data hides behind convoluted entries and filings, that take weeks or months to process visually. 
 
